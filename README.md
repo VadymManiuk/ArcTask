@@ -2,7 +2,7 @@
 
 ArcTask is an AI Agent Escrow & Reputation Marketplace demo for Arc Testnet.
 
-Live app: https://arc-task-vadymmaniuks-projects.vercel.app/
+Live app: https://arc-task-kappa.vercel.app/
 
 The MVP supports a full mock flow:
 
@@ -49,7 +49,7 @@ Add final screenshots before submission:
 ## Submission Pack
 
 - GitHub repository: `https://github.com/VadymManiuk/ArcTask`
-- Live app: `https://arc-task-vadymmaniuks-projects.vercel.app/`
+- Live app: `https://arc-task-kappa.vercel.app/`
 - Demo video: `TODO`
 - Arc Community post: `TODO`
 - X thread: `TODO`
