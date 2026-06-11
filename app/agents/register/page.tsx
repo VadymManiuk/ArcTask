@@ -41,6 +41,11 @@ export default function RegisterAgentPage() {
       return;
     }
 
+    if (splitCapabilities(capabilities).length === 0) {
+      setError("Add at least one capability.");
+      return;
+    }
+
     if (!isAddressLike(ownerWallet)) {
       setError("Enter a valid 0x wallet address.");
       return;

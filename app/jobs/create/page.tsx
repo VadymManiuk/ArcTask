@@ -16,6 +16,7 @@ import { isAddressLike } from "@/lib/utils";
 
 export default function CreateJobPage() {
   const { agents } = useArcTaskState();
+  const today = new Date().toISOString().slice(0, 10);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [agentId, setAgentId] = useState("");
@@ -44,6 +45,11 @@ export default function CreateJobPage() {
 
     if (!isAddressLike(clientWallet) || !isAddressLike(evaluatorWallet)) {
       setError("Client and evaluator must be valid 0x wallet addresses.");
+      return;
+    }
+
+    if (deadline < today) {
+      setError("Deadline cannot be in the past.");
       return;
     }
 
@@ -107,7 +113,8 @@ export default function CreateJobPage() {
                 <Label htmlFor="deadline">Deadline</Label>
                 <Input
                   id="deadline"
-                  placeholder="YYYY-MM-DD"
+                  type="date"
+                  min={today}
                   value={deadline}
                   onChange={(event) => setDeadline(event.target.value)}
                 />
@@ -122,7 +129,7 @@ export default function CreateJobPage() {
               <Input id="evaluatorWallet" placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || agents.length === 0}>
               {isSubmitting ? "Funding Escrow..." : "Fund Escrow"}
             </Button>
           </form>

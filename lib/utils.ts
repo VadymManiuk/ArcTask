@@ -24,6 +24,15 @@ export function isAddressLike(value: string): value is `0x${string}` {
   return /^0x[a-fA-F0-9]{40}$/.test(value.trim());
 }
 
+export function normalizeAddress(value: string): `0x${string}` {
+  const normalized = value.trim();
+  if (!isAddressLike(normalized)) {
+    throw new Error("Invalid 0x wallet address.");
+  }
+
+  return normalized;
+}
+
 export function splitCapabilities(value: string) {
   return value
     .split(",")

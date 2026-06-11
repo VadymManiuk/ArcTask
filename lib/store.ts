@@ -4,6 +4,7 @@ import { keccak256, stringToHex } from "viem";
 import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, TxRecord } from "@/lib/types";
+import { normalizeAddress } from "@/lib/utils";
 
 const STORAGE_KEY = "arctask.mock.v1";
 let cachedState: ArcTaskState | null = null;
@@ -28,25 +29,49 @@ function createTx(
   };
 }
 
+function cloneState(state: ArcTaskState): ArcTaskState {
+  return JSON.parse(JSON.stringify(state)) as ArcTaskState;
+}
+
+function isStateLike(value: unknown): value is ArcTaskState {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<ArcTaskState>;
+  return Array.isArray(candidate.agents) && Array.isArray(candidate.jobs);
+}
+
+function getFreshSeedState() {
+  return cloneState(seedState);
+}
+
 function readState(): ArcTaskState {
   if (typeof window === "undefined") {
-    return seedState;
+    return getFreshSeedState();
   }
 
   const saved = window.localStorage.getItem(STORAGE_KEY);
   if (!saved) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seedState));
-    cachedState = seedState;
-    return seedState;
+    const freshState = getFreshSeedState();
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
+    cachedState = freshState;
+    return freshState;
   }
 
   try {
-    cachedState = JSON.parse(saved) as ArcTaskState;
-    return cachedState;
+    const parsed = JSON.parse(saved);
+    if (!isStateLike(parsed)) {
+      throw new Error("Invalid ArcTask local state.");
+    }
+
+    cachedState = parsed;
+    return parsed;
   } catch {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seedState));
-    cachedState = seedState;
-    return seedState;
+    const freshState = getFreshSeedState();
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
+    cachedState = freshState;
+    return freshState;
   }
 }
 
@@ -58,15 +83,16 @@ function writeState(state: ArcTaskState) {
 
 export function getState() {
   if (typeof window === "undefined") {
-    return seedState;
+    return getFreshSeedState();
   }
 
   return cachedState ?? readState();
 }
 
 export function resetMockState() {
-  cachedState = seedState;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seedState));
+  const freshState = getFreshSeedState();
+  cachedState = freshState;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
   window.dispatchEvent(new Event("arctask:state"));
 }
 
@@ -93,20 +119,31 @@ export function registerAgent(input: {
   metadataUri: string;
 }) {
   const state = readState();
+  const ownerWallet = normalizeAddress(input.ownerWallet);
+  const capabilities = input.capabilities.map((capability) => capability.trim()).filter(Boolean);
+
+  if (!input.name.trim() || !input.description.trim()) {
+    throw new Error("Name and description are required.");
+  }
+
+  if (capabilities.length === 0) {
+    throw new Error("Add at least one agent capability.");
+  }
+
   // TODO(onchain ERC-8004): replace this mock write with registry.write.registerAgent(owner, metadataURI).
   const tx = createTx("AGENT_REGISTERED", "ERC-8004 style agent identity registered", {
-    actor: input.ownerWallet,
+    actor: ownerWallet,
     contractLabel: "ERC-8004 Registry",
     method: "registerAgent(address,string)",
     summary: `${input.name} identity metadata anchored for reputation discovery.`
   });
   const agent: Agent = {
     id: createId("agent"),
-    name: input.name,
-    description: input.description,
-    capabilities: input.capabilities,
-    ownerWallet: input.ownerWallet,
-    metadataUri: input.metadataUri,
+    name: input.name.trim(),
+    description: input.description.trim(),
+    capabilities,
+    ownerWallet,
+    metadataUri: input.metadataUri.trim(),
     reputation: 50,
     completedJobs: 0,
     rejectedJobs: 0,
@@ -133,22 +170,44 @@ export function createJob(input: {
   deadline: string;
 }) {
   const state = readState();
+  const agent = state.agents.find((item) => item.id === input.agentId);
+  const clientWallet = normalizeAddress(input.clientWallet);
+  const evaluatorWallet = normalizeAddress(input.evaluatorWallet);
+  const rewardAmount = Number(input.rewardAmount);
+  const deadlineDate = Date.parse(`${input.deadline}T00:00:00Z`);
+
+  if (!input.title.trim() || !input.description.trim()) {
+    throw new Error("Title and description are required.");
+  }
+
+  if (!agent) {
+    throw new Error("Selected agent does not exist.");
+  }
+
+  if (!Number.isFinite(rewardAmount) || rewardAmount <= 0) {
+    throw new Error("Reward must be greater than zero.");
+  }
+
+  if (!Number.isFinite(deadlineDate)) {
+    throw new Error("Deadline must be a valid date.");
+  }
+
   // TODO(onchain ERC-8183): replace this mock write with escrow.createJob plus USDC allowance handling.
   const tx = createTx("JOB_FUNDED", "ERC-8183 style escrow funded with testnet USDC", {
-    actor: input.clientWallet,
+    actor: clientWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "createJob(uint256,uint256,uint64,address)",
-    summary: `${input.rewardAmount} USDC locked for evaluator-controlled settlement.`
+    summary: `${rewardAmount} USDC locked for evaluator-controlled settlement.`
   });
   const now = new Date().toISOString();
   const job: Job = {
     id: createId("job"),
-    title: input.title,
-    description: input.description,
-    agentId: input.agentId,
-    clientWallet: input.clientWallet,
-    evaluatorWallet: input.evaluatorWallet,
-    rewardAmount: input.rewardAmount,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    agentId: agent.id,
+    clientWallet,
+    evaluatorWallet,
+    rewardAmount,
     deadline: input.deadline,
     status: "FUNDED",
     createdAt: now,
@@ -171,10 +230,20 @@ export function submitDeliverable(jobId: string, deliverableContent: string) {
     throw new Error("Only funded jobs can receive a deliverable.");
   }
 
-  const deliverableHash = keccak256(stringToHex(deliverableContent));
+  const agent = state.agents.find((item) => item.id === job.agentId);
+  if (!agent) {
+    throw new Error("Job agent does not exist.");
+  }
+
+  const deliverable = deliverableContent.trim();
+  if (!deliverable) {
+    throw new Error("Deliverable content is required.");
+  }
+
+  const deliverableHash = keccak256(stringToHex(deliverable));
   // TODO(onchain ERC-8183): replace this mock write with escrow.submitDeliverable(jobId, deliverableHash).
   const tx = createTx("DELIVERABLE_SUBMITTED", "Deliverable hash submitted", {
-    actor: job.clientWallet,
+    actor: agent.ownerWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "submitDeliverable(uint256,bytes32)",
     summary: `Keccak deliverable hash ${deliverableHash.slice(0, 10)}... recorded for evaluator review.`
@@ -184,7 +253,7 @@ export function submitDeliverable(jobId: string, deliverableContent: string) {
       ? {
           ...job,
           status: "SUBMITTED" as JobStatus,
-          deliverableContent,
+          deliverableContent: deliverable,
           deliverableHash,
           updatedAt: new Date().toISOString(),
           txHistory: [tx, ...job.txHistory]
@@ -192,7 +261,16 @@ export function submitDeliverable(jobId: string, deliverableContent: string) {
       : job
   );
 
-  writeState({ ...state, jobs: updatedJobs });
+  const updatedAgents = state.agents.map((item) =>
+    item.id === agent.id
+      ? {
+          ...item,
+          txHistory: [tx, ...item.txHistory]
+        }
+      : item
+  );
+
+  writeState({ agents: updatedAgents, jobs: updatedJobs });
   return { tx, deliverableHash };
 }
 
@@ -313,7 +391,9 @@ export function getMetrics(state: ArcTaskState): DashboardMetrics {
   return {
     totalAgents: state.agents.length,
     totalJobs: state.jobs.length,
-    totalEscrowed: state.jobs.reduce((sum, job) => sum + job.rewardAmount, 0),
+    totalEscrowed: state.jobs
+      .filter((job) => job.status === "FUNDED" || job.status === "SUBMITTED")
+      .reduce((sum, job) => sum + job.rewardAmount, 0),
     totalCompletedJobs: state.jobs.filter((job) => job.status === "ACCEPTED").length,
     totalReputationEvents: state.agents.reduce(
       (sum, agent) => sum + agent.completedJobs + agent.rejectedJobs,

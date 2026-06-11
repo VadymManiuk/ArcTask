@@ -9,7 +9,7 @@ import { useArcTaskState } from "@/lib/use-arctask-state";
 import type { JobStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const filters: Array<"ALL" | JobStatus> = ["ALL", "FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED"];
+const filters: Array<"ALL" | JobStatus> = ["ALL", "FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 
 export default function JobsPage() {
   const { agents, jobs } = useArcTaskState();
@@ -57,6 +57,11 @@ export default function JobsPage() {
           <JobCard key={job.id} job={job} agent={agents.find((agent) => agent.id === job.agentId)} />
         ))}
       </div>
+      {filteredJobs.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border bg-white p-6 text-sm text-muted-foreground">
+          No jobs match this status yet.
+        </div>
+      ) : null}
     </section>
   );
 }

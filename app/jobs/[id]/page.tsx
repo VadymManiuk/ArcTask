@@ -40,13 +40,14 @@ export default function JobDetailsPage() {
 
   const jobId = job.id;
 
-  function handleAction(actionName: string, action: () => void, success: string) {
+  function handleAction(actionName: string, action: () => void, success: string, onSuccess?: () => void) {
     setError("");
     setMessage("");
     setBusyAction(actionName);
     window.setTimeout(() => {
       try {
         action();
+        onSuccess?.();
         setMessage(success);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Action failed.");
@@ -58,13 +59,21 @@ export default function JobDetailsPage() {
 
   function onSubmitDeliverable(event: FormEvent) {
     event.preventDefault();
+    if (busyAction) {
+      return;
+    }
+
     if (!deliverable.trim()) {
       setError("Deliverable content is required.");
       return;
     }
 
-    handleAction("submit", () => submitDeliverable(jobId, deliverable.trim()), "Deliverable hash submitted.");
-    setDeliverable("");
+    handleAction(
+      "submit",
+      () => submitDeliverable(jobId, deliverable.trim()),
+      "Deliverable hash submitted.",
+      () => setDeliverable("")
+    );
   }
 
   const canSubmit = job.status === "FUNDED";
