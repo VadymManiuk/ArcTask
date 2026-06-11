@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bot, BriefcaseBusiness, Gauge, Home, PlusCircle, RotateCcw, UserRoundPlus } from "lucide-react";
+import { TestnetStatus } from "@/components/testnet-status";
 import { WalletConnect } from "@/components/wallet-connect";
 import { Button } from "@/components/ui/button";
 import { resetMockState } from "@/lib/store";
@@ -56,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-2">
+            <TestnetStatus />
             <Button type="button" variant="ghost" onClick={resetDemo} className="hidden h-9 px-3 sm:inline-flex">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               Reset Demo

@@ -26,6 +26,7 @@ The MVP supports a full mock flow:
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
@@ -44,7 +45,24 @@ Add final screenshots before submission:
 
 `NEXT_PUBLIC_ARC_MODE=mock` runs without contracts, API keys, or wallets. Data is stored in `localStorage`.
 
-`NEXT_PUBLIC_ARC_MODE=onchain` is intentionally scaffolded but not wired to production contracts. Add real Arc Testnet contract addresses to `.env.local`, replace placeholder ABIs in `lib/contracts/abis`, and implement the TODOs in `lib/web3.ts`.
+`NEXT_PUBLIC_ARC_MODE=onchain` should be enabled only after Arc Testnet contracts are deployed and `.env.local` has valid contract addresses. The app header shows whether onchain config is ready.
+
+Required onchain environment variables:
+
+- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS`
+- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS`
+- `NEXT_PUBLIC_USDC_ADDRESS`
+
+## Testnet Transition
+
+Recommended order:
+
+1. Deploy the ERC-8004-style registry and ERC-8183-style escrow contracts to Arc Testnet.
+2. Update `.env.local` with the three deployed addresses.
+3. Set `NEXT_PUBLIC_ARC_MODE=onchain`.
+4. Verify wallet connect switches to Arc Testnet.
+5. Replace the mock writes in `lib/store.ts` with wagmi/viem writes using the ABIs in `lib/contracts/abis`.
+6. Run the vertical slice first: register agent, create funded job, submit deliverable hash, accept work.
 
 ## Submission Pack
 

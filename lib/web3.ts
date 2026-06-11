@@ -2,6 +2,7 @@ import { http, createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
+export { contractAddresses, getArcMode, getOnchainReadiness } from "@/lib/arc-config";
 
 export const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,
@@ -25,16 +26,10 @@ export const wagmiConfig = createConfig({
   chains: [arcTestnet],
   connectors: [injected()],
   transports: {
-    [arcTestnet.id]: http()
+    [arcTestnet.id]: http(ARC_TESTNET.rpcUrl)
   },
   ssr: true
 });
-
-export const contractAddresses = {
-  erc8004Registry: process.env.NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS,
-  erc8183Escrow: process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS,
-  usdc: process.env.NEXT_PUBLIC_USDC_ADDRESS
-};
 
 // TODO(onchain): wire registerAgent to ERC-8004 registry writes with wagmi writeContract.
 // TODO(onchain): wire createJob, submitDeliverable, acceptWork, rejectWork, and refundJob to ERC-8183 escrow writes.
