@@ -64,7 +64,12 @@ const architectureNodes = [
 ];
 
 const submissionLinks = [
-  { label: "GitHub repository", href: "#github-link-placeholder", icon: Github, value: "Add repo URL" },
+  {
+    label: "GitHub repository",
+    href: "https://github.com/VadymManiuk/ArcTask",
+    icon: Github,
+    value: "VadymManiuk/ArcTask"
+  },
   { label: "Demo video", href: "#demo-video-placeholder", icon: Video, value: "Add Loom or YouTube" },
   { label: "Arc Community post", href: "#arc-community-placeholder", icon: MessageSquareText, value: "Add forum post" },
   { label: "X thread", href: "#x-thread-placeholder", icon: ExternalLink, value: "Add launch thread" }

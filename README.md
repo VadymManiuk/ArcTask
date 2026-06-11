@@ -46,7 +46,7 @@ Add final screenshots before submission:
 
 ## Submission Pack
 
-- GitHub repository: `TODO`
+- GitHub repository: `https://github.com/VadymManiuk/ArcTask`
 - Demo video: `TODO`
 - Arc Community post: `TODO`
 - X thread: `TODO`
