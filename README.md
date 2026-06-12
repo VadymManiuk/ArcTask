@@ -13,6 +13,14 @@ The MVP supports a full mock flow:
 - update agent reputation
 - display Arcscan-style transaction links
 
+Arc Testnet onchain mode is also wired for the core vertical slice:
+
+- register agent identity
+- create native-USDC funded job
+- submit deliverable hash
+- accept, reject, or refund escrow
+- display real Arcscan transaction links
+
 ## Stack
 
 - Next.js App Router
@@ -61,8 +69,7 @@ Recommended order:
 2. Update `.env.local` with the three deployed addresses.
 3. Set `NEXT_PUBLIC_ARC_MODE=onchain`.
 4. Verify wallet connect switches to Arc Testnet.
-5. Replace the mock writes in `lib/store.ts` with wagmi/viem writes using the ABIs in `lib/contracts/abis`.
-6. Run the vertical slice first: register agent, create funded job, submit deliverable hash, accept work.
+5. Run the vertical slice: register agent, create funded job, submit deliverable hash, accept work.
 
 ## Arc Testnet Contracts
 
@@ -93,6 +100,12 @@ The deploy script prints:
 - `NEXT_PUBLIC_USDC_ADDRESS=native`
 
 Add those values to `.env.local` and to Vercel Environment Variables before enabling `NEXT_PUBLIC_ARC_MODE=onchain`.
+
+Current Arc Testnet deployment:
+
+- Agent registry: `0xe69e88cb35a831fca783ac56405831478fdbaa41`
+- Escrow: `0x2b3e0b7a7d96f8199fe31b2867358990430b5181`
+- USDC mode: `native`
 
 ## Submission Pack
 

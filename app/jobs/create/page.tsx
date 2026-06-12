@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createJob } from "@/lib/store";
+import { createJobAction } from "@/lib/store";
 import type { Job, TxRecord } from "@/lib/types";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { isAddressLike } from "@/lib/utils";
@@ -28,7 +28,7 @@ export default function CreateJobPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [created, setCreated] = useState<{ job: Job; tx: TxRecord } | null>(null);
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
 
@@ -53,25 +53,23 @@ export default function CreateJobPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    window.setTimeout(() => {
-      try {
-        const result = createJob({
-          title: title.trim(),
-          description: description.trim(),
-          agentId,
-          clientWallet,
-          evaluatorWallet,
-          rewardAmount: reward,
-          deadline
-        });
-        setCreated(result);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Escrow funding failed.");
-      } finally {
-        setIsSubmitting(false);
-      }
-    }, 350);
+    try {
+      setIsSubmitting(true);
+      const result = await createJobAction({
+        title: title.trim(),
+        description: description.trim(),
+        agentId,
+        clientWallet,
+        evaluatorWallet,
+        rewardAmount: reward,
+        deadline
+      });
+      setCreated(result);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Escrow funding failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -130,7 +128,7 @@ export default function CreateJobPage() {
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting || agents.length === 0}>
-              {isSubmitting ? "Funding Escrow..." : "Fund Escrow"}
+              {isSubmitting ? "Confirm in wallet..." : "Fund Escrow"}
             </Button>
           </form>
         </CardContent>

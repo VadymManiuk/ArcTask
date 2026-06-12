@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { registerAgent } from "@/lib/store";
+import { registerAgentAction } from "@/lib/store";
 import type { Agent, TxRecord } from "@/lib/types";
 import { isAddressLike, splitCapabilities } from "@/lib/utils";
 
@@ -32,7 +32,7 @@ export default function RegisterAgentPage() {
     [capabilities, description, name, ownerWallet]
   );
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
 
@@ -51,23 +51,21 @@ export default function RegisterAgentPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    window.setTimeout(() => {
-      try {
-        const result = registerAgent({
-          name: name.trim(),
-          description: description.trim(),
-          capabilities: splitCapabilities(capabilities),
-          ownerWallet,
-          metadataUri: metadataUri.trim() || `mock://metadata/${encodeURIComponent(name.trim())}`
-        });
-        setCreated(result);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Agent registration failed.");
-      } finally {
-        setIsSubmitting(false);
-      }
-    }, 350);
+    try {
+      setIsSubmitting(true);
+      const result = await registerAgentAction({
+        name: name.trim(),
+        description: description.trim(),
+        capabilities: splitCapabilities(capabilities),
+        ownerWallet,
+        metadataUri: metadataUri.trim() || `mock://metadata/${encodeURIComponent(name.trim())}`
+      });
+      setCreated(result);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Agent registration failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -103,7 +101,7 @@ export default function RegisterAgentPage() {
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Registering..." : "Register Agent"}
+              {isSubmitting ? "Confirm in wallet..." : "Register Agent"}
             </Button>
           </form>
         </CardContent>

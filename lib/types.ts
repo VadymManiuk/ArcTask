@@ -27,6 +27,7 @@ export interface TxRecord {
 
 export interface Agent {
   id: string;
+  onchainAgentId?: string;
   name: string;
   description: string;
   capabilities: string[];
@@ -42,6 +43,7 @@ export interface Agent {
 
 export interface Job {
   id: string;
+  onchainJobId?: string;
   title: string;
   description: string;
   agentId: string;

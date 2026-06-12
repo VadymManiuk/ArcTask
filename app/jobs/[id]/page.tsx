@@ -9,7 +9,7 @@ import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { acceptWork, refundJob, rejectWork, submitDeliverable } from "@/lib/store";
+import { acceptWorkAction, refundJobAction, rejectWorkAction, submitDeliverableAction } from "@/lib/store";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatAddress, formatUsdc } from "@/lib/utils";
 
@@ -40,21 +40,19 @@ export default function JobDetailsPage() {
 
   const jobId = job.id;
 
-  function handleAction(actionName: string, action: () => void, success: string, onSuccess?: () => void) {
+  async function handleAction(actionName: string, action: () => Promise<unknown>, success: string, onSuccess?: () => void) {
     setError("");
     setMessage("");
     setBusyAction(actionName);
-    window.setTimeout(() => {
-      try {
-        action();
-        onSuccess?.();
-        setMessage(success);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Action failed.");
-      } finally {
-        setBusyAction("");
-      }
-    }, 350);
+    try {
+      await action();
+      onSuccess?.();
+      setMessage(success);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Action failed.");
+    } finally {
+      setBusyAction("");
+    }
   }
 
   function onSubmitDeliverable(event: FormEvent) {
@@ -70,7 +68,7 @@ export default function JobDetailsPage() {
 
     handleAction(
       "submit",
-      () => submitDeliverable(jobId, deliverable.trim()),
+      () => submitDeliverableAction(jobId, deliverable.trim()),
       "Deliverable hash submitted.",
       () => setDeliverable("")
     );
@@ -111,6 +109,10 @@ export default function JobDetailsPage() {
                 <div>
                   <dt className="text-muted-foreground">Agent</dt>
                   <dd className="font-semibold">{agent?.name ?? "Unknown agent"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Onchain job ID</dt>
+                  <dd className="font-semibold">{job.onchainJobId ?? "Mock only"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Client</dt>
@@ -154,15 +156,15 @@ export default function JobDetailsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-3">
-                <Button disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("accept", () => acceptWork(jobId), "Work accepted and escrow settled.")}>
+                <Button disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("accept", () => acceptWorkAction(jobId), "Work accepted and escrow settled.")}>
                   <Check className="h-4 w-4" aria-hidden="true" />
                   {busyAction === "accept" ? "Settling..." : "Accept Work"}
                 </Button>
-                <Button variant="danger" disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("reject", () => rejectWork(jobId), "Work rejected and reputation updated.")}>
+                <Button variant="danger" disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("reject", () => rejectWorkAction(jobId), "Work rejected and reputation updated.")}>
                   <X className="h-4 w-4" aria-hidden="true" />
                   {busyAction === "reject" ? "Rejecting..." : "Reject Work"}
                 </Button>
-                <Button variant="outline" disabled={!canRefund || Boolean(busyAction)} onClick={() => handleAction("refund", () => refundJob(jobId), "Escrow refunded to client.")}>
+                <Button variant="outline" disabled={!canRefund || Boolean(busyAction)} onClick={() => handleAction("refund", () => refundJobAction(jobId), "Escrow refunded to client.")}>
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   {busyAction === "refund" ? "Refunding..." : "Refund"}
                 </Button>

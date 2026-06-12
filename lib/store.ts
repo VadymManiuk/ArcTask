@@ -2,6 +2,7 @@
 
 import { keccak256, stringToHex } from "viem";
 import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
+import { getArcMode } from "@/lib/arc-config";
 import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, TxRecord } from "@/lib/types";
 import { normalizeAddress } from "@/lib/utils";
@@ -25,6 +26,33 @@ function createTx(
     createdAt: new Date().toISOString(),
     blockNumber: 5_042_002 + Math.floor(Math.random() * 85_000),
     gasUsed: `${(18_000 + Math.floor(Math.random() * 52_000)).toLocaleString()} gas`,
+    ...details
+  };
+}
+
+type OnchainTx = Pick<TxRecord, "txHash" | "blockNumber"> & {
+  gasUsed?: string;
+};
+
+function createRecordedTx(
+  action: TxRecord["action"],
+  label: string,
+  details: Pick<TxRecord, "contractLabel" | "method" | "actor" | "summary"> = {},
+  onchainTx?: OnchainTx
+): TxRecord {
+  if (!onchainTx) {
+    return createTx(action, label, details);
+  }
+
+  return {
+    id: createId("tx"),
+    action,
+    label,
+    txHash: onchainTx.txHash,
+    arcscanUrl: getArcscanTxUrl(onchainTx.txHash),
+    createdAt: new Date().toISOString(),
+    blockNumber: onchainTx.blockNumber,
+    gasUsed: onchainTx.gasUsed ? `${Number(onchainTx.gasUsed).toLocaleString()} gas` : undefined,
     ...details
   };
 }
@@ -117,7 +145,7 @@ export function registerAgent(input: {
   capabilities: string[];
   ownerWallet: Address;
   metadataUri: string;
-}) {
+}, onchain?: { onchainAgentId?: string; tx?: OnchainTx }) {
   const state = readState();
   const ownerWallet = normalizeAddress(input.ownerWallet);
   const capabilities = input.capabilities.map((capability) => capability.trim()).filter(Boolean);
@@ -130,15 +158,15 @@ export function registerAgent(input: {
     throw new Error("Add at least one agent capability.");
   }
 
-  // TODO(onchain ERC-8004): replace this mock write with registry.write.registerAgent(owner, metadataURI).
-  const tx = createTx("AGENT_REGISTERED", "ERC-8004 style agent identity registered", {
+  const tx = createRecordedTx("AGENT_REGISTERED", "ERC-8004 style agent identity registered", {
     actor: ownerWallet,
     contractLabel: "ERC-8004 Registry",
     method: "registerAgent(address,string)",
     summary: `${input.name} identity metadata anchored for reputation discovery.`
-  });
+  }, onchain?.tx);
   const agent: Agent = {
     id: createId("agent"),
+    onchainAgentId: onchain?.onchainAgentId,
     name: input.name.trim(),
     description: input.description.trim(),
     capabilities,
@@ -168,7 +196,7 @@ export function createJob(input: {
   evaluatorWallet: Address;
   rewardAmount: number;
   deadline: string;
-}) {
+}, onchain?: { onchainJobId?: string; tx?: OnchainTx }) {
   const state = readState();
   const agent = state.agents.find((item) => item.id === input.agentId);
   const clientWallet = normalizeAddress(input.clientWallet);
@@ -192,16 +220,16 @@ export function createJob(input: {
     throw new Error("Deadline must be a valid date.");
   }
 
-  // TODO(onchain ERC-8183): replace this mock write with escrow.createJob plus USDC allowance handling.
-  const tx = createTx("JOB_FUNDED", "ERC-8183 style escrow funded with testnet USDC", {
+  const tx = createRecordedTx("JOB_FUNDED", "ERC-8183 style escrow funded with testnet USDC", {
     actor: clientWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "createJob(uint256,uint256,uint64,address)",
     summary: `${rewardAmount} USDC locked for evaluator-controlled settlement.`
-  });
+  }, onchain?.tx);
   const now = new Date().toISOString();
   const job: Job = {
     id: createId("job"),
+    onchainJobId: onchain?.onchainJobId,
     title: input.title.trim(),
     description: input.description.trim(),
     agentId: agent.id,
@@ -223,7 +251,11 @@ export function createJob(input: {
   return { job, tx };
 }
 
-export function submitDeliverable(jobId: string, deliverableContent: string) {
+export function submitDeliverable(
+  jobId: string,
+  deliverableContent: string,
+  onchain?: { deliverableHash?: `0x${string}`; tx?: OnchainTx }
+) {
   const state = readState();
   const job = state.jobs.find((item) => item.id === jobId);
   if (!job || job.status !== "FUNDED") {
@@ -240,14 +272,13 @@ export function submitDeliverable(jobId: string, deliverableContent: string) {
     throw new Error("Deliverable content is required.");
   }
 
-  const deliverableHash = keccak256(stringToHex(deliverable));
-  // TODO(onchain ERC-8183): replace this mock write with escrow.submitDeliverable(jobId, deliverableHash).
-  const tx = createTx("DELIVERABLE_SUBMITTED", "Deliverable hash submitted", {
+  const deliverableHash = onchain?.deliverableHash ?? keccak256(stringToHex(deliverable));
+  const tx = createRecordedTx("DELIVERABLE_SUBMITTED", "Deliverable hash submitted", {
     actor: agent.ownerWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "submitDeliverable(uint256,bytes32)",
     summary: `Keccak deliverable hash ${deliverableHash.slice(0, 10)}... recorded for evaluator review.`
-  });
+  }, onchain?.tx);
   const updatedJobs = state.jobs.map((job) =>
     job.id === jobId
       ? {
@@ -274,20 +305,19 @@ export function submitDeliverable(jobId: string, deliverableContent: string) {
   return { tx, deliverableHash };
 }
 
-export function acceptWork(jobId: string) {
+export function acceptWork(jobId: string, onchain?: { tx?: OnchainTx }) {
   const state = readState();
   const job = state.jobs.find((item) => item.id === jobId);
   if (!job || job.status !== "SUBMITTED") {
     throw new Error("Only submitted jobs can be accepted.");
   }
 
-  // TODO(onchain ERC-8183): replace this mock write with escrow.acceptWork(jobId).
-  const tx = createTx("WORK_ACCEPTED", "Escrow settled to agent", {
+  const tx = createRecordedTx("WORK_ACCEPTED", "Escrow settled to agent", {
     actor: job.evaluatorWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "acceptWork(uint256)",
     summary: `${job.rewardAmount} USDC released and agent reputation increased.`
-  });
+  }, onchain?.tx);
   const updatedJobs = state.jobs.map((item) =>
     item.id === jobId
       ? {
@@ -314,20 +344,19 @@ export function acceptWork(jobId: string) {
   return { tx };
 }
 
-export function rejectWork(jobId: string) {
+export function rejectWork(jobId: string, onchain?: { tx?: OnchainTx }) {
   const state = readState();
   const job = state.jobs.find((item) => item.id === jobId);
   if (!job || job.status !== "SUBMITTED") {
     throw new Error("Only submitted jobs can be rejected.");
   }
 
-  // TODO(onchain ERC-8183): replace this mock write with escrow.rejectWork(jobId).
-  const tx = createTx("WORK_REJECTED", "Evaluator rejected deliverable", {
+  const tx = createRecordedTx("WORK_REJECTED", "Evaluator rejected deliverable", {
     actor: job.evaluatorWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "rejectWork(uint256)",
     summary: "Deliverable rejected and a negative reputation event recorded."
-  });
+  }, onchain?.tx);
   const updatedJobs = state.jobs.map((item) =>
     item.id === jobId
       ? {
@@ -353,20 +382,19 @@ export function rejectWork(jobId: string) {
   return { tx };
 }
 
-export function refundJob(jobId: string) {
+export function refundJob(jobId: string, onchain?: { tx?: OnchainTx }) {
   const state = readState();
   const job = state.jobs.find((item) => item.id === jobId);
   if (!job || !["FUNDED", "SUBMITTED"].includes(job.status)) {
     throw new Error("Only active jobs can be refunded.");
   }
 
-  // TODO(onchain ERC-8183): replace this mock write with escrow.refundExpired(jobId).
-  const tx = createTx("JOB_REFUNDED", "Expired escrow refunded to client", {
+  const tx = createRecordedTx("JOB_REFUNDED", "Expired escrow refunded to client", {
     actor: job.clientWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "refund(uint256)",
     summary: `${job.rewardAmount} USDC returned to client after escrow closeout.`
-  });
+  }, onchain?.tx);
   const updatedJobs = state.jobs.map((item) =>
     item.id === jobId
       ? {
@@ -380,6 +408,127 @@ export function refundJob(jobId: string) {
 
   writeState({ ...state, jobs: updatedJobs });
   return { tx };
+}
+
+export async function registerAgentAction(input: {
+  name: string;
+  description: string;
+  capabilities: string[];
+  ownerWallet: Address;
+  metadataUri: string;
+}) {
+  if (getArcMode() !== "onchain") {
+    return registerAgent(input);
+  }
+
+  const { registerAgentOnchain } = await import("@/lib/onchain");
+  const result = await registerAgentOnchain({
+    ownerWallet: input.ownerWallet,
+    metadataUri: input.metadataUri
+  });
+
+  return registerAgent(input, {
+    onchainAgentId: result.onchainAgentId,
+    tx: result
+  });
+}
+
+export async function createJobAction(input: {
+  title: string;
+  description: string;
+  agentId: string;
+  clientWallet: Address;
+  evaluatorWallet: Address;
+  rewardAmount: number;
+  deadline: string;
+}) {
+  if (getArcMode() !== "onchain") {
+    return createJob(input);
+  }
+
+  const state = readState();
+  const agent = state.agents.find((item) => item.id === input.agentId);
+  if (!agent?.onchainAgentId) {
+    throw new Error("Selected agent does not have an onchain agent ID. Register a new onchain agent first.");
+  }
+
+  const { createJobOnchain } = await import("@/lib/onchain");
+  const result = await createJobOnchain({
+    onchainAgentId: agent.onchainAgentId,
+    rewardAmount: input.rewardAmount,
+    deadline: input.deadline,
+    evaluatorWallet: input.evaluatorWallet
+  });
+
+  return createJob(input, {
+    onchainJobId: result.onchainJobId,
+    tx: result
+  });
+}
+
+export async function submitDeliverableAction(jobId: string, deliverableContent: string) {
+  if (getArcMode() !== "onchain") {
+    return submitDeliverable(jobId, deliverableContent);
+  }
+
+  const state = readState();
+  const job = state.jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+
+  const { submitDeliverableOnchain } = await import("@/lib/onchain");
+  const result = await submitDeliverableOnchain({
+    onchainJobId: job.onchainJobId,
+    deliverableContent
+  });
+
+  return submitDeliverable(jobId, deliverableContent, {
+    deliverableHash: result.deliverableHash,
+    tx: result
+  });
+}
+
+export async function acceptWorkAction(jobId: string) {
+  if (getArcMode() !== "onchain") {
+    return acceptWork(jobId);
+  }
+
+  const job = readState().jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+
+  const { acceptWorkOnchain } = await import("@/lib/onchain");
+  return acceptWork(jobId, { tx: await acceptWorkOnchain(job.onchainJobId) });
+}
+
+export async function rejectWorkAction(jobId: string) {
+  if (getArcMode() !== "onchain") {
+    return rejectWork(jobId);
+  }
+
+  const job = readState().jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+
+  const { rejectWorkOnchain } = await import("@/lib/onchain");
+  return rejectWork(jobId, { tx: await rejectWorkOnchain(job.onchainJobId) });
+}
+
+export async function refundJobAction(jobId: string) {
+  if (getArcMode() !== "onchain") {
+    return refundJob(jobId);
+  }
+
+  const job = readState().jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+
+  const { refundExpiredOnchain } = await import("@/lib/onchain");
+  return refundJob(jobId, { tx: await refundExpiredOnchain(job.onchainJobId) });
 }
 
 export function getMetrics(state: ArcTaskState): DashboardMetrics {

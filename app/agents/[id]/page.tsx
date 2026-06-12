@@ -59,6 +59,10 @@ export default function AgentDetailsPage() {
                   <dd className="font-medium">{formatAddress(agent.ownerWallet)}</dd>
                 </div>
                 <div>
+                  <dt className="text-muted-foreground">Onchain agent ID</dt>
+                  <dd className="font-medium">{agent.onchainAgentId ?? "Mock only"}</dd>
+                </div>
+                <div>
                   <dt className="text-muted-foreground">Metadata URI</dt>
                   <dd className="break-all font-medium">{agent.metadataUri}</dd>
                 </div>

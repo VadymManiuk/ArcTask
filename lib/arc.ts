@@ -6,7 +6,7 @@ export const ARC_TESTNET = {
   nativeCurrency: {
     name: "testnet USDC",
     symbol: "USDC",
-    decimals: 6
+    decimals: 18
   }
 } as const;
 
