@@ -6,8 +6,7 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  http,
-  isAddress
+  http
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -120,11 +119,6 @@ if (process.argv.includes("--compile-only")) {
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
 const privateKey = normalizePrivateKey(requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY"));
-const usdcAddress = requiredEnv("NEXT_PUBLIC_USDC_ADDRESS");
-
-if (!isAddress(usdcAddress)) {
-  throw new Error("NEXT_PUBLIC_USDC_ADDRESS must be a valid 0x address.");
-}
 
 const arcTestnet = defineChain({
   id: 5042002,
@@ -160,7 +154,7 @@ const walletClient = createWalletClient({
 });
 
 console.log(`Deploying from ${account.address} to ${arcTestnet.name} (${arcTestnet.id})`);
-console.log(`Using USDC ${usdcAddress}`);
+console.log("Escrow uses Arc native testnet USDC via msg.value.");
 
 const compiled = compileContracts();
 
@@ -176,7 +170,7 @@ const escrowAddress = await deployContract({
   walletClient,
   publicClient,
   contract: compiled.escrow,
-  args: [registryAddress, usdcAddress]
+  args: [registryAddress]
 });
 console.log(`Escrow deployed: ${escrowAddress}`);
 
@@ -184,5 +178,5 @@ console.log("\nAdd these to .env.local and Vercel:");
 console.log("NEXT_PUBLIC_ARC_MODE=onchain");
 console.log(`NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}`);
 console.log(`NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}`);
-console.log(`NEXT_PUBLIC_USDC_ADDRESS=${usdcAddress}`);
+console.log("NEXT_PUBLIC_USDC_ADDRESS=native");
 console.log(`\nExplorer: ${explorerUrl}/address/${escrowAddress}`);

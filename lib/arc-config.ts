@@ -19,7 +19,7 @@ export function getOnchainReadiness() {
     .filter(([, value]) => !value)
     .map(([key]) => key);
   const invalid = Object.entries(rawContractAddresses)
-    .filter(([, value]) => value && !isAddressLike(value))
+    .filter(([key, value]) => value && !(key === "usdc" && value === "native") && !isAddressLike(value))
     .map(([key]) => key);
 
   return {

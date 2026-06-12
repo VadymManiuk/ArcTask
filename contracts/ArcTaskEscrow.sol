@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface IERC20Like {
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-}
-
 interface IArcTaskAgentRegistry {
     function getAgentOwner(uint256 agentId) external view returns (address);
 }
@@ -32,7 +27,6 @@ contract ArcTaskEscrow {
         uint256 updatedAt;
     }
 
-    IERC20Like public immutable usdc;
     IArcTaskAgentRegistry public immutable registry;
     uint256 public nextJobId = 1;
     mapping(uint256 => Job) public jobs;
@@ -50,11 +44,9 @@ contract ArcTaskEscrow {
     event WorkRejected(uint256 indexed jobId, address indexed client, uint256 rewardAmount);
     event JobRefunded(uint256 indexed jobId, address indexed client, uint256 rewardAmount);
 
-    constructor(address registryAddress, address usdcAddress) {
+    constructor(address registryAddress) {
         require(registryAddress != address(0), "registry required");
-        require(usdcAddress != address(0), "usdc required");
         registry = IArcTaskAgentRegistry(registryAddress);
-        usdc = IERC20Like(usdcAddress);
     }
 
     function createJob(
@@ -62,13 +54,13 @@ contract ArcTaskEscrow {
         uint256 rewardAmount,
         uint64 deadline,
         address evaluator
-    ) external returns (uint256 jobId) {
+    ) external payable returns (uint256 jobId) {
         require(rewardAmount > 0, "reward required");
+        require(msg.value == rewardAmount, "native USDC mismatch");
         require(deadline > block.timestamp, "deadline in past");
         require(evaluator != address(0), "evaluator required");
 
         address agentOwner = registry.getAgentOwner(agentId);
-        require(_transferFrom(msg.sender, address(this), rewardAmount), "funding failed");
 
         jobId = nextJobId++;
         jobs[jobId] = Job({
@@ -107,7 +99,7 @@ contract ArcTaskEscrow {
 
         job.status = JobStatus.Accepted;
         job.updatedAt = block.timestamp;
-        require(_transfer(job.agentOwner, job.rewardAmount), "payout failed");
+        _sendNativeUsdc(job.agentOwner, job.rewardAmount);
 
         emit WorkAccepted(jobId, job.agentOwner, job.rewardAmount);
     }
@@ -119,7 +111,7 @@ contract ArcTaskEscrow {
 
         job.status = JobStatus.Rejected;
         job.updatedAt = block.timestamp;
-        require(_transfer(job.client, job.rewardAmount), "refund failed");
+        _sendNativeUsdc(job.client, job.rewardAmount);
 
         emit WorkRejected(jobId, job.client, job.rewardAmount);
     }
@@ -132,16 +124,13 @@ contract ArcTaskEscrow {
 
         job.status = JobStatus.Refunded;
         job.updatedAt = block.timestamp;
-        require(_transfer(job.client, job.rewardAmount), "refund failed");
+        _sendNativeUsdc(job.client, job.rewardAmount);
 
         emit JobRefunded(jobId, job.client, job.rewardAmount);
     }
 
-    function _transfer(address to, uint256 amount) private returns (bool) {
-        return usdc.transfer(to, amount);
-    }
-
-    function _transferFrom(address from, address to, uint256 amount) private returns (bool) {
-        return usdc.transferFrom(from, to, amount);
+    function _sendNativeUsdc(address to, uint256 amount) private {
+        (bool success, ) = payable(to).call{value: amount}("");
+        require(success, "native transfer failed");
     }
 }

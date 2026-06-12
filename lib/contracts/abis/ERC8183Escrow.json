@@ -1,10 +1,7 @@
 [
   {
     "type": "constructor",
-    "inputs": [
-      { "name": "registryAddress", "type": "address" },
-      { "name": "usdcAddress", "type": "address" }
-    ],
+    "inputs": [{ "name": "registryAddress", "type": "address" }],
     "stateMutability": "nonpayable"
   },
   {
@@ -23,15 +20,8 @@
   },
   {
     "type": "function",
-    "name": "usdc",
-    "stateMutability": "view",
-    "inputs": [],
-    "outputs": [{ "name": "", "type": "address" }]
-  },
-  {
-    "type": "function",
     "name": "createJob",
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "inputs": [
       { "name": "agentId", "type": "uint256" },
       { "name": "rewardAmount", "type": "uint256" },

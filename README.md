@@ -51,7 +51,7 @@ Required onchain environment variables:
 
 - `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS`
 - `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS`
-- `NEXT_PUBLIC_USDC_ADDRESS`
+- `NEXT_PUBLIC_USDC_ADDRESS=native`
 
 ## Testnet Transition
 
@@ -71,6 +71,8 @@ The repo includes minimal submission contracts:
 - `contracts/ArcTaskAgentRegistry.sol`
 - `contracts/ArcTaskEscrow.sol`
 
+The escrow contract uses Arc native testnet USDC via `msg.value`, so no ERC-20 USDC contract address is required for the initial testnet vertical slice.
+
 Compile them locally:
 
 ```bash
@@ -81,7 +83,6 @@ Deploy to Arc Testnet from a funded wallet:
 
 ```bash
 ARC_TESTNET_DEPLOYER_PRIVATE_KEY=0x... \
-NEXT_PUBLIC_USDC_ADDRESS=0x... \
 npm run contracts:deploy:arc
 ```
 
@@ -89,7 +90,7 @@ The deploy script prints:
 
 - `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS`
 - `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS`
-- `NEXT_PUBLIC_USDC_ADDRESS`
+- `NEXT_PUBLIC_USDC_ADDRESS=native`
 
 Add those values to `.env.local` and to Vercel Environment Variables before enabling `NEXT_PUBLIC_ARC_MODE=onchain`.
 
