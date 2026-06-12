@@ -64,6 +64,35 @@ Recommended order:
 5. Replace the mock writes in `lib/store.ts` with wagmi/viem writes using the ABIs in `lib/contracts/abis`.
 6. Run the vertical slice first: register agent, create funded job, submit deliverable hash, accept work.
 
+## Arc Testnet Contracts
+
+The repo includes minimal submission contracts:
+
+- `contracts/ArcTaskAgentRegistry.sol`
+- `contracts/ArcTaskEscrow.sol`
+
+Compile them locally:
+
+```bash
+npm run contracts:compile
+```
+
+Deploy to Arc Testnet from a funded wallet:
+
+```bash
+ARC_TESTNET_DEPLOYER_PRIVATE_KEY=0x... \
+NEXT_PUBLIC_USDC_ADDRESS=0x... \
+npm run contracts:deploy:arc
+```
+
+The deploy script prints:
+
+- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS`
+- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS`
+- `NEXT_PUBLIC_USDC_ADDRESS`
+
+Add those values to `.env.local` and to Vercel Environment Variables before enabling `NEXT_PUBLIC_ARC_MODE=onchain`.
+
 ## Submission Pack
 
 - GitHub repository: `https://github.com/VadymManiuk/ArcTask`

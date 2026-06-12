@@ -1,6 +1,13 @@
 [
   {
     "type": "function",
+    "name": "nextAgentId",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  },
+  {
+    "type": "function",
     "name": "registerAgent",
     "stateMutability": "nonpayable",
     "inputs": [
@@ -10,11 +17,48 @@
     "outputs": [{ "name": "agentId", "type": "uint256" }]
   },
   {
+    "type": "function",
+    "name": "updateMetadata",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "agentId", "type": "uint256" },
+      { "name": "metadataURI", "type": "string" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "getAgentOwner",
+    "stateMutability": "view",
+    "inputs": [{ "name": "agentId", "type": "uint256" }],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "function",
+    "name": "agents",
+    "stateMutability": "view",
+    "inputs": [{ "name": "", "type": "uint256" }],
+    "outputs": [
+      { "name": "owner", "type": "address" },
+      { "name": "metadataURI", "type": "string" },
+      { "name": "createdAt", "type": "uint256" },
+      { "name": "active", "type": "bool" }
+    ]
+  },
+  {
     "type": "event",
     "name": "AgentRegistered",
     "inputs": [
       { "name": "agentId", "type": "uint256", "indexed": true },
       { "name": "owner", "type": "address", "indexed": true },
+      { "name": "metadataURI", "type": "string", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "AgentMetadataUpdated",
+    "inputs": [
+      { "name": "agentId", "type": "uint256", "indexed": true },
       { "name": "metadataURI", "type": "string", "indexed": false }
     ]
   }
