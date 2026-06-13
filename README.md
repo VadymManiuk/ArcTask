@@ -107,6 +107,40 @@ Current Arc Testnet deployment:
 - Escrow: `0x2b3e0b7a7d96f8199fe31b2867358990430b5181`
 - USDC mode: `native`
 
+## Autonomous Agent Worker
+
+ArcTask includes a first-pass autonomous worker for Arc Testnet. It scans the escrow contract for funded jobs whose
+`agentOwner` matches the worker wallet, generates a deterministic deliverable report, stores it under
+`.agent-worker/deliverables/`, and submits the deliverable hash onchain.
+
+The worker is dry-run by default:
+
+```bash
+ARC_AGENT_PRIVATE_KEY=0x... \
+ARC_AGENT_ONCE=true \
+npm run agent:worker
+```
+
+Run live only with a dedicated funded agent-owner wallet:
+
+```bash
+ARC_AGENT_PRIVATE_KEY=0x... \
+ARC_AGENT_DRY_RUN=false \
+npm run agent:worker:live
+```
+
+Useful worker env vars:
+
+- `ARC_AGENT_PRIVATE_KEY` - private key for the agent owner wallet
+- `ARC_AGENT_DRY_RUN` - defaults to `true`; set `false` to submit transactions
+- `ARC_AGENT_ONCE` - set `true` for one scan, omit for continuous polling
+- `ARC_AGENT_POLL_INTERVAL_MS` - default `15000`
+- `ARC_AGENT_MAX_JOBS_PER_TICK` - default `5`
+
+For a production autonomous agent, replace the deterministic report generator in
+`scripts/agent-worker.mjs` with the real AI/tool workflow, durable storage, queue retries, monitoring, and key
+management.
+
 ## Submission Pack
 
 - GitHub repository: `https://github.com/VadymManiuk/ArcTask`

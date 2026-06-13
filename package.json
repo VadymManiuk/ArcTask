@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "contracts:compile": "node scripts/deploy-arc-testnet.mjs --compile-only",
     "contracts:deploy:arc": "node scripts/deploy-arc-testnet.mjs",
-    "contracts:smoke:arc": "node scripts/smoke-arc-testnet.mjs"
+    "contracts:smoke:arc": "node scripts/smoke-arc-testnet.mjs",
+    "agent:worker": "node scripts/agent-worker.mjs",
+    "agent:worker:once": "ARC_AGENT_ONCE=true node scripts/agent-worker.mjs",
+    "agent:worker:live": "ARC_AGENT_DRY_RUN=false node scripts/agent-worker.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

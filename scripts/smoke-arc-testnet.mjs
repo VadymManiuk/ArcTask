@@ -7,6 +7,7 @@ import {
   defineChain,
   http,
   keccak256,
+  parseUnits,
   stringToHex
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -73,7 +74,7 @@ const arcTestnet = defineChain({
   nativeCurrency: {
     name: "testnet USDC",
     symbol: "USDC",
-    decimals: 6
+    decimals: 18
   },
   rpcUrls: {
     default: {
@@ -113,7 +114,7 @@ const jobId = await publicClient.readContract({
   functionName: "nextJobId"
 });
 const metadataUri = `https://arc-task-kappa.vercel.app/metadata/testnet-agent-${agentId}.json`;
-const rewardAmount = 1_000_000n;
+const rewardAmount = parseUnits("1", arcTestnet.nativeCurrency.decimals);
 const deadline = BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60);
 const deliverableHash = keccak256(stringToHex(`ArcTask testnet smoke deliverable ${Date.now()}`));
 
