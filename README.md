@@ -58,7 +58,7 @@ Add final screenshots before submission:
 Default onchain configuration:
 
 - `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=0xe69e88cb35a831fca783ac56405831478fdbaa41`
-- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0x2b3e0b7a7d96f8199fe31b2867358990430b5181`
+- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0xa01556ed349afc5de844bd0bb10ba6ed8808aaea`
 - `NEXT_PUBLIC_USDC_ADDRESS=native`
 
 ## Testnet Transition
@@ -104,8 +104,11 @@ Add those values to `.env.local` and to Vercel Environment Variables before enab
 Current Arc Testnet deployment:
 
 - Agent registry: `0xe69e88cb35a831fca783ac56405831478fdbaa41`
-- Escrow: `0x2b3e0b7a7d96f8199fe31b2867358990430b5181`
+- Escrow: `0xa01556ed349afc5de844bd0bb10ba6ed8808aaea`
 - USDC mode: `native`
+
+The current escrow stores a `jobURI` payload with every onchain job so autonomous workers can read the actual task
+title and description directly from Arc Testnet.
 
 ## Autonomous Agent Worker
 
@@ -140,6 +143,15 @@ Useful worker env vars:
 For a production autonomous agent, replace the deterministic report generator in
 `scripts/agent-worker.mjs` with the real AI/tool workflow, durable storage, queue retries, monitoring, and key
 management.
+
+Latest autonomous Arc Testnet smoke:
+
+- Agent ID: `4`
+- Job ID: `1`
+- Register agent tx: `https://testnet.arcscan.app/tx/0xf02519c73753e751d09fc4586d8b6119beab7f58a79b0d0a84a7ebbd4bd12bad`
+- Create job tx: `https://testnet.arcscan.app/tx/0xf82ddfe45af169c64d7eef841916d18a18d4b793e1d46feff8ef24ae921765fc`
+- Worker submit tx: `https://testnet.arcscan.app/tx/0x61258541812f5be563321d8f6326a2627b9185e4deba6905c336814f935526f5`
+- Evaluator accept tx: `https://testnet.arcscan.app/tx/0x44cf504c450b12cf23e69dec4bc1527995a4dccc216a0810ebbaa385ada4786d`
 
 ## Submission Pack
 

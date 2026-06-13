@@ -14,7 +14,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const rootDir = process.cwd();
 const defaultRegistryAddress = "0xe69e88cb35a831fca783ac56405831478fdbaa41";
-const defaultEscrowAddress = "0x2b3e0b7a7d96f8199fe31b2867358990430b5181";
+const defaultEscrowAddress = "0xa01556ed349afc5de844bd0bb10ba6ed8808aaea";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
@@ -96,6 +96,7 @@ function serializeBigInts(value) {
 }
 
 function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
+  const payload = decodeJobPayloadUri(job.jobURI);
   const report = {
     kind: "ArcTask autonomous agent deliverable",
     version: 1,
@@ -111,12 +112,14 @@ function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
       rewardDisplay: `${formatUnits(job.rewardAmount, 18)} USDC`,
       deadline: Number(job.deadline),
       deadlineIso: new Date(Number(job.deadline) * 1000).toISOString(),
+      jobURI: job.jobURI,
+      payload,
       explorer: `${explorerUrl}/address/${escrowAddress}`
     },
     result: {
       status: "completed",
-      summary:
-        "Autonomous worker detected the funded ArcTask escrow, generated this deterministic completion report, and prepared an onchain deliverable hash for evaluator review."
+      title: payload?.title ?? `ArcTask job ${jobId.toString()}`,
+      summary: buildResultSummary(jobId, payload)
     }
   };
   const content = serializeBigInts(report);
@@ -125,6 +128,32 @@ function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
     hash: keccak256(stringToHex(content)),
     report
   };
+}
+
+function decodeJobPayloadUri(jobURI) {
+  if (!jobURI.startsWith("data:application/json,")) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(decodeURIComponent(jobURI.slice("data:application/json,".length)));
+  } catch {
+    return null;
+  }
+}
+
+function buildResultSummary(jobId, payload) {
+  if (!payload) {
+    return `Autonomous worker completed ArcTask job ${jobId.toString()} and prepared an onchain deliverable hash for evaluator review.`;
+  }
+
+  return [
+    `Completed requested task: ${payload.title ?? `ArcTask job ${jobId.toString()}`}.`,
+    payload.description ? `Task description reviewed: ${payload.description}` : undefined,
+    "The worker generated this structured report from the onchain job payload and submitted its hash to escrow."
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function ensureOutputDir() {
@@ -162,10 +191,11 @@ async function readJob(jobId) {
     evaluator: result[3],
     rewardAmount: result[4],
     deadline: result[5],
-    deliverableHash: result[6],
-    status: result[7],
-    createdAt: result[8],
-    updatedAt: result[9]
+    jobURI: result[6],
+    deliverableHash: result[7],
+    status: result[8],
+    createdAt: result[9],
+    updatedAt: result[10]
   };
 }
 

@@ -116,6 +116,13 @@ const jobId = await publicClient.readContract({
 const metadataUri = `https://arc-task-kappa.vercel.app/metadata/testnet-agent-${agentId}.json`;
 const rewardAmount = parseUnits("1", arcTestnet.nativeCurrency.decimals);
 const deadline = BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60);
+const jobURI = `data:application/json,${encodeURIComponent(JSON.stringify({
+  schema: "arctask.job.v1",
+  title: "ArcTask smoke job",
+  description: "Autonomous testnet smoke task for the ArcTask escrow flow.",
+  onchainAgentId: agentId.toString(),
+  createdAt: new Date().toISOString()
+}))}`;
 const deliverableHash = keccak256(stringToHex(`ArcTask testnet smoke deliverable ${Date.now()}`));
 
 console.log(`Account: ${account.address}`);
@@ -141,7 +148,7 @@ await waitForSuccess(
     address: escrowAddress,
     abi: escrowAbi,
     functionName: "createJob",
-    args: [agentId, rewardAmount, deadline, account.address],
+    args: [agentId, rewardAmount, deadline, account.address, jobURI],
     value: rewardAmount
   }),
   "createJob"

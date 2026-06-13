@@ -10,3 +10,4 @@ yarn-error.log*
 pnpm-debug.log*
 tsconfig.tsbuildinfo
 .agent-worker/
+.agent-worker-last-job.json

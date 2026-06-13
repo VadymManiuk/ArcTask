@@ -119,6 +119,7 @@ if (process.argv.includes("--compile-only")) {
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
 const privateKey = normalizePrivateKey(requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY"));
+const deployEscrowOnly = process.argv.includes("--escrow-only");
 
 const arcTestnet = defineChain({
   id: 5042002,
@@ -158,13 +159,19 @@ console.log("Escrow uses Arc native testnet USDC via msg.value.");
 
 const compiled = compileContracts();
 
-const registryAddress = await deployContract({
-  walletClient,
-  publicClient,
-  contract: compiled.registry,
-  args: []
-});
-console.log(`Agent registry deployed: ${registryAddress}`);
+const registryAddress = deployEscrowOnly
+  ? requiredEnv("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS")
+  : await deployContract({
+      walletClient,
+      publicClient,
+      contract: compiled.registry,
+      args: []
+    });
+if (!deployEscrowOnly) {
+  console.log(`Agent registry deployed: ${registryAddress}`);
+} else {
+  console.log(`Using existing agent registry: ${registryAddress}`);
+}
 
 const escrowAddress = await deployContract({
   walletClient,

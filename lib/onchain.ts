@@ -28,6 +28,7 @@ type OnchainJob = readonly [
   Address,
   bigint,
   number,
+  string,
   `0x${string}`,
   number,
   bigint,
@@ -82,6 +83,30 @@ async function readOnchainJob(escrowAddress: Address, onchainJobId: string) {
   })) as OnchainJob;
 }
 
+function createJobPayloadUri(input: {
+  title: string;
+  description: string;
+  agentId: string;
+  onchainAgentId: string;
+  rewardAmount: number;
+  deadline: string;
+  evaluatorWallet: Address;
+}) {
+  const payload = {
+    schema: "arctask.job.v1",
+    title: input.title,
+    description: input.description,
+    localAgentId: input.agentId,
+    onchainAgentId: input.onchainAgentId,
+    rewardAmount: input.rewardAmount,
+    deadline: input.deadline,
+    evaluatorWallet: input.evaluatorWallet,
+    createdAt: new Date().toISOString()
+  };
+
+  return `data:application/json,${encodeURIComponent(JSON.stringify(payload))}`;
+}
+
 export async function getJobSnapshotOnchain(onchainJobId: string) {
   const escrowAddress = getContractAddress("erc8183Escrow");
   const job = await readOnchainJob(escrowAddress, onchainJobId);
@@ -93,10 +118,11 @@ export async function getJobSnapshotOnchain(onchainJobId: string) {
     evaluatorWallet: job[3],
     rewardAmount: job[4].toString(),
     deadline: Number(job[5]),
-    deliverableHash: job[6],
-    status: job[7],
-    createdAt: job[8].toString(),
-    updatedAt: job[9].toString()
+    jobPayloadUri: job[6],
+    deliverableHash: job[7],
+    status: job[8],
+    createdAt: job[9].toString(),
+    updatedAt: job[10].toString()
   };
 }
 
@@ -138,6 +164,9 @@ export async function registerAgentOnchain(input: {
 }
 
 export async function createJobOnchain(input: {
+  title: string;
+  description: string;
+  agentId: string;
   onchainAgentId: string;
   rewardAmount: number;
   deadline: string;
@@ -152,17 +181,19 @@ export async function createJobOnchain(input: {
   })) as bigint;
   const rewardValue = parseUnits(input.rewardAmount.toString(), arcTestnet.nativeCurrency.decimals);
   const deadlineSeconds = BigInt(Math.floor(Date.parse(`${input.deadline}T00:00:00Z`) / 1000));
+  const jobPayloadUri = createJobPayloadUri(input);
   const txHash = await walletClient.writeContract({
     address: escrowAddress,
     abi: escrowAbi,
     functionName: "createJob",
-    args: [BigInt(input.onchainAgentId), rewardValue, deadlineSeconds, input.evaluatorWallet],
+    args: [BigInt(input.onchainAgentId), rewardValue, deadlineSeconds, input.evaluatorWallet, jobPayloadUri],
     value: rewardValue
   });
 
   const receipt = await waitForHash(txHash);
   return {
     onchainJobId: jobId.toString(),
+    jobPayloadUri,
     txHash,
     blockNumber: Number(receipt.blockNumber),
     gasUsed: receipt.gasUsed.toString()

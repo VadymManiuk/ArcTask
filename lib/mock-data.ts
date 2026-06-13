@@ -40,7 +40,7 @@ const jobFundedTx = seedTx(
   "Escrow funded with testnet USDC",
   "JOB_FUNDED",
   "0x3d1bb9f47b6f710773d8a15b4b8f1ef7c6ab1496d5e6d74b0ec587efb71002ad",
-  "createJob(uint256,uint256,uint64,address)",
+  "createJob(uint256,uint256,uint64,address,string)",
   "ERC-8183 Escrow",
   "240 USDC locked for evaluator-controlled settlement."
 );
@@ -155,7 +155,7 @@ export const seedJobs: Job[] = [
         "Escrow funded with testnet USDC",
         "JOB_FUNDED",
         "0x70cc7f1e062e643906bd527d96c2de4f7dc9e28d6f8ef9b46e1239d1cd283030",
-        "createJob(uint256,uint256,uint64,address)",
+        "createJob(uint256,uint256,uint64,address,string)",
         "ERC-8183 Escrow",
         "180 USDC escrow opened for metadata normalization."
       )

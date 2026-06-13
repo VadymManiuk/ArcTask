@@ -197,7 +197,7 @@ export function createJob(input: {
   evaluatorWallet: Address;
   rewardAmount: number;
   deadline: string;
-}, onchain?: { onchainJobId?: string; tx?: OnchainTx }) {
+}, onchain?: { onchainJobId?: string; jobPayloadUri?: string; tx?: OnchainTx }) {
   const state = readState();
   const agent = state.agents.find((item) => item.id === input.agentId);
   const clientWallet = normalizeAddress(input.clientWallet);
@@ -224,13 +224,14 @@ export function createJob(input: {
   const tx = createRecordedTx("JOB_FUNDED", "ERC-8183 style escrow funded with testnet USDC", {
     actor: clientWallet,
     contractLabel: "ERC-8183 Escrow",
-    method: "createJob(uint256,uint256,uint64,address)",
+    method: "createJob(uint256,uint256,uint64,address,string)",
     summary: `${rewardAmount} USDC locked for evaluator-controlled settlement.`
   }, onchain?.tx);
   const now = new Date().toISOString();
   const job: Job = {
     id: createId("job"),
     onchainJobId: onchain?.onchainJobId,
+    jobPayloadUri: onchain?.jobPayloadUri,
     title: input.title.trim(),
     description: input.description.trim(),
     agentId: agent.id,
@@ -455,6 +456,9 @@ export async function createJobAction(input: {
 
   const { createJobOnchain } = await import("@/lib/onchain");
   const result = await createJobOnchain({
+    title: input.title,
+    description: input.description,
+    agentId: input.agentId,
     onchainAgentId: agent.onchainAgentId,
     rewardAmount: input.rewardAmount,
     deadline: input.deadline,
@@ -463,6 +467,7 @@ export async function createJobAction(input: {
 
   return createJob(input, {
     onchainJobId: result.onchainJobId,
+    jobPayloadUri: result.jobPayloadUri,
     tx: result
   });
 }
@@ -554,6 +559,7 @@ export async function syncOnchainJobStateAction(jobId: string) {
           status,
           clientWallet: snapshot.clientWallet,
           evaluatorWallet: snapshot.evaluatorWallet,
+          jobPayloadUri: snapshot.jobPayloadUri || item.jobPayloadUri,
           deliverableHash: snapshot.deliverableHash === zeroHash ? item.deliverableHash : snapshot.deliverableHash,
           updatedAt: new Date().toISOString()
         }

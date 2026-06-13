@@ -21,6 +21,7 @@ contract ArcTaskEscrow {
         address evaluator;
         uint256 rewardAmount;
         uint64 deadline;
+        string jobURI;
         bytes32 deliverableHash;
         JobStatus status;
         uint256 createdAt;
@@ -37,7 +38,8 @@ contract ArcTaskEscrow {
         address indexed client,
         address evaluator,
         uint256 rewardAmount,
-        uint64 deadline
+        uint64 deadline,
+        string jobURI
     );
     event DeliverableSubmitted(uint256 indexed jobId, bytes32 deliverableHash);
     event WorkAccepted(uint256 indexed jobId, address indexed agentOwner, uint256 rewardAmount);
@@ -53,12 +55,14 @@ contract ArcTaskEscrow {
         uint256 agentId,
         uint256 rewardAmount,
         uint64 deadline,
-        address evaluator
+        address evaluator,
+        string calldata jobURI
     ) external payable returns (uint256 jobId) {
         require(rewardAmount > 0, "reward required");
         require(msg.value == rewardAmount, "native USDC mismatch");
         require(deadline > block.timestamp, "deadline in past");
         require(evaluator != address(0), "evaluator required");
+        require(bytes(jobURI).length != 0, "job uri required");
 
         address agentOwner = registry.getAgentOwner(agentId);
 
@@ -70,13 +74,14 @@ contract ArcTaskEscrow {
             evaluator: evaluator,
             rewardAmount: rewardAmount,
             deadline: deadline,
+            jobURI: jobURI,
             deliverableHash: bytes32(0),
             status: JobStatus.Funded,
             createdAt: block.timestamp,
             updatedAt: block.timestamp
         });
 
-        emit JobCreated(jobId, agentId, msg.sender, evaluator, rewardAmount, deadline);
+        emit JobCreated(jobId, agentId, msg.sender, evaluator, rewardAmount, deadline, jobURI);
     }
 
     function submitDeliverable(uint256 jobId, bytes32 deliverableHash) external {

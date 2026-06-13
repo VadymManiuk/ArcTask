@@ -44,6 +44,7 @@ export interface Agent {
 export interface Job {
   id: string;
   onchainJobId?: string;
+  jobPayloadUri?: string;
   title: string;
   description: string;
   agentId: string;

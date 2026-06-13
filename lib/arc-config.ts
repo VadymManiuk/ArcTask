@@ -4,7 +4,7 @@ export type ArcMode = "mock" | "onchain";
 
 export const defaultContractAddresses = {
   erc8004Registry: "0xe69e88cb35a831fca783ac56405831478fdbaa41",
-  erc8183Escrow: "0x2b3e0b7a7d96f8199fe31b2867358990430b5181",
+  erc8183Escrow: "0xa01556ed349afc5de844bd0bb10ba6ed8808aaea",
   usdc: "native"
 } as const;
 
