@@ -13,6 +13,7 @@ import { createJobAction } from "@/lib/store";
 import type { Job, TxRecord } from "@/lib/types";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { isAddressLike } from "@/lib/utils";
+import { requestArcAccount } from "@/lib/wallet";
 
 export default function CreateJobPage() {
   const { agents } = useArcTaskState();
@@ -26,6 +27,7 @@ export default function CreateJobPage() {
   const [deadline, setDeadline] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [walletFillTarget, setWalletFillTarget] = useState<"" | "client" | "evaluator">("");
   const [created, setCreated] = useState<{ job: Job; tx: TxRecord } | null>(null);
 
   async function onSubmit(event: FormEvent) {
@@ -72,13 +74,30 @@ export default function CreateJobPage() {
     }
   }
 
+  async function fillConnectedWallet(target: "client" | "evaluator") {
+    setError("");
+    try {
+      setWalletFillTarget(target);
+      const account = await requestArcAccount();
+      if (target === "client") {
+        setClientWallet(account);
+      } else {
+        setEvaluatorWallet(account);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Wallet connection failed.");
+    } finally {
+      setWalletFillTarget("");
+    }
+  }
+
   return (
     <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_0.8fr] lg:px-8">
       <Card>
         <CardHeader>
           <CardTitle>Create USDC-funded job</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Mock mode creates a funded escrow record and fake Arcscan transaction.
+            Funds an ERC-8183-style escrow job on Arc Testnet and stores the demo job locally.
           </p>
         </CardHeader>
         <CardContent>
@@ -119,11 +138,31 @@ export default function CreateJobPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clientWallet">Client wallet address</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="clientWallet">Client wallet address</Label>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
+                  disabled={isSubmitting || Boolean(walletFillTarget)}
+                  onClick={() => fillConnectedWallet("client")}
+                >
+                  {walletFillTarget === "client" ? "Reading wallet..." : "Use connected wallet"}
+                </button>
+              </div>
               <Input id="clientWallet" placeholder="0x..." value={clientWallet} onChange={(event) => setClientWallet(event.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="evaluatorWallet">Evaluator wallet address</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="evaluatorWallet">Evaluator wallet address</Label>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
+                  disabled={isSubmitting || Boolean(walletFillTarget)}
+                  onClick={() => fillConnectedWallet("evaluator")}
+                >
+                  {walletFillTarget === "evaluator" ? "Reading wallet..." : "Use connected wallet"}
+                </button>
+              </div>
               <Input id="evaluatorWallet" placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}

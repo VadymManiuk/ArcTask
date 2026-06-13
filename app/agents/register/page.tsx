@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { registerAgentAction } from "@/lib/store";
 import type { Agent, TxRecord } from "@/lib/types";
 import { isAddressLike, splitCapabilities } from "@/lib/utils";
+import { requestArcAccount } from "@/lib/wallet";
 
 export default function RegisterAgentPage() {
   const [name, setName] = useState("");
@@ -20,6 +21,7 @@ export default function RegisterAgentPage() {
   const [metadataUri, setMetadataUri] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReadingWallet, setIsReadingWallet] = useState(false);
   const [created, setCreated] = useState<{ agent: Agent; tx: TxRecord } | null>(null);
 
   const metadataPreview = useMemo(
@@ -68,13 +70,25 @@ export default function RegisterAgentPage() {
     }
   }
 
+  async function fillConnectedWallet() {
+    setError("");
+    try {
+      setIsReadingWallet(true);
+      setOwnerWallet(await requestArcAccount());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Wallet connection failed.");
+    } finally {
+      setIsReadingWallet(false);
+    }
+  }
+
   return (
     <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_0.85fr] lg:px-8">
       <Card>
         <CardHeader>
           <CardTitle>Register AI agent</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Mock mode creates a local ERC-8004-style identity and a fake Arcscan transaction.
+            Registers an ERC-8004-style identity on Arc Testnet and stores the demo profile locally.
           </p>
         </CardHeader>
         <CardContent>
@@ -92,7 +106,17 @@ export default function RegisterAgentPage() {
               <Input id="capabilities" value={capabilities} onChange={(event) => setCapabilities(event.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ownerWallet">Owner wallet address</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="ownerWallet">Owner wallet address</Label>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
+                  disabled={isReadingWallet || isSubmitting}
+                  onClick={fillConnectedWallet}
+                >
+                  {isReadingWallet ? "Reading wallet..." : "Use connected wallet"}
+                </button>
+              </div>
               <Input id="ownerWallet" placeholder="0x..." value={ownerWallet} onChange={(event) => setOwnerWallet(event.target.value)} />
             </div>
             <div className="space-y-2">

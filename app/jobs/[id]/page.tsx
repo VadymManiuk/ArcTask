@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Check, RotateCcw, Send, X } from "lucide-react";
+import { Check, RotateCcw, Send, Wallet, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { acceptWorkAction, refundJobAction, rejectWorkAction, submitDeliverableAction } from "@/lib/store";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatAddress, formatUsdc } from "@/lib/utils";
+import { requestArcAccount } from "@/lib/wallet";
 
 export default function JobDetailsPage() {
   const params = useParams<{ id: string }>();
@@ -22,6 +23,7 @@ export default function JobDetailsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string>("");
+  const [connectedWallet, setConnectedWallet] = useState("");
 
   if (!job) {
     return (
@@ -77,6 +79,24 @@ export default function JobDetailsPage() {
   const canSubmit = job.status === "FUNDED";
   const canSettle = job.status === "SUBMITTED";
   const canRefund = job.status === "FUNDED" || job.status === "SUBMITTED";
+  const agentOwnerWallet = agent?.ownerWallet;
+
+  function walletMatches(expected?: string) {
+    return Boolean(connectedWallet && expected && connectedWallet.toLowerCase() === expected.toLowerCase());
+  }
+
+  async function checkConnectedWallet() {
+    setError("");
+    setMessage("");
+    try {
+      setBusyAction("wallet");
+      setConnectedWallet(await requestArcAccount());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Wallet connection failed.");
+    } finally {
+      setBusyAction("");
+    }
+  }
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -134,7 +154,10 @@ export default function JobDetailsPage() {
             <CardHeader>
               <CardTitle>Submit deliverable</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Required signer: <span className="font-semibold text-foreground">{agentOwnerWallet ? formatAddress(agentOwnerWallet) : "Unknown agent owner"}</span>
+              </p>
               <form className="space-y-4" onSubmit={onSubmitDeliverable}>
                 <Textarea
                   disabled={!canSubmit}
@@ -155,6 +178,14 @@ export default function JobDetailsPage() {
               <CardTitle>Evaluator actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                <p>
+                  Accept/reject signer: <span className="font-semibold text-foreground">{formatAddress(job.evaluatorWallet)}</span>
+                </p>
+                <p>
+                  Refund signer: <span className="font-semibold text-foreground">{formatAddress(job.clientWallet)}</span>
+                </p>
+              </div>
               <div className="flex flex-wrap gap-3">
                 <Button disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("accept", () => acceptWorkAction(jobId), "Work accepted and escrow settled.")}>
                   <Check className="h-4 w-4" aria-hidden="true" />
@@ -175,14 +206,46 @@ export default function JobDetailsPage() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Arcscan activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TxList txs={job.txHistory} />
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" aria-hidden="true" />
+                Required wallets
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <Button variant="outline" disabled={busyAction === "wallet"} onClick={checkConnectedWallet}>
+                {busyAction === "wallet" ? "Checking..." : "Check connected wallet"}
+              </Button>
+              {connectedWallet ? (
+                <p className="break-all text-muted-foreground">
+                  Connected: <span className="font-semibold text-foreground">{connectedWallet}</span>
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                <p className={walletMatches(agentOwnerWallet) ? "font-semibold text-emerald-700" : "text-muted-foreground"}>
+                  Submit deliverable: {agentOwnerWallet ?? "Unknown agent owner"}
+                </p>
+                <p className={walletMatches(job.evaluatorWallet) ? "font-semibold text-emerald-700" : "text-muted-foreground"}>
+                  Accept/reject work: {job.evaluatorWallet}
+                </p>
+                <p className={walletMatches(job.clientWallet) ? "font-semibold text-emerald-700" : "text-muted-foreground"}>
+                  Refund escrow: {job.clientWallet}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Arcscan activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TxList txs={job.txHistory} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </section>
   );
