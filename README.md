@@ -53,12 +53,12 @@ Add final screenshots before submission:
 
 `NEXT_PUBLIC_ARC_MODE=mock` runs without contracts, API keys, or wallets. Data is stored in `localStorage`.
 
-`NEXT_PUBLIC_ARC_MODE=onchain` should be enabled only after Arc Testnet contracts are deployed and `.env.local` has valid contract addresses. The app header shows whether onchain config is ready.
+`NEXT_PUBLIC_ARC_MODE=onchain` is the default production mode. The public Arc Testnet contract addresses are embedded in `lib/arc-config.ts`, and can be overridden with environment variables.
 
-Required onchain environment variables:
+Default onchain configuration:
 
-- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS`
-- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS`
+- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=0xe69e88cb35a831fca783ac56405831478fdbaa41`
+- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0x2b3e0b7a7d96f8199fe31b2867358990430b5181`
 - `NEXT_PUBLIC_USDC_ADDRESS=native`
 
 ## Testnet Transition
@@ -66,8 +66,8 @@ Required onchain environment variables:
 Recommended order:
 
 1. Deploy the ERC-8004-style registry and ERC-8183-style escrow contracts to Arc Testnet.
-2. Update `.env.local` with the three deployed addresses.
-3. Set `NEXT_PUBLIC_ARC_MODE=onchain`.
+2. Update `.env.local` or Vercel env only if overriding the default deployed addresses.
+3. Set `NEXT_PUBLIC_ARC_MODE=onchain` or omit it to use the production default.
 4. Verify wallet connect switches to Arc Testnet.
 5. Run the vertical slice: register agent, create funded job, submit deliverable hash, accept work.
 
