@@ -21,6 +21,19 @@ const publicClient = createPublicClient({
   transport: http(arcTestnet.rpcUrls.default.http[0])
 });
 
+type OnchainJob = readonly [
+  Address,
+  bigint,
+  Address,
+  Address,
+  bigint,
+  number,
+  `0x${string}`,
+  number,
+  bigint,
+  bigint
+];
+
 function getContractAddress(name: "erc8004Registry" | "erc8183Escrow") {
   const readiness = getOnchainReadiness();
   if (readiness.mode !== "onchain") {
@@ -39,13 +52,34 @@ function getContractAddress(name: "erc8004Registry" | "erc8183Escrow") {
   return address as Address;
 }
 
-async function getWalletClient() {
+async function getConnectedWalletClient() {
   const account = await requestArcAccount();
-  return createWalletClient({
+  const walletClient = createWalletClient({
     account,
     chain: arcTestnet,
     transport: custom(getEthereumProvider())
   });
+
+  return { account, walletClient };
+}
+
+function sameAddress(left: Address, right: Address) {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+function assertConnectedWallet(account: Address, expected: Address, role: string) {
+  if (!sameAddress(account, expected)) {
+    throw new Error(`Wrong wallet for this action. Connected: ${account}. Switch to ${role}: ${expected}`);
+  }
+}
+
+async function readOnchainJob(escrowAddress: Address, onchainJobId: string) {
+  return (await publicClient.readContract({
+    address: escrowAddress,
+    abi: escrowAbi,
+    functionName: "jobs",
+    args: [BigInt(onchainJobId)]
+  })) as OnchainJob;
 }
 
 async function waitForHash(hash: Address) {
@@ -62,7 +96,8 @@ export async function registerAgentOnchain(input: {
   metadataUri: string;
 }) {
   const registryAddress = getContractAddress("erc8004Registry");
-  const walletClient = await getWalletClient();
+  const { account, walletClient } = await getConnectedWalletClient();
+  assertConnectedWallet(account, input.ownerWallet, "agent owner wallet");
   const agentId = (await publicClient.readContract({
     address: registryAddress,
     abi: registryAbi,
@@ -91,7 +126,7 @@ export async function createJobOnchain(input: {
   evaluatorWallet: Address;
 }) {
   const escrowAddress = getContractAddress("erc8183Escrow");
-  const walletClient = await getWalletClient();
+  const { walletClient } = await getConnectedWalletClient();
   const jobId = (await publicClient.readContract({
     address: escrowAddress,
     abi: escrowAbi,
@@ -121,7 +156,9 @@ export async function submitDeliverableOnchain(input: {
   deliverableContent: string;
 }) {
   const escrowAddress = getContractAddress("erc8183Escrow");
-  const walletClient = await getWalletClient();
+  const { account, walletClient } = await getConnectedWalletClient();
+  const job = await readOnchainJob(escrowAddress, input.onchainJobId);
+  assertConnectedWallet(account, job[2], "agent owner wallet");
   const deliverableHash = keccak256(stringToHex(input.deliverableContent));
   const txHash = await walletClient.writeContract({
     address: escrowAddress,
@@ -153,7 +190,14 @@ export async function refundExpiredOnchain(onchainJobId: string) {
 
 async function settleJobOnchain(functionName: "acceptWork" | "rejectWork" | "refundExpired", onchainJobId: string) {
   const escrowAddress = getContractAddress("erc8183Escrow");
-  const walletClient = await getWalletClient();
+  const { account, walletClient } = await getConnectedWalletClient();
+  const job = await readOnchainJob(escrowAddress, onchainJobId);
+  if (functionName === "acceptWork" || functionName === "rejectWork") {
+    assertConnectedWallet(account, job[3], "evaluator wallet");
+  } else {
+    assertConnectedWallet(account, job[0], "client wallet");
+  }
+
   const txHash = await walletClient.writeContract({
     address: escrowAddress,
     abi: escrowAbi,

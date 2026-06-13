@@ -192,8 +192,8 @@ export default function HomePage() {
             <p className="text-sm font-semibold text-primary">Architecture diagram</p>
             <h2 className="mt-2 text-2xl font-bold">How ArcTask maps agent work to Arc transactions</h2>
             <p className="mt-3 text-muted-foreground">
-              The mock app uses localStorage today, but the boundaries match the intended onchain integration:
-              registry writes for identity, escrow writes for jobs, and explorer links for every state transition.
+              ArcTask now runs against Arc Testnet by default: registry writes anchor identity, escrow writes
+              anchor jobs, and explorer links make every state transition inspectable.
             </p>
           </div>
           <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] lg:items-stretch">
