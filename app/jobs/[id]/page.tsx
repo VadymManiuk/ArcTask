@@ -9,7 +9,13 @@ import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { acceptWorkAction, refundJobAction, rejectWorkAction, submitDeliverableAction } from "@/lib/store";
+import {
+  acceptWorkAction,
+  refundJobAction,
+  rejectWorkAction,
+  submitDeliverableAction,
+  syncOnchainJobStateAction
+} from "@/lib/store";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatAddress, formatUsdc } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
@@ -217,6 +223,13 @@ export default function JobDetailsPage() {
             <CardContent className="space-y-4 text-sm">
               <Button variant="outline" disabled={busyAction === "wallet"} onClick={checkConnectedWallet}>
                 {busyAction === "wallet" ? "Checking..." : "Check connected wallet"}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!job.onchainJobId || busyAction === "sync"}
+                onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Onchain status synced.")}
+              >
+                {busyAction === "sync" ? "Syncing..." : "Sync onchain status"}
               </Button>
               {connectedWallet ? (
                 <p className="break-all text-muted-foreground">

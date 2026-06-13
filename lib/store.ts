@@ -9,6 +9,7 @@ import { normalizeAddress } from "@/lib/utils";
 
 const STORAGE_KEY = "arctask.mock.v1";
 let cachedState: ArcTaskState | null = null;
+const onchainJobStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 
 function createTx(
   action: TxRecord["action"],
@@ -529,6 +530,38 @@ export async function refundJobAction(jobId: string) {
 
   const { refundExpiredOnchain } = await import("@/lib/onchain");
   return refundJob(jobId, { tx: await refundExpiredOnchain(job.onchainJobId) });
+}
+
+export async function syncOnchainJobStateAction(jobId: string) {
+  const state = readState();
+  const job = state.jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+
+  const { getJobSnapshotOnchain } = await import("@/lib/onchain");
+  const snapshot = await getJobSnapshotOnchain(job.onchainJobId);
+  const status = onchainJobStatuses[snapshot.status];
+  if (!status) {
+    throw new Error(`Unknown onchain job status: ${snapshot.status}`);
+  }
+
+  const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+  const updatedJobs = state.jobs.map((item) =>
+    item.id === jobId
+      ? {
+          ...item,
+          status,
+          clientWallet: snapshot.clientWallet,
+          evaluatorWallet: snapshot.evaluatorWallet,
+          deliverableHash: snapshot.deliverableHash === zeroHash ? item.deliverableHash : snapshot.deliverableHash,
+          updatedAt: new Date().toISOString()
+        }
+      : item
+  );
+
+  writeState({ ...state, jobs: updatedJobs });
+  return updatedJobs.find((item) => item.id === jobId);
 }
 
 export function getMetrics(state: ArcTaskState): DashboardMetrics {

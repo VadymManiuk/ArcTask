@@ -82,6 +82,24 @@ async function readOnchainJob(escrowAddress: Address, onchainJobId: string) {
   })) as OnchainJob;
 }
 
+export async function getJobSnapshotOnchain(onchainJobId: string) {
+  const escrowAddress = getContractAddress("erc8183Escrow");
+  const job = await readOnchainJob(escrowAddress, onchainJobId);
+
+  return {
+    clientWallet: job[0],
+    onchainAgentId: job[1].toString(),
+    agentOwnerWallet: job[2],
+    evaluatorWallet: job[3],
+    rewardAmount: job[4].toString(),
+    deadline: Number(job[5]),
+    deliverableHash: job[6],
+    status: job[7],
+    createdAt: job[8].toString(),
+    updatedAt: job[9].toString()
+  };
+}
+
 async function waitForHash(hash: Address) {
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") {
