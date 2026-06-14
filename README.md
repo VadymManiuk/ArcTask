@@ -136,6 +136,22 @@ ARC_AGENT_DRY_RUN=false \
 npm run agent:worker:live
 ```
 
+Deploy the continuous worker to a VPS with PM2:
+
+```bash
+./scripts/deploy-worker-vps.sh
+```
+
+By default the deploy script targets `root@109.206.243.135`, installs the repo in `/root/ArcTask`, and starts PM2
+process `arctask-worker` if `.env.local` already exists on the VPS. To intentionally copy local secrets to the VPS,
+run:
+
+```bash
+ARCTASK_COPY_ENV=true ./scripts/deploy-worker-vps.sh
+```
+
+Override with `ARCTASK_VPS_HOST`, `ARCTASK_VPS_KEY`, `ARCTASK_REMOTE_DIR`, or `ARCTASK_PM2_NAME` when needed.
+
 Useful worker env vars:
 
 - `ARC_AGENT_PRIVATE_KEY` - private key for the agent owner wallet
