@@ -139,10 +139,12 @@ Useful worker env vars:
 - `ARC_AGENT_ONCE` - set `true` for one scan, omit for continuous polling
 - `ARC_AGENT_POLL_INTERVAL_MS` - default `15000`
 - `ARC_AGENT_MAX_JOBS_PER_TICK` - default `5`
+- `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
+- `OPENAI_MODEL` - default `gpt-4.1-mini`
 
-For a production autonomous agent, replace the deterministic report generator in
-`scripts/agent-worker.mjs` with the real AI/tool workflow, durable storage, queue retries, monitoring, and key
-management.
+When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
+`jobURI`. Without a key, or if the API is unavailable, the worker falls back to a deterministic structured report.
+For production, add durable storage, queue retries, monitoring, and managed key custody.
 
 Latest autonomous Arc Testnet smoke:
 
