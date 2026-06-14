@@ -9,7 +9,6 @@ PM2_NAME="${ARCTASK_PM2_NAME:-arctask-worker}"
 REPO_URL="${ARCTASK_REPO_URL:-https://github.com/VadymManiuk/ArcTask.git}"
 ENV_FILE="${ARCTASK_ENV_FILE:-.env.local}"
 COPY_ENV="${ARCTASK_COPY_ENV:-false}"
-VPS_KEY_ESCAPED="$(printf "%q" "$VPS_KEY")"
 
 if [[ ! -f "$VPS_KEY" ]]; then
   echo "Missing SSH key: $VPS_KEY" >&2
@@ -32,10 +31,14 @@ ssh_base=(
   "$VPS_USER@$VPS_HOST"
 )
 
-rsync_base=(
-  rsync
-  -az
-  -e "ssh -i $VPS_KEY_ESCAPED -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ConnectionAttempts=1"
+scp_base=(
+  scp
+  -i "$VPS_KEY"
+  -o IdentitiesOnly=yes
+  -o BatchMode=yes
+  -o StrictHostKeyChecking=no
+  -o ConnectTimeout=10
+  -o ConnectionAttempts=1
 )
 
 echo "Deploying ArcTask worker to $VPS_USER@$VPS_HOST:$REMOTE_DIR"
@@ -55,7 +58,7 @@ npm ci --omit=dev
 
 if [[ "$COPY_ENV" == "true" ]]; then
   echo "Copying $ENV_FILE to $REMOTE_DIR/.env.local"
-  "${rsync_base[@]}" "$ENV_FILE" "$VPS_USER@$VPS_HOST:$REMOTE_DIR/.env.local"
+  "${scp_base[@]}" "$ENV_FILE" "$VPS_USER@$VPS_HOST:$REMOTE_DIR/.env.local"
 else
   echo "Skipping env copy. Set ARCTASK_COPY_ENV=true to copy $ENV_FILE to the VPS."
 fi
