@@ -4,6 +4,7 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  formatUnits,
   http,
   keccak256,
   parseUnits,
@@ -14,7 +15,7 @@ import { contractAddresses, getOnchainReadiness } from "@/lib/arc-config";
 import { getEthereumProvider, requestArcAccount } from "@/lib/wallet";
 import registryAbi from "@/lib/contracts/abis/ERC8004AgentRegistry.json";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
-import type { Address } from "@/lib/types";
+import type { Address, OnchainJobEventTx, TxAction } from "@/lib/types";
 
 const publicClient = createPublicClient({
   chain: arcTestnet,
@@ -34,6 +35,84 @@ type OnchainJob = readonly [
   bigint,
   bigint
 ];
+
+type OnchainEventName = "JobCreated" | "DeliverableSubmitted" | "WorkAccepted" | "WorkRejected" | "JobRefunded";
+
+const jobEventConfigs = [
+  {
+    eventName: "JobCreated",
+    action: "JOB_FUNDED",
+    label: "ERC-8183 style escrow funded with testnet USDC",
+    method: "createJob(uint256,uint256,uint64,address,string)"
+  },
+  {
+    eventName: "DeliverableSubmitted",
+    action: "DELIVERABLE_SUBMITTED",
+    label: "Deliverable hash submitted",
+    method: "submitDeliverable(uint256,bytes32)"
+  },
+  {
+    eventName: "WorkAccepted",
+    action: "WORK_ACCEPTED",
+    label: "Escrow settled to agent",
+    method: "acceptWork(uint256)"
+  },
+  {
+    eventName: "WorkRejected",
+    action: "WORK_REJECTED",
+    label: "Evaluator rejected deliverable",
+    method: "rejectWork(uint256)"
+  },
+  {
+    eventName: "JobRefunded",
+    action: "JOB_REFUNDED",
+    label: "Expired escrow refunded to client",
+    method: "refundExpired(uint256)"
+  }
+] as const satisfies ReadonlyArray<{
+  eventName: OnchainEventName;
+  action: TxAction;
+  label: string;
+  method: string;
+}>;
+
+function getEventActor(eventName: OnchainEventName, args: Record<string, unknown>) {
+  const candidate =
+    eventName === "WorkAccepted"
+      ? args.agentOwner
+      : eventName === "DeliverableSubmitted"
+        ? undefined
+        : args.client;
+
+  return typeof candidate === "string" && /^0x[a-fA-F0-9]{40}$/.test(candidate) ? (candidate as Address) : undefined;
+}
+
+function getEventSummary(eventName: OnchainEventName, args: Record<string, unknown>) {
+  if (typeof args.rewardAmount === "bigint") {
+    const amount = `${formatUnits(args.rewardAmount, arcTestnet.nativeCurrency.decimals)} USDC`;
+    if (eventName === "JobCreated") {
+      return `${amount} locked for evaluator-controlled settlement.`;
+    }
+
+    if (eventName === "WorkAccepted") {
+      return `${amount} released and agent reputation increased.`;
+    }
+
+    if (eventName === "JobRefunded") {
+      return `${amount} returned to client after escrow closeout.`;
+    }
+  }
+
+  if (eventName === "DeliverableSubmitted" && typeof args.deliverableHash === "string") {
+    return `Keccak deliverable hash ${args.deliverableHash.slice(0, 10)}... recorded for evaluator review.`;
+  }
+
+  if (eventName === "WorkRejected") {
+    return "Deliverable rejected and a negative reputation event recorded.";
+  }
+
+  return undefined;
+}
 
 function getContractAddress(name: "erc8004Registry" | "erc8183Escrow") {
   const readiness = getOnchainReadiness();
@@ -124,6 +203,40 @@ export async function getJobSnapshotOnchain(onchainJobId: string) {
     createdAt: job[9].toString(),
     updatedAt: job[10].toString()
   };
+}
+
+export async function getJobTxHistoryOnchain(onchainJobId: string): Promise<OnchainJobEventTx[]> {
+  const escrowAddress = getContractAddress("erc8183Escrow");
+  const jobId = BigInt(onchainJobId);
+  const txs: OnchainJobEventTx[] = [];
+
+  for (const config of jobEventConfigs) {
+    const events = await publicClient.getContractEvents({
+      address: escrowAddress,
+      abi: escrowAbi,
+      eventName: config.eventName,
+      args: { jobId },
+      fromBlock: BigInt(0),
+      toBlock: "latest"
+    });
+
+    for (const event of events) {
+      const args = ("args" in event ? event.args : {}) as Record<string, unknown>;
+      txs.push({
+        action: config.action,
+        txHash: event.transactionHash,
+        createdAt: new Date().toISOString(),
+        label: config.label,
+        contractLabel: "ERC-8183 Escrow",
+        method: config.method,
+        blockNumber: Number(event.blockNumber),
+        actor: getEventActor(config.eventName, args),
+        summary: getEventSummary(config.eventName, args)
+      });
+    }
+  }
+
+  return txs.sort((left, right) => (left.blockNumber ?? 0) - (right.blockNumber ?? 0));
 }
 
 async function waitForHash(hash: Address) {

@@ -156,6 +156,16 @@ export default function JobDetailsPage() {
             </CardContent>
           </Card>
 
+          {message || error ? (
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm font-medium ${
+                error ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"
+              }`}
+            >
+              {error || message}
+            </div>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle>Submit deliverable</CardTitle>
@@ -171,7 +181,7 @@ export default function JobDetailsPage() {
                   onChange={(event) => setDeliverable(event.target.value)}
                   placeholder={canSubmit ? "Paste deliverable content to hash with keccak256" : "Deliverable submission is not available for this status"}
                 />
-                <Button type="submit" disabled={!canSubmit || busyAction === "submit"}>
+                <Button type="submit" disabled={!canSubmit || Boolean(busyAction)}>
                   <Send className="h-4 w-4" aria-hidden="true" />
                   {busyAction === "submit" ? "Hashing..." : "Submit Deliverable"}
                 </Button>
@@ -206,8 +216,6 @@ export default function JobDetailsPage() {
                   {busyAction === "refund" ? "Refunding..." : "Refund"}
                 </Button>
               </div>
-              {message ? <p className="text-sm font-medium text-emerald-700">{message}</p> : null}
-              {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
             </CardContent>
           </Card>
         </div>
@@ -226,7 +234,7 @@ export default function JobDetailsPage() {
               </Button>
               <Button
                 variant="outline"
-                disabled={!job.onchainJobId || busyAction === "sync"}
+                disabled={!job.onchainJobId || Boolean(busyAction)}
                 onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Onchain status synced.")}
               >
                 {busyAction === "sync" ? "Syncing..." : "Sync onchain status"}

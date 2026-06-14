@@ -7,7 +7,7 @@
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node -e \"require('fs').rmSync('tsconfig.tsbuildinfo',{force:true})\" && tsc --noEmit",
     "contracts:compile": "node scripts/deploy-arc-testnet.mjs --compile-only",
     "contracts:deploy:arc": "node scripts/deploy-arc-testnet.mjs",
     "contracts:smoke:arc": "node scripts/smoke-arc-testnet.mjs",

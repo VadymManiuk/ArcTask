@@ -4,7 +4,7 @@ import { keccak256, stringToHex } from "viem";
 import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
 import { seedState } from "@/lib/mock-data";
-import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, TxRecord } from "@/lib/types";
+import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
 import { normalizeAddress } from "@/lib/utils";
 
 const STORAGE_KEY = "arctask.mock.v1";
@@ -56,6 +56,30 @@ function createRecordedTx(
     gasUsed: onchainTx.gasUsed ? `${Number(onchainTx.gasUsed).toLocaleString()} gas` : undefined,
     ...details
   };
+}
+
+function createSyncedTx(tx: OnchainJobEventTx): TxRecord {
+  return {
+    id: createId("tx"),
+    arcscanUrl: getArcscanTxUrl(tx.txHash),
+    gasUsed: undefined,
+    ...tx
+  };
+}
+
+function mergeTxHistory(current: TxRecord[], incoming: TxRecord[]) {
+  const seen = new Set(current.map((tx) => `${tx.action}:${tx.txHash.toLowerCase()}`));
+  const additions = incoming.filter((tx) => {
+    const key = `${tx.action}:${tx.txHash.toLowerCase()}`;
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+
+  return [...additions.reverse(), ...current];
 }
 
 function cloneState(state: ArcTaskState): ArcTaskState {
@@ -394,7 +418,7 @@ export function refundJob(jobId: string, onchain?: { tx?: OnchainTx }) {
   const tx = createRecordedTx("JOB_REFUNDED", "Expired escrow refunded to client", {
     actor: job.clientWallet,
     contractLabel: "ERC-8183 Escrow",
-    method: "refund(uint256)",
+    method: "refundExpired(uint256)",
     summary: `${job.rewardAmount} USDC returned to client after escrow closeout.`
   }, onchain?.tx);
   const updatedJobs = state.jobs.map((item) =>
@@ -544,14 +568,24 @@ export async function syncOnchainJobStateAction(jobId: string) {
     throw new Error("This job does not have an onchain job ID.");
   }
 
-  const { getJobSnapshotOnchain } = await import("@/lib/onchain");
+  const { getJobSnapshotOnchain, getJobTxHistoryOnchain } = await import("@/lib/onchain");
   const snapshot = await getJobSnapshotOnchain(job.onchainJobId);
+  let syncedTxs: TxRecord[] = [];
+  try {
+    syncedTxs = (await getJobTxHistoryOnchain(job.onchainJobId)).map(createSyncedTx);
+  } catch {
+    syncedTxs = [];
+  }
+
   const status = onchainJobStatuses[snapshot.status];
   if (!status) {
     throw new Error(`Unknown onchain job status: ${snapshot.status}`);
   }
 
   const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+  const syncedJobTxHistory = mergeTxHistory(job.txHistory, syncedTxs);
+  const agentTxActions = new Set<TxRecord["action"]>(["DELIVERABLE_SUBMITTED", "WORK_ACCEPTED", "WORK_REJECTED"]);
+  const agentSyncedTxs = syncedTxs.filter((tx) => agentTxActions.has(tx.action));
   const updatedJobs = state.jobs.map((item) =>
     item.id === jobId
       ? {
@@ -561,12 +595,43 @@ export async function syncOnchainJobStateAction(jobId: string) {
           evaluatorWallet: snapshot.evaluatorWallet,
           jobPayloadUri: snapshot.jobPayloadUri || item.jobPayloadUri,
           deliverableHash: snapshot.deliverableHash === zeroHash ? item.deliverableHash : snapshot.deliverableHash,
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          txHistory: syncedJobTxHistory
         }
       : item
   );
+  const updatedAgents = state.agents.map((agent) => {
+    if (agent.id !== job.agentId) {
+      return agent;
+    }
 
-  writeState({ ...state, jobs: updatedJobs });
+    const txHistory = mergeTxHistory(agent.txHistory, agentSyncedTxs);
+    if (job.status !== "ACCEPTED" && status === "ACCEPTED") {
+      return {
+        ...agent,
+        completedJobs: agent.completedJobs + 1,
+        reputation: Math.min(100, agent.reputation + 8),
+        totalEarned: agent.totalEarned + job.rewardAmount,
+        txHistory
+      };
+    }
+
+    if (job.status !== "REJECTED" && status === "REJECTED") {
+      return {
+        ...agent,
+        rejectedJobs: agent.rejectedJobs + 1,
+        reputation: Math.max(0, agent.reputation - 6),
+        txHistory
+      };
+    }
+
+    return {
+      ...agent,
+      txHistory
+    };
+  });
+
+  writeState({ agents: updatedAgents, jobs: updatedJobs });
   return updatedJobs.find((item) => item.id === jobId);
 }
 

@@ -118,7 +118,7 @@ export default function HomePage() {
               </div>
               <div className="rounded-lg border border-border bg-white/80 p-4">
                 <p className="text-2xl font-bold">{formatUsdc(metrics.totalEscrowed)} USDC</p>
-                <p className="text-sm text-muted-foreground">mock escrowed</p>
+                <p className="text-sm text-muted-foreground">active escrowed</p>
               </div>
               <div className="rounded-lg border border-border bg-white/80 p-4">
                 <p className="text-2xl font-bold">{metrics.totalTxs}</p>
@@ -129,7 +129,7 @@ export default function HomePage() {
           <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-primary">Live mock flow</p>
+                <p className="text-sm font-semibold text-primary">Live testnet flow</p>
                 <h2 className="text-xl font-bold">From identity to settlement</h2>
               </div>
               <Network className="h-6 w-6 text-primary" aria-hidden="true" />

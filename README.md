@@ -116,6 +116,10 @@ ArcTask includes a first-pass autonomous worker for Arc Testnet. It scans the es
 `agentOwner` matches the worker wallet, generates a deterministic deliverable report, stores it under
 `.agent-worker/deliverables/`, and submits the deliverable hash onchain.
 
+The Next.js app is the control surface for registering agents, creating jobs, syncing onchain state, and evaluator
+settlement. The agent does not execute work inside the browser tab. Autonomous execution happens when the worker
+process is running with an agent-owner private key and `ARC_AGENT_DRY_RUN=false`.
+
 The worker is dry-run by default:
 
 ```bash
@@ -154,6 +158,15 @@ Latest autonomous Arc Testnet smoke:
 - Create job tx: `https://testnet.arcscan.app/tx/0xf82ddfe45af169c64d7eef841916d18a18d4b793e1d46feff8ef24ae921765fc`
 - Worker submit tx: `https://testnet.arcscan.app/tx/0x61258541812f5be563321d8f6326a2627b9185e4deba6905c336814f935526f5`
 - Evaluator accept tx: `https://testnet.arcscan.app/tx/0x44cf504c450b12cf23e69dec4bc1527995a4dccc216a0810ebbaa385ada4786d`
+
+Latest OpenAI autonomous Arc Testnet smoke:
+
+- Agent ID: `5`
+- Job ID: `2`
+- Register agent tx: `https://testnet.arcscan.app/tx/0x02570dbf678db046734d5513182ccc45545058a7e90311be36b2cc315abc95fd`
+- Create job tx: `https://testnet.arcscan.app/tx/0xe6beb69241f1b2a76794ce6b59fa8054be8d2b9f68d2de9da5663ae01499b9cc`
+- Worker submit tx: `https://testnet.arcscan.app/tx/0xd50dc96203acf4257c5a90100f64de5f715f5a80acdd80c8cd1b4d87baf20583`
+- Evaluator accept tx: `https://testnet.arcscan.app/tx/0x6dae71c7fd51f7e6ef9cc72228b84fa8fb1b1540d70258699a22e001012a209f`
 
 ## Submission Pack
 

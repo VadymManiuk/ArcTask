@@ -25,6 +25,18 @@ export interface TxRecord {
   summary?: string;
 }
 
+export interface OnchainJobEventTx {
+  action: TxAction;
+  txHash: `0x${string}`;
+  createdAt: string;
+  label: string;
+  contractLabel: TxRecord["contractLabel"];
+  method: string;
+  blockNumber?: number;
+  actor?: Address;
+  summary?: string;
+}
+
 export interface Agent {
   id: string;
   onchainAgentId?: string;
