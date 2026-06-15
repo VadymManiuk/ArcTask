@@ -161,6 +161,7 @@ Useful worker env vars:
 - `ARC_AGENT_MAX_JOBS_PER_TICK` - default `5`
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - default `gpt-4.1-mini`
+- `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
 
 When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
 `jobURI`. Without a key, or if the API is unavailable, the worker falls back to a deterministic structured report.
