@@ -238,6 +238,13 @@ export default function JobDetailsPage() {
                   <RefreshCw className={`h-4 w-4 ${deliverableLoading ? "animate-spin" : ""}`} aria-hidden="true" />
                   {deliverableLoading ? "Loading..." : "Refresh"}
                 </Button>
+                {job.onchainJobId ? (
+                  <Link href={`/deliverables/${job.onchainJobId}`}>
+                    <Button type="button" variant="ghost">
+                      Open full page
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
