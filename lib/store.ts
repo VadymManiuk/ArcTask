@@ -530,7 +530,9 @@ export async function acceptWorkAction(jobId: string) {
   }
 
   const { acceptWorkOnchain } = await import("@/lib/onchain");
-  return acceptWork(jobId, { tx: await acceptWorkOnchain(job.onchainJobId) });
+  const tx = await acceptWorkOnchain(job.onchainJobId);
+  await syncOnchainJobStateAction(jobId);
+  return { tx };
 }
 
 export async function rejectWorkAction(jobId: string) {
@@ -544,7 +546,9 @@ export async function rejectWorkAction(jobId: string) {
   }
 
   const { rejectWorkOnchain } = await import("@/lib/onchain");
-  return rejectWork(jobId, { tx: await rejectWorkOnchain(job.onchainJobId) });
+  const tx = await rejectWorkOnchain(job.onchainJobId);
+  await syncOnchainJobStateAction(jobId);
+  return { tx };
 }
 
 export async function refundJobAction(jobId: string) {
@@ -558,7 +562,9 @@ export async function refundJobAction(jobId: string) {
   }
 
   const { refundExpiredOnchain } = await import("@/lib/onchain");
-  return refundJob(jobId, { tx: await refundExpiredOnchain(job.onchainJobId) });
+  const tx = await refundExpiredOnchain(job.onchainJobId);
+  await syncOnchainJobStateAction(jobId);
+  return { tx };
 }
 
 export async function syncOnchainJobStateAction(jobId: string) {
