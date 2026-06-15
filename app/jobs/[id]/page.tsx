@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Check, RotateCcw, Send, Wallet, X } from "lucide-react";
+import { Check, ExternalLink, FileText, RefreshCw, RotateCcw, Send, Wallet, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,18 @@ import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatAddress, formatUsdc } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
 
+interface WorkerDeliverable {
+  jobId: string;
+  generatedAt?: string;
+  deliverableHash?: string;
+  txHash?: string;
+  txUrl?: string;
+  title: string;
+  mode?: string;
+  model?: string;
+  summary: string;
+}
+
 export default function JobDetailsPage() {
   const params = useParams<{ id: string }>();
   const { agents, jobs } = useArcTaskState();
@@ -30,6 +42,50 @@ export default function JobDetailsPage() {
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string>("");
   const [connectedWallet, setConnectedWallet] = useState("");
+  const [workerDeliverable, setWorkerDeliverable] = useState<WorkerDeliverable | null>(null);
+  const [deliverableLoading, setDeliverableLoading] = useState(false);
+  const [deliverableError, setDeliverableError] = useState("");
+
+  const loadWorkerDeliverable = useCallback(async () => {
+    if (!job?.onchainJobId) {
+      setWorkerDeliverable(null);
+      setDeliverableError("This job does not have an onchain job ID.");
+      return;
+    }
+
+    setDeliverableLoading(true);
+    setDeliverableError("");
+    try {
+      const response = await fetch(`/api/deliverables/${encodeURIComponent(job.onchainJobId)}`, {
+        cache: "no-store"
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        deliverable?: WorkerDeliverable;
+        error?: string;
+      };
+
+      if (!response.ok || !body.deliverable) {
+        throw new Error(body.error ?? "Worker deliverable is not available yet.");
+      }
+
+      setWorkerDeliverable(body.deliverable);
+    } catch (caught) {
+      setWorkerDeliverable(null);
+      setDeliverableError(caught instanceof Error ? caught.message : "Worker deliverable is not available yet.");
+    } finally {
+      setDeliverableLoading(false);
+    }
+  }, [job?.onchainJobId]);
+
+  useEffect(() => {
+    if (!job?.onchainJobId || !["SUBMITTED", "ACCEPTED", "REJECTED"].includes(job.status)) {
+      setWorkerDeliverable(null);
+      setDeliverableError("");
+      return;
+    }
+
+    void loadWorkerDeliverable();
+  }, [job?.onchainJobId, job?.status, loadWorkerDeliverable]);
 
   if (!job) {
     return (
@@ -168,6 +224,78 @@ export default function JobDetailsPage() {
 
           <Card>
             <CardHeader>
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
+                  Agent deliverable
+                </CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!job.onchainJobId || deliverableLoading}
+                  onClick={() => void loadWorkerDeliverable()}
+                >
+                  <RefreshCw className={`h-4 w-4 ${deliverableLoading ? "animate-spin" : ""}`} aria-hidden="true" />
+                  {deliverableLoading ? "Loading..." : "Refresh"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!job.onchainJobId ? (
+                <p className="text-sm text-muted-foreground">Worker deliverables are available for onchain jobs only.</p>
+              ) : deliverableError ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+                  {deliverableError}
+                </div>
+              ) : workerDeliverable ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-muted-foreground">Executor</p>
+                      <p className="font-semibold">
+                        {[workerDeliverable.mode, workerDeliverable.model].filter(Boolean).join(" / ") || "Worker"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Worker tx</p>
+                      {workerDeliverable.txUrl ? (
+                        <a
+                          href={workerDeliverable.txUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 break-all font-semibold text-primary hover:underline"
+                        >
+                          {workerDeliverable.txHash ? formatAddress(workerDeliverable.txHash) : "Open Arcscan"}
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      ) : (
+                        <p className="font-semibold">Not recorded</p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-muted-foreground">Deliverable hash</p>
+                      <p className="break-all font-semibold">{workerDeliverable.deliverableHash ?? "Not recorded"}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/40">
+                    <div className="border-b border-border px-4 py-3">
+                      <p className="font-semibold">{workerDeliverable.title}</p>
+                    </div>
+                    <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap p-4 text-sm leading-6 text-foreground">
+                      {workerDeliverable.summary || "The worker deliverable file did not include summary text."}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No worker deliverable loaded yet. Refresh after the agent submits work onchain.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Submit deliverable</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -235,7 +363,11 @@ export default function JobDetailsPage() {
               <Button
                 variant="outline"
                 disabled={!job.onchainJobId || Boolean(busyAction)}
-                onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Onchain status synced.")}
+                onClick={() =>
+                  handleAction("sync", () => syncOnchainJobStateAction(jobId), "Onchain status synced.", () => {
+                    void loadWorkerDeliverable();
+                  })
+                }
               >
                 {busyAction === "sync" ? "Syncing..." : "Sync onchain status"}
               </Button>
