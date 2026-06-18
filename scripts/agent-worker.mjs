@@ -652,7 +652,6 @@ const arcTestnet = defineChain({
   testnet: true
 });
 
-const account = privateKeyToAccount(normalizePrivateKey(privateKey));
 const escrowAbi = readAbi("ERC8183Escrow.json");
 const publicClient = createPublicClient({
   chain: arcTestnet,
