@@ -107,9 +107,10 @@ export async function GET(request: Request) {
       abi: escrowAbi,
       functionName: "nextJobId"
     })) as bigint;
-    const firstJobId = nextJobId > BigInt(limit) ? nextJobId - BigInt(limit) : 1n;
+    const one = BigInt(1);
+    const firstJobId = nextJobId > BigInt(limit) ? nextJobId - BigInt(limit) : one;
     const jobIds: bigint[] = [];
-    for (let jobId = firstJobId; jobId < nextJobId; jobId += 1n) {
+    for (let jobId = firstJobId; jobId < nextJobId; jobId += one) {
       jobIds.push(jobId);
     }
 
