@@ -21,7 +21,8 @@ export function formatUsdc(amount: number) {
 }
 
 export function getTodayDateInputValue(now = new Date()) {
-  return now.toISOString().slice(0, 10);
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 export function isPastDateInputValue(value: string, now = new Date()) {
