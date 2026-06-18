@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Check, ExternalLink, FileText, RefreshCw, RotateCcw, Send, Wallet, X } from "lucide-react";
@@ -18,7 +18,7 @@ import {
 } from "@/lib/store";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatAddress, formatUsdc } from "@/lib/utils";
-import { requestArcAccount } from "@/lib/wallet";
+import { requestArcAccount, requestDeliverableAccessProof } from "@/lib/wallet";
 
 interface WorkerDeliverable {
   jobId: string;
@@ -56,7 +56,14 @@ export default function JobDetailsPage() {
     setDeliverableLoading(true);
     setDeliverableError("");
     try {
-      const response = await fetch(`/api/deliverables/${encodeURIComponent(job.onchainJobId)}`, {
+      const proof = await requestDeliverableAccessProof(job.onchainJobId);
+      setConnectedWallet(proof.address);
+
+      const url = new URL(`/api/deliverables/${encodeURIComponent(job.onchainJobId)}`, window.location.origin);
+      url.searchParams.set("address", proof.address);
+      url.searchParams.set("signature", proof.signature);
+
+      const response = await fetch(url, {
         cache: "no-store"
       });
       const body = (await response.json().catch(() => ({}))) as {
@@ -76,16 +83,6 @@ export default function JobDetailsPage() {
       setDeliverableLoading(false);
     }
   }, [job?.onchainJobId]);
-
-  useEffect(() => {
-    if (!job?.onchainJobId || !["SUBMITTED", "ACCEPTED", "REJECTED"].includes(job.status)) {
-      setWorkerDeliverable(null);
-      setDeliverableError("");
-      return;
-    }
-
-    void loadWorkerDeliverable();
-  }, [job?.onchainJobId, job?.status, loadWorkerDeliverable]);
 
   if (!job) {
     return (
@@ -236,7 +233,7 @@ export default function JobDetailsPage() {
                   onClick={() => void loadWorkerDeliverable()}
                 >
                   <RefreshCw className={`h-4 w-4 ${deliverableLoading ? "animate-spin" : ""}`} aria-hidden="true" />
-                  {deliverableLoading ? "Loading..." : "Refresh"}
+                  {deliverableLoading ? "Checking..." : workerDeliverable ? "Refresh Access" : "Unlock"}
                 </Button>
                 {job.onchainJobId ? (
                   <Link href={`/deliverables/${job.onchainJobId}`}>
@@ -295,7 +292,7 @@ export default function JobDetailsPage() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No worker deliverable loaded yet. Refresh after the agent submits work onchain.
+                  This report is private. Unlock it with the wallet that created the job after the agent submits work onchain.
                 </p>
               )}
             </CardContent>
@@ -370,11 +367,7 @@ export default function JobDetailsPage() {
               <Button
                 variant="outline"
                 disabled={!job.onchainJobId || Boolean(busyAction)}
-                onClick={() =>
-                  handleAction("sync", () => syncOnchainJobStateAction(jobId), "Onchain status synced.", () => {
-                    void loadWorkerDeliverable();
-                  })
-                }
+                onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Onchain status synced.")}
               >
                 {busyAction === "sync" ? "Syncing..." : "Sync onchain status"}
               </Button>

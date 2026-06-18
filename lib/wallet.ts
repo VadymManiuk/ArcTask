@@ -1,6 +1,7 @@
 "use client";
 
 import { ARC_TESTNET } from "@/lib/arc";
+import { getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import { normalizeAddress } from "@/lib/utils";
 import type { Address } from "@/lib/types";
 
@@ -123,4 +124,16 @@ export async function requestArcAccount(): Promise<Address> {
   await switchToArcTestnet(ethereum);
   const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
   return getFirstAccount(accounts);
+}
+
+export async function requestDeliverableAccessProof(jobId: string) {
+  const ethereum = getEthereumProvider();
+  const address = await requestArcAccount();
+  const message = getDeliverableAccessMessage(jobId, address);
+  const signature = (await ethereum.request({
+    method: "personal_sign",
+    params: [message, address]
+  })) as string;
+
+  return { address, signature };
 }

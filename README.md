@@ -167,6 +167,10 @@ When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-rea
 `jobURI`. Without a key, or if the API is unavailable, the worker falls back to a deterministic structured report.
 For production, add durable storage, queue retries, monitoring, and managed key custody.
 
+Worker reports are private offchain artifacts. The onchain deliverable hash remains public, but
+`/api/deliverables/:jobId` and `/deliverables/:jobId` require a wallet signature from the job creator wallet before
+returning the full report.
+
 Latest autonomous Arc Testnet smoke:
 
 - Agent ID: `4`
