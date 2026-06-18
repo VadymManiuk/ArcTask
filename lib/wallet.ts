@@ -129,11 +129,12 @@ export async function requestArcAccount(): Promise<Address> {
 export async function requestDeliverableAccessProof(jobId: string) {
   const ethereum = getEthereumProvider();
   const address = await requestArcAccount();
-  const message = getDeliverableAccessMessage(jobId, address);
+  const issuedAt = new Date().toISOString();
+  const message = getDeliverableAccessMessage(jobId, address, issuedAt);
   const signature = (await ethereum.request({
     method: "personal_sign",
     params: [message, address]
   })) as string;
 
-  return { address, signature };
+  return { address, issuedAt, signature };
 }

@@ -169,7 +169,7 @@ For production, add durable storage, queue retries, monitoring, and managed key 
 
 Worker reports are private offchain artifacts. The onchain deliverable hash remains public, but
 `/api/deliverables/:jobId` and `/deliverables/:jobId` require a signed POST proof from the job creator wallet before
-returning the full report. Signatures are intentionally not sent in query strings.
+returning the full report. Signatures are intentionally not sent in query strings and expire after five minutes.
 
 Latest autonomous Arc Testnet smoke:
 

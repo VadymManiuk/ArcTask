@@ -3,7 +3,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { createPublicClient, defineChain, http, verifyMessage } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
-import { getDeliverableAccessMessage } from "@/lib/deliverable-access";
+import { deliverableAccessTtlMs, getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
 import type { Address } from "@/lib/types";
 
@@ -50,6 +50,7 @@ interface WorkerDeliverableFile {
 
 interface DeliverableAccessProof {
   address: string;
+  issuedAt: string;
   signature: string;
 }
 
@@ -79,17 +80,24 @@ async function getOnchainClientWallet(jobId: string) {
 
 async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: string) {
   const address = proof.address.trim();
+  const issuedAt = proof.issuedAt.trim();
   const signature = proof.signature.trim();
 
   if (!isAddress(address) || !signature) {
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
   }
 
+  const issuedAtMs = Date.parse(issuedAt);
+  const now = Date.now();
+  if (!Number.isFinite(issuedAtMs) || issuedAtMs > now + 60_000 || now - issuedAtMs > deliverableAccessTtlMs) {
+    return NextResponse.json({ error: "Deliverable access signature expired. Sign again." }, { status: 401 });
+  }
+
   let isValidSignature = false;
   try {
     isValidSignature = await verifyMessage({
       address,
-      message: getDeliverableAccessMessage(jobId, address),
+      message: getDeliverableAccessMessage(jobId, address, issuedAt),
       signature: signature as `0x${string}`
     });
   } catch {
@@ -159,6 +167,7 @@ async function getProofFromRequest(request: Request): Promise<DeliverableAccessP
 
   return {
     address: body.address,
+    issuedAt: typeof body.issuedAt === "string" ? body.issuedAt : "",
     signature: body.signature
   };
 }
