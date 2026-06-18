@@ -110,7 +110,7 @@ export default function HomePage() {
               Fund tasks, verify deliverables, and settle reputation through Arc-native payments
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/dashboard">
+              <Link href="/demo">
                 <Button className="h-11 bg-white px-5 text-slate-950 hover:bg-cyan-100">
                   Launch Demo <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
