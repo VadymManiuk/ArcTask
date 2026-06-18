@@ -13,8 +13,8 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 const rootDir = process.cwd();
-const defaultRegistryAddress = "0xe69e88cb35a831fca783ac56405831478fdbaa41";
-const defaultEscrowAddress = "0xa01556ed349afc5de844bd0bb10ba6ed8808aaea";
+const defaultRegistryAddress = "0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8";
+const defaultEscrowAddress = "0x58ca473df727301bce771d6087f883364c83a3b6";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;

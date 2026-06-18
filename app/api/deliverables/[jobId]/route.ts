@@ -13,7 +13,7 @@ import type { Address } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const defaultEscrowAddress = "0xa01556ed349afc5de844bd0bb10ba6ed8808aaea";
+const defaultEscrowAddress = "0x58ca473df727301bce771d6087f883364c83a3b6";
 
 const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,

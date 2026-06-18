@@ -78,8 +78,8 @@ Vercel will issue SSL automatically.
 
 Default onchain configuration:
 
-- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=0xe69e88cb35a831fca783ac56405831478fdbaa41`
-- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0xa01556ed349afc5de844bd0bb10ba6ed8808aaea`
+- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8`
+- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0x58ca473df727301bce771d6087f883364c83a3b6`
 - `NEXT_PUBLIC_USDC_ADDRESS=native`
 
 ## Testnet Transition
@@ -124,8 +124,8 @@ Add those values to `.env.local` and to Vercel Environment Variables before enab
 
 Current Arc Testnet deployment:
 
-- Agent registry: `0xe69e88cb35a831fca783ac56405831478fdbaa41`
-- Escrow: `0xa01556ed349afc5de844bd0bb10ba6ed8808aaea`
+- Agent registry: `0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8`
+- Escrow: `0x58ca473df727301bce771d6087f883364c83a3b6`
 - USDC mode: `native`
 
 The current escrow stores a `jobURI` payload with every onchain job so autonomous workers can read the actual task
@@ -249,6 +249,15 @@ Latest OpenAI autonomous Arc Testnet smoke:
 - Create job tx: `https://testnet.arcscan.app/tx/0xe6beb69241f1b2a76794ce6b59fa8054be8d2b9f68d2de9da5663ae01499b9cc`
 - Worker submit tx: `https://testnet.arcscan.app/tx/0xd50dc96203acf4257c5a90100f64de5f715f5a80acdd80c8cd1b4d87baf20583`
 - Evaluator accept tx: `https://testnet.arcscan.app/tx/0x6dae71c7fd51f7e6ef9cc72228b84fa8fb1b1540d70258699a22e001012a209f`
+
+Latest hardened contract smoke:
+
+- Agent ID: `1`
+- Job ID: `1`
+- Register agent tx: `https://testnet.arcscan.app/tx/0x818e17bd8ff68e19ff193d12880f3718028bf52717621091e8d82d92bc752879`
+- Create job tx: `https://testnet.arcscan.app/tx/0xfc2999ea15a26701ab44388cfb47cda5271bf40d54c153faf40aed6cb7877179`
+- Submit deliverable tx: `https://testnet.arcscan.app/tx/0xf13b6a4e7f39622bdcc164cd3744c3b309755025176c57e8689bcf62aee98abd`
+- Evaluator accept tx: `https://testnet.arcscan.app/tx/0x2dec31318e14610c71453011659ecc00fc4d9ed0f26e8ca9b5b1a0ccdc75a4f2`
 
 ## Arc Testnet
 

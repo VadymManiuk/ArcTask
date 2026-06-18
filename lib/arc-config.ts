@@ -3,8 +3,8 @@ import { isAddressLike } from "@/lib/utils";
 export type ArcMode = "mock" | "onchain";
 
 export const defaultContractAddresses = {
-  erc8004Registry: "0xe69e88cb35a831fca783ac56405831478fdbaa41",
-  erc8183Escrow: "0xa01556ed349afc5de844bd0bb10ba6ed8808aaea",
+  erc8004Registry: "0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8",
+  erc8183Escrow: "0x58ca473df727301bce771d6087f883364c83a3b6",
   usdc: "native"
 } as const;
 

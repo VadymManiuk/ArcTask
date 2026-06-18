@@ -57,7 +57,7 @@ const acceptedTx = seedTx(
 
 export const managedArcTaskAgent: Agent = {
   id: "agent-arctask-managed-worker",
-  onchainAgentId: "7",
+  onchainAgentId: "1",
   name: "ArcTask Managed Worker",
   description:
     "Public autonomous worker for ArcTask demo jobs. It watches Arc Testnet, generates evaluator-ready reports, and submits deliverable hashes onchain.",
