@@ -18,6 +18,7 @@ const defaultEscrowAddress = "0xa01556ed349afc5de844bd0bb10ba6ed8808aaea";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
+const statusVersion = 1;
 
 function loadLocalEnv() {
   const envPath = path.join(rootDir, ".env.local");
@@ -90,6 +91,26 @@ function getOptionalPositiveIntegerEnv(name, defaultValue) {
   }
 
   return getPositiveIntegerEnv(name, defaultValue);
+}
+
+function uniq(values) {
+  return [...new Set(values)];
+}
+
+function parsePrivateKeys() {
+  const rawMultiKeyValue = process.env.ARC_AGENT_PRIVATE_KEYS ?? "";
+  const rawKeys = rawMultiKeyValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const fallbackKey = process.env.ARC_AGENT_PRIVATE_KEY ?? process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY;
+  const keys = uniq(rawKeys.length > 0 ? rawKeys : fallbackKey ? [fallbackKey] : []);
+
+  if (keys.length === 0) {
+    requiredEnv("ARC_AGENT_PRIVATE_KEY");
+  }
+
+  return keys.map(normalizePrivateKey);
 }
 
 function sameAddress(left, right) {
@@ -286,17 +307,165 @@ function ensureOutputDir() {
   return outputDir;
 }
 
+function ensureRuntimeDirs() {
+  const stateDir = process.env.ARC_AGENT_STATE_DIR ?? path.join(rootDir, ".agent-worker", "state");
+  const lockDir = process.env.ARC_AGENT_LOCK_DIR ?? path.join(rootDir, ".agent-worker", "locks");
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.mkdirSync(lockDir, { recursive: true });
+  return {
+    stateDir,
+    lockDir,
+    statusPath: path.join(stateDir, "status.json")
+  };
+}
+
+function atomicWriteJson(filePath, value) {
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tempPath, serializeBigInts(value));
+  fs.renameSync(tempPath, filePath);
+}
+
+function readJsonFile(filePath, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+function createInitialStatus() {
+  const now = new Date().toISOString();
+  return {
+    version: statusVersion,
+    service: "arctask-worker",
+    startedAt: now,
+    updatedAt: now,
+    lastHeartbeatAt: now,
+    mode: dryRun ? "dry-run" : "live",
+    executor: openAiApiKey ? `openai:${openAiModel}` : "deterministic-fallback",
+    rpcUrl,
+    explorerUrl,
+    escrowAddress,
+    pollIntervalMs,
+    maxJobsPerTick,
+    staleLockMs,
+    managedAgents: workerAccounts.map(({ account }) => ({
+      address: account.address
+    })),
+    queue: {
+      pending: 0,
+      locked: 0,
+      submitted: 0,
+      skipped: 0,
+      failed: 0
+    },
+    metrics: {
+      ticks: 0,
+      jobsScanned: 0,
+      jobsSubmitted: 0,
+      jobsSkipped: 0,
+      errors: 0
+    },
+    recentEvents: []
+  };
+}
+
+function writeStatus(patch = {}) {
+  const previous = readJsonFile(statusPath, createInitialStatus());
+  const next = {
+    ...previous,
+    ...patch,
+    queue: {
+      ...previous.queue,
+      ...(patch.queue ?? {})
+    },
+    metrics: {
+      ...previous.metrics,
+      ...(patch.metrics ?? {})
+    },
+    updatedAt: new Date().toISOString(),
+    lastHeartbeatAt: patch.lastHeartbeatAt ?? new Date().toISOString()
+  };
+
+  atomicWriteJson(statusPath, next);
+  return next;
+}
+
+function appendStatusEvent(event) {
+  const previous = readJsonFile(statusPath, createInitialStatus());
+  const recentEvents = [
+    {
+      ...event,
+      createdAt: new Date().toISOString()
+    },
+    ...(previous.recentEvents ?? [])
+  ].slice(0, 40);
+
+  return writeStatus({ recentEvents });
+}
+
+function listActiveLocks(lockDir) {
+  try {
+    return fs.readdirSync(lockDir).filter((fileName) => fileName.endsWith(".lock")).length;
+  } catch {
+    return 0;
+  }
+}
+
+function acquireJobLock(lockDir, jobId, workerAddress) {
+  const lockPath = path.join(lockDir, `job-${jobId.toString()}.lock`);
+  const now = Date.now();
+
+  try {
+    const stat = fs.statSync(lockPath);
+    if (now - stat.mtimeMs > staleLockMs) {
+      fs.unlinkSync(lockPath);
+    }
+  } catch (caught) {
+    if (caught.code !== "ENOENT") {
+      throw caught;
+    }
+  }
+
+  try {
+    const fd = fs.openSync(lockPath, "wx");
+    fs.writeFileSync(
+      fd,
+      serializeBigInts({
+        jobId: jobId.toString(),
+        worker: workerAddress,
+        pid: process.pid,
+        createdAt: new Date().toISOString()
+      })
+    );
+    fs.closeSync(fd);
+    return {
+      lockPath,
+      release() {
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          // Another watchdog or manual operator may have already removed it.
+        }
+      }
+    };
+  } catch (caught) {
+    if (caught.code === "EEXIST") {
+      return null;
+    }
+
+    throw caught;
+  }
+}
+
 function writeDeliverable(outputDir, jobId, deliverable, txHash) {
   const filePath = path.join(outputDir, `job-${jobId.toString()}.json`);
-  fs.writeFileSync(
-    filePath,
-    serializeBigInts({
-      ...deliverable.report,
-      deliverableHash: deliverable.hash,
-      txHash,
-      txUrl: txHash ? `${explorerUrl}/tx/${txHash}` : undefined
-    })
-  );
+  atomicWriteJson(filePath, {
+    ...deliverable.report,
+    deliverableHash: deliverable.hash,
+    txHash,
+    txUrl: txHash ? `${explorerUrl}/tx/${txHash}` : undefined
+  });
   return filePath;
 }
 
@@ -323,14 +492,14 @@ async function readJob(jobId) {
   };
 }
 
-async function submitJob(jobId, job, outputDir, dryRun) {
+async function submitJob(jobId, job, outputDir, dryRun, workerAccount) {
   const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
   if (job.deadline <= nowSeconds) {
     console.log(`skip job ${jobId}: deadline expired`);
     return false;
   }
 
-  const deliverable = await buildDeliverable(jobId, job, account.address, explorerUrl);
+  const deliverable = await buildDeliverable(jobId, job, workerAccount.account.address, explorerUrl);
   if (dryRun) {
     const filePath = writeDeliverable(outputDir, jobId, deliverable);
     console.log(`dry-run job ${jobId}: would submit ${deliverable.hash}`);
@@ -338,7 +507,7 @@ async function submitJob(jobId, job, outputDir, dryRun) {
     return true;
   }
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await workerAccount.walletClient.writeContract({
     address: escrowAddress,
     abi: escrowAbi,
     functionName: "submitDeliverable",
@@ -355,30 +524,89 @@ async function submitJob(jobId, job, outputDir, dryRun) {
   return true;
 }
 
-async function scanOnce({ dryRun, maxJobsPerTick, outputDir }) {
+async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   const nextJobId = await publicClient.readContract({
     address: escrowAddress,
     abi: escrowAbi,
     functionName: "nextJobId"
   });
   let handled = 0;
+  let scanned = 0;
+  let skipped = 0;
+  let pending = 0;
+  let failed = 0;
+  const statusBeforeTick = readJsonFile(statusPath, createInitialStatus());
 
   for (let jobId = 1n; jobId < nextJobId; jobId += 1n) {
     const job = await readJob(jobId);
-    if (job.status !== fundedStatus || !sameAddress(job.agentOwner, account.address)) {
+    scanned += 1;
+    if (job.status !== fundedStatus) {
       continue;
     }
 
-    await submitJob(jobId, job, outputDir, dryRun);
-    handled += 1;
-    if (handled >= maxJobsPerTick) {
-      break;
+    const workerAccount = workerAccounts.find(({ account }) => sameAddress(job.agentOwner, account.address));
+    if (!workerAccount) {
+      continue;
+    }
+
+    pending += 1;
+    const lock = acquireJobLock(lockDir, jobId, workerAccount.account.address);
+    if (!lock) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      appendStatusEvent({
+        type: "job_started",
+        jobId: jobId.toString(),
+        worker: workerAccount.account.address
+      });
+      await submitJob(jobId, job, outputDir, dryRun, workerAccount);
+      handled += 1;
+      appendStatusEvent({
+        type: dryRun ? "job_dry_run" : "job_submitted",
+        jobId: jobId.toString(),
+        worker: workerAccount.account.address
+      });
+      if (handled >= maxJobsPerTick) {
+        break;
+      }
+    } catch (caught) {
+      failed += 1;
+      const message = caught instanceof Error ? caught.message : "unknown submit error";
+      appendStatusEvent({
+        type: "job_failed",
+        jobId: jobId.toString(),
+        worker: workerAccount.account.address,
+        error: message
+      });
+      throw caught;
+    } finally {
+      lock.release();
     }
   }
 
   if (handled === 0) {
-    console.log(`no funded jobs for ${account.address}`);
+    console.log(`no funded jobs for managed agents: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);
   }
+
+  writeStatus({
+    queue: {
+      pending,
+      locked: listActiveLocks(lockDir),
+      submitted: handled,
+      skipped,
+      failed
+    },
+    metrics: {
+      ticks: (statusBeforeTick.metrics?.ticks ?? 0) + 1,
+      jobsScanned: (statusBeforeTick.metrics?.jobsScanned ?? 0) + scanned,
+      jobsSubmitted: (statusBeforeTick.metrics?.jobsSubmitted ?? 0) + handled,
+      jobsSkipped: (statusBeforeTick.metrics?.jobsSkipped ?? 0) + skipped,
+      errors: (statusBeforeTick.metrics?.errors ?? 0) + failed
+    }
+  });
 }
 
 function sleep(ms) {
@@ -387,10 +615,6 @@ function sleep(ms) {
 
 loadLocalEnv();
 
-const privateKey =
-  process.env.ARC_AGENT_PRIVATE_KEY ??
-  process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY ??
-  requiredEnv("ARC_AGENT_PRIVATE_KEY");
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl;
 const escrowAddress = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS", defaultEscrowAddress);
@@ -399,6 +623,7 @@ const dryRun = getBooleanEnv("ARC_AGENT_DRY_RUN", true);
 const once = getBooleanEnv("ARC_AGENT_ONCE", false);
 const pollIntervalMs = getPositiveIntegerEnv("ARC_AGENT_POLL_INTERVAL_MS", 15_000);
 const maxJobsPerTick = getPositiveIntegerEnv("ARC_AGENT_MAX_JOBS_PER_TICK", 5);
+const staleLockMs = getPositiveIntegerEnv("ARC_AGENT_STALE_LOCK_MS", 10 * 60_000);
 const openAiApiKey = process.env.OPENAI_API_KEY;
 const openAiModel = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
@@ -433,27 +658,44 @@ const publicClient = createPublicClient({
   chain: arcTestnet,
   transport: http(rpcUrl)
 });
-const walletClient = createWalletClient({
-  account,
-  chain: arcTestnet,
-  transport: http(rpcUrl)
+const workerAccounts = parsePrivateKeys().map((privateKey) => {
+  const account = privateKeyToAccount(privateKey);
+  return {
+    account,
+    walletClient: createWalletClient({
+      account,
+      chain: arcTestnet,
+      transport: http(rpcUrl)
+    })
+  };
 });
 const outputDir = ensureOutputDir();
+const { lockDir, statusPath } = ensureRuntimeDirs();
 
 console.log(`ArcTask agent worker`);
-console.log(`account: ${account.address}`);
+console.log(`accounts: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);
 console.log(`escrow: ${escrowAddress}`);
 console.log(`mode: ${dryRun ? "dry-run" : "live"}`);
 console.log(`executor: ${openAiApiKey ? `openai:${openAiModel}` : "deterministic-fallback"}`);
+console.log(`status: ${path.relative(rootDir, statusPath)}`);
 
-if (!process.env.ARC_AGENT_PRIVATE_KEY && process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY) {
+if (!process.env.ARC_AGENT_PRIVATE_KEY && !process.env.ARC_AGENT_PRIVATE_KEYS && process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY) {
   console.log("warning: using ARC_TESTNET_DEPLOYER_PRIVATE_KEY fallback; set ARC_AGENT_PRIVATE_KEY for production.");
 }
 
+atomicWriteJson(statusPath, createInitialStatus());
+
 do {
   try {
-    await scanOnce({ dryRun, maxJobsPerTick, outputDir });
+    await scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir });
   } catch (caught) {
+    const previous = readJsonFile(statusPath, createInitialStatus());
+    writeStatus({
+      metrics: {
+        errors: (previous.metrics?.errors ?? 0) + 1
+      },
+      lastError: caught instanceof Error ? caught.message : "unknown worker error"
+    });
     if (once) {
       throw caught;
     }

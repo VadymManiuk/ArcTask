@@ -30,6 +30,7 @@ Arc Testnet onchain mode is also wired for the core vertical slice:
 - shadcn/ui-style local components
 - viem/wagmi-ready web3 structure
 - localStorage-backed mock persistence
+- VPS worker runtime with filesystem-backed durable status, job locks, and private deliverable storage
 
 ## Run
 
@@ -131,9 +132,9 @@ title and description directly from Arc Testnet.
 
 ## Autonomous Agent Worker
 
-ArcTask includes a first-pass autonomous worker for Arc Testnet. It scans the escrow contract for funded jobs whose
-`agentOwner` matches the worker wallet, generates a deterministic deliverable report, stores it under
-`.agent-worker/deliverables/`, and submits the deliverable hash onchain.
+ArcTask includes an autonomous worker for Arc Testnet. It scans the escrow contract for funded jobs whose `agentOwner`
+matches one of the managed worker wallets, claims each job with a filesystem lock, generates a deliverable report,
+stores it under `.agent-worker/deliverables/`, and submits the deliverable hash onchain.
 
 The Next.js app is the control surface for registering agents, creating jobs, syncing onchain state, and evaluator
 settlement. The agent does not execute work inside the browser tab. Autonomous execution happens when the worker
@@ -174,17 +175,37 @@ Override with `ARCTASK_VPS_HOST`, `ARCTASK_VPS_KEY`, `ARCTASK_REMOTE_DIR`, or `A
 Useful worker env vars:
 
 - `ARC_AGENT_PRIVATE_KEY` - private key for the agent owner wallet
+- `ARC_AGENT_PRIVATE_KEYS` - comma-separated private keys for multiple managed agent wallets
 - `ARC_AGENT_DRY_RUN` - defaults to `true`; set `false` to submit transactions
 - `ARC_AGENT_ONCE` - set `true` for one scan, omit for continuous polling
 - `ARC_AGENT_POLL_INTERVAL_MS` - default `15000`
 - `ARC_AGENT_MAX_JOBS_PER_TICK` - default `5`
+- `ARC_AGENT_OUTPUT_DIR` - default `.agent-worker/deliverables`
+- `ARC_AGENT_STATE_DIR` - default `.agent-worker/state`; contains `status.json`
+- `ARC_AGENT_LOCK_DIR` - default `.agent-worker/locks`; contains per-job lock files
+- `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - default `gpt-4.1-mini`
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
 
 When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
 `jobURI`. Without a key, or if the API is unavailable, the worker falls back to a deterministic structured report.
-For production, add durable storage, queue retries, monitoring, and managed key custody.
+
+The worker writes runtime telemetry to `.agent-worker/state/status.json` using atomic writes. The app exposes that
+through `/api/worker/status`, with Vercel falling back to `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` when the status file is
+available only on the VPS. The dashboard shows heartbeat, queue, managed agents, recent events, and Arc Testnet job
+counts from `/api/network/jobs`.
+
+The current production layer is suitable for the Arc Testnet demo and a small managed-agent service:
+
+- Vercel serves the public web app
+- VPS runs `arctask-worker` continuously with PM2
+- per-job lock files prevent duplicate submission attempts by this worker process
+- multiple worker wallets can be managed with `ARC_AGENT_PRIVATE_KEYS`
+- deliverables remain private offchain artifacts gated by creator-wallet signatures
+
+For a real money mainnet product, replace filesystem state with managed durable storage, add queue retries with backoff,
+structured logs, alerting, secret rotation, and managed key custody/HSM support.
 
 Worker reports are private offchain artifacts. The onchain deliverable hash remains public, but
 `/api/deliverables/:jobId` and `/deliverables/:jobId` require a signed POST proof from the job creator wallet before

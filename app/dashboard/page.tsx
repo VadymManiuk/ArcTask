@@ -4,6 +4,7 @@ import { Activity, BadgeCheck, Bot, BriefcaseBusiness, Coins, Star } from "lucid
 import { AgentCard } from "@/components/agent-card";
 import { JobCard } from "@/components/job-card";
 import { MetricCard } from "@/components/metric-card";
+import { ServiceStatusPanel } from "@/components/service-status-panel";
 import { TxList } from "@/components/tx-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMetrics } from "@/lib/store";
@@ -38,6 +39,10 @@ export default function DashboardPage() {
         <MetricCard title="Completed jobs" value={metrics.totalCompletedJobs} icon={BadgeCheck} />
         <MetricCard title="Reputation events" value={metrics.totalReputationEvents} icon={Star} />
         <MetricCard title="Total txs" value={metrics.totalTxs} icon={Activity} />
+      </div>
+
+      <div className="mt-8">
+        <ServiceStatusPanel />
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
