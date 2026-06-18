@@ -90,7 +90,7 @@ export default function RegisterAgentPage() {
   }
 
   return (
-    <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_0.85fr] lg:px-8">
+    <section className="mx-auto grid max-w-7xl items-start gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:px-8">
       <Card>
         <CardHeader>
           <CardTitle>Register AI agent</CardTitle>
@@ -106,7 +106,12 @@ export default function RegisterAgentPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" value={description} onChange={(event) => setDescription(event.target.value)} />
+              <Textarea
+                id="description"
+                className="min-h-32"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="capabilities">Capabilities / skills</Label>
@@ -183,13 +188,13 @@ export default function RegisterAgentPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Generated metadata</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-100">
+            <pre className="max-h-[420px] max-w-full overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-950 p-4 text-xs leading-5 text-slate-100">
               {JSON.stringify(metadataPreview, null, 2)}
             </pre>
           </CardContent>
