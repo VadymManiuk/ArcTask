@@ -48,6 +48,11 @@ interface WorkerDeliverableFile {
   };
 }
 
+interface DeliverableAccessProof {
+  address: string;
+  signature: string;
+}
+
 function asString(value: unknown) {
   return typeof value === "string" ? value : undefined;
 }
@@ -72,10 +77,9 @@ async function getOnchainClientWallet(jobId: string) {
   return job[0];
 }
 
-async function assertDeliverableAccess(request: Request, jobId: string) {
-  const url = new URL(request.url);
-  const address = url.searchParams.get("address")?.trim() ?? "";
-  const signature = url.searchParams.get("signature")?.trim() ?? "";
+async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: string) {
+  const address = proof.address.trim();
+  const signature = proof.signature.trim();
 
   if (!isAddress(address) || !signature) {
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
@@ -121,26 +125,25 @@ async function readLocalDeliverable(filePath: string, jobId: string) {
   };
 }
 
-async function fetchRemoteDeliverable(request: Request, jobId: string) {
+async function fetchRemoteDeliverable(request: Request, jobId: string, proof: DeliverableAccessProof) {
   const remoteBaseUrl = process.env.ARCTASK_DELIVERABLE_REMOTE_BASE_URL;
   if (!remoteBaseUrl) {
     return null;
   }
 
   const remoteUrl = new URL(`/api/deliverables/${jobId}`, remoteBaseUrl);
-  const requestUrl = new URL(request.url);
-  for (const key of ["address", "signature"]) {
-    const value = requestUrl.searchParams.get(key);
-    if (value) {
-      remoteUrl.searchParams.set(key, value);
-    }
-  }
-
   if (remoteUrl.origin === new URL(request.url).origin) {
     return null;
   }
 
-  const response = await fetch(remoteUrl, { cache: "no-store" });
+  const response = await fetch(remoteUrl, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(proof)
+  });
   if (!response.ok) {
     return null;
   }
@@ -148,13 +151,34 @@ async function fetchRemoteDeliverable(request: Request, jobId: string) {
   return response.json() as Promise<unknown>;
 }
 
-export async function GET(request: Request, { params }: { params: { jobId: string } }) {
+async function getProofFromRequest(request: Request): Promise<DeliverableAccessProof | null> {
+  const body = (await request.json().catch(() => null)) as Partial<DeliverableAccessProof> | null;
+  if (!body || typeof body.address !== "string" || typeof body.signature !== "string") {
+    return null;
+  }
+
+  return {
+    address: body.address,
+    signature: body.signature
+  };
+}
+
+export async function GET() {
+  return NextResponse.json({ error: "Use POST with a wallet signature to view this deliverable." }, { status: 401 });
+}
+
+export async function POST(request: Request, { params }: { params: { jobId: string } }) {
   const jobId = params.jobId.trim();
   if (!/^\d+$/.test(jobId)) {
     return NextResponse.json({ error: "Invalid onchain job ID." }, { status: 400 });
   }
 
-  const accessError = await assertDeliverableAccess(request, jobId);
+  const proof = await getProofFromRequest(request);
+  if (!proof) {
+    return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
+  }
+
+  const accessError = await assertDeliverableAccess(proof, jobId);
   if (accessError) {
     return accessError;
   }
@@ -166,7 +190,7 @@ export async function GET(request: Request, { params }: { params: { jobId: strin
     return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId) });
   } catch (caught) {
     if ((caught as NodeJS.ErrnoException).code === "ENOENT") {
-      const remoteDeliverable = await fetchRemoteDeliverable(request, jobId);
+      const remoteDeliverable = await fetchRemoteDeliverable(request, jobId, proof);
       if (remoteDeliverable) {
         return NextResponse.json(remoteDeliverable);
       }

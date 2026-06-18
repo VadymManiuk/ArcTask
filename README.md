@@ -168,8 +168,8 @@ When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-rea
 For production, add durable storage, queue retries, monitoring, and managed key custody.
 
 Worker reports are private offchain artifacts. The onchain deliverable hash remains public, but
-`/api/deliverables/:jobId` and `/deliverables/:jobId` require a wallet signature from the job creator wallet before
-returning the full report.
+`/api/deliverables/:jobId` and `/deliverables/:jobId` require a signed POST proof from the job creator wallet before
+returning the full report. Signatures are intentionally not sent in query strings.
 
 Latest autonomous Arc Testnet smoke:
 

@@ -31,11 +31,15 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
     setLoading(true);
     try {
       const proof = await requestDeliverableAccessProof(jobId);
-      const url = new URL(`/api/deliverables/${jobId}`, window.location.origin);
-      url.searchParams.set("address", proof.address);
-      url.searchParams.set("signature", proof.signature);
 
-      const response = await fetch(url, { cache: "no-store" });
+      const response = await fetch(`/api/deliverables/${jobId}`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(proof)
+      });
       const body = (await response.json().catch(() => ({}))) as {
         deliverable?: WorkerDeliverable;
         error?: string;

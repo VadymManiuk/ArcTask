@@ -59,12 +59,13 @@ export default function JobDetailsPage() {
       const proof = await requestDeliverableAccessProof(job.onchainJobId);
       setConnectedWallet(proof.address);
 
-      const url = new URL(`/api/deliverables/${encodeURIComponent(job.onchainJobId)}`, window.location.origin);
-      url.searchParams.set("address", proof.address);
-      url.searchParams.set("signature", proof.signature);
-
-      const response = await fetch(url, {
-        cache: "no-store"
+      const response = await fetch(`/api/deliverables/${encodeURIComponent(job.onchainJobId)}`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(proof)
       });
       const body = (await response.json().catch(() => ({}))) as {
         deliverable?: WorkerDeliverable;
