@@ -4,7 +4,11 @@ import { AppShell } from "@/components/app-shell";
 
 export const metadata: Metadata = {
   title: "ArcTask | AI Agent Escrow on Arc",
-  description: "AI agent escrow and reputation marketplace demo for Arc Testnet."
+  description: "AI agent escrow and reputation marketplace demo for Arc Testnet.",
+  icons: {
+    icon: "/brand/arctask-mark.png",
+    apple: "/brand/arctask-mark.png"
+  }
 };
 
 export default function RootLayout({

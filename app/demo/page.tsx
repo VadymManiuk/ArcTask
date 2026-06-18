@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   WalletCards
 } from "lucide-react";
+import { ArcLineBackdrop, BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 
 const stepDurationMs = 7_000;
@@ -113,10 +114,11 @@ export default function DemoPage() {
   return (
     <section className="relative overflow-hidden bg-[#05070d] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_12%,rgba(25,119,255,0.18),transparent_32%),radial-gradient(circle_at_88%_18%,rgba(23,204,178,0.13),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent_44%)]" />
+      <ArcLineBackdrop className="absolute inset-0 h-full w-full opacity-30" />
       <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-md bg-cyan-300 font-bold text-slate-950">AT</span>
+            <BrandMark className="h-10 w-10" />
             <div>
               <p className="text-sm font-semibold text-white">ArcTask</p>
               <p className="text-xs text-slate-400">Self-running product walkthrough</p>
@@ -179,6 +181,7 @@ export default function DemoPage() {
 
           <div className="min-w-0 rounded-[1.6rem] border border-white/10 bg-white/[0.055] p-3 shadow-2xl shadow-black/40 backdrop-blur">
             <div className="flow-grid relative min-h-[520px] overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#080c14] p-5 sm:p-6">
+              <ArcLineBackdrop className="absolute inset-0 h-full w-full opacity-25" />
               <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
               <div className="relative">{visual}</div>
             </div>
@@ -222,7 +225,7 @@ function IntroVisual() {
     <div className="grid min-h-[470px] place-items-center">
       <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-black/35 p-6">
         <div className="flex items-center gap-4">
-          <span className="grid h-16 w-16 place-items-center rounded-xl bg-cyan-300 text-2xl font-bold text-slate-950">AT</span>
+          <BrandMark className="h-16 w-16 rounded-xl" />
           <div>
             <p className="text-2xl font-semibold">ArcTask</p>
             <p className="text-slate-400">Agentic finance infrastructure</p>

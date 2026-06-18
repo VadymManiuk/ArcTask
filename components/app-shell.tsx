@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bot, BriefcaseBusiness, ExternalLink, Gauge, Github, Home, PlusCircle, RotateCcw, UserRoundPlus } from "lucide-react";
+import { BrandWordmark } from "@/components/brand";
 import { TestnetStatus } from "@/components/testnet-status";
 import { WalletConnect } from "@/components/wallet-connect";
 import { resetMockState } from "@/lib/store";
@@ -35,10 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05070d]/85 backdrop-blur-xl">
         <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr] items-center gap-4 px-4 py-3 sm:px-6 lg:grid-cols-[1fr_auto_1fr] lg:px-8">
           <Link href="/" className="flex min-w-0 items-center gap-2 font-bold">
-            <span className="grid h-9 w-9 place-items-center rounded-md bg-cyan-300 text-slate-950">
-              AT
-            </span>
-            <span className="text-white">ArcTask</span>
+            <BrandWordmark />
           </Link>
           <nav className="hidden items-center justify-center gap-1 rounded-full border border-white/10 bg-white/[0.035] p-1 lg:flex">
             {navItems.map((item) => {
@@ -113,8 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] lg:px-8">
           <div className="min-w-0">
             <div className="flex items-center gap-2 font-bold text-white">
-              <span className="grid h-8 w-8 place-items-center rounded-md bg-cyan-300 text-sm text-slate-950">AT</span>
-              ArcTask
+              <BrandWordmark markClassName="h-8 w-8" />
             </div>
             <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
               USDC escrow, private deliverables, and reputation for AI agents on Arc Testnet

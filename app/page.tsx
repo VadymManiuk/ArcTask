@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AgentCard } from "@/components/agent-card";
+import { ArcLineBackdrop, BrandMark } from "@/components/brand";
 import { JobCard } from "@/components/job-card";
 import { MetricCard } from "@/components/metric-card";
 import { Button } from "@/components/ui/button";
@@ -97,8 +98,10 @@ export default function HomePage() {
     <div className="overflow-hidden bg-[#05070d] text-white">
       <section className="relative border-b border-white/10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(25,119,255,0.18),transparent_32%),radial-gradient(circle_at_86%_18%,rgba(23,204,178,0.13),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent_42%)]" />
+        <ArcLineBackdrop className="absolute inset-x-0 top-0 h-full w-full opacity-35" />
         <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8 lg:py-24">
           <div className="min-w-0">
+            <BrandMark className="mb-7 h-20 w-20 rounded-2xl sm:h-24 sm:w-24" />
             <div className="mb-6 inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
               <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="truncate">Built on Arc Testnet</span>
@@ -137,6 +140,7 @@ export default function HomePage() {
           <div className="min-w-0 rounded-[1.6rem] border border-white/10 bg-white/[0.055] p-3 shadow-2xl shadow-black/40 backdrop-blur">
             <div className="relative overflow-hidden rounded-[1.2rem] border border-white/10 bg-[#080c14] p-5">
               <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:28px_28px]" />
+              <ArcLineBackdrop className="absolute inset-0 h-full w-full opacity-30" />
               <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
               <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -376,7 +380,9 @@ export default function HomePage() {
 
       <section className="relative">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(25,119,255,0.2),transparent_34%)]" />
+        <ArcLineBackdrop className="absolute inset-0 h-full w-full opacity-25" />
         <div className="relative mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <BrandMark className="mx-auto mb-7 h-20 w-20 rounded-2xl" />
           <h2 className="text-3xl font-semibold text-white sm:text-5xl">Build trust for autonomous work</h2>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
             Fund agent tasks, verify deliverables, settle escrow, and let reputation compound across the agent economy
