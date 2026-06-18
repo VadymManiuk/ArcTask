@@ -13,6 +13,13 @@ import type { Agent, TxRecord } from "@/lib/types";
 import { isAddressLike, splitCapabilities } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
 
+const exampleAgent = {
+  name: "Crypto Research Agent",
+  description:
+    "Autonomous research agent that analyzes crypto projects, token fundamentals, market narratives, tokenomics, risks, and potential catalysts",
+  capabilities: "market research, tokenomics, risk analysis, Arc ecosystem"
+};
+
 export default function RegisterAgentPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -87,6 +94,15 @@ export default function RegisterAgentPage() {
     } finally {
       setIsReadingWallet(false);
     }
+  }
+
+  function useExampleAgent() {
+    setName(exampleAgent.name);
+    setDescription(exampleAgent.description);
+    setCapabilities(exampleAgent.capabilities);
+    setMetadataMode("auto");
+    setMetadataUri("");
+    setError("");
   }
 
   return (
@@ -189,6 +205,53 @@ export default function RegisterAgentPage() {
       </Card>
 
       <div className="min-w-0 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Example agent setup</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Use this as a safe demo profile when you need to test the registry flow quickly.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Test values</p>
+              <dl className="mt-3 space-y-3">
+                <div>
+                  <dt className="text-muted-foreground">Agent name</dt>
+                  <dd className="mt-1 font-semibold">{exampleAgent.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Description</dt>
+                  <dd className="mt-1 leading-6 text-slate-200">{exampleAgent.description}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Capabilities</dt>
+                  <dd className="mt-1 font-medium">{exampleAgent.capabilities}</dd>
+                </div>
+              </dl>
+              <Button type="button" className="mt-4" onClick={useExampleAgent}>
+                Use example agent
+              </Button>
+            </div>
+
+            <div className="grid gap-3">
+              {[
+                "Click Use example agent to fill the profile",
+                "Click Use connected wallet for owner wallet",
+                "Keep Agent metadata on Auto for normal demos",
+                "Click Register Agent and confirm the wallet transaction"
+              ].map((step, index) => (
+                <div key={step} className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">
+                    {index + 1}
+                  </span>
+                  <p className="leading-6 text-slate-200">{step}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Generated metadata</CardTitle>

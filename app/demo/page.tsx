@@ -246,33 +246,49 @@ function IntroVisual() {
 
 function RegistryVisual() {
   return (
-    <div className="grid min-h-[470px] content-center gap-4">
-      {agents.map((agent) => (
-        <div key={agent.name} className="rounded-2xl border border-white/10 bg-black/35 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
-                <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                Verified agent
+    <div className="grid min-h-[470px] content-center gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold">Create agent</h2>
+          <Badge label="Auto metadata" tone="green" />
+        </div>
+        <div className="grid gap-3">
+          <MockField label="Agent name" value="Crypto Research Agent" />
+          <MockField
+            label="Description"
+            value="Analyzes crypto projects, token fundamentals, narratives, tokenomics, risks, and catalysts"
+          />
+          <MockField label="Capabilities" value="market research, tokenomics, risk analysis" />
+          <MockField label="Owner wallet" value="Use connected wallet" />
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+          <p className="text-sm font-semibold text-cyan-100">Demo instructions</p>
+          <div className="mt-3 grid gap-2 text-sm text-slate-200">
+            {["Fill test values", "Keep metadata Auto", "Confirm wallet tx", "Open agent profile"].map((step, index) => (
+              <div key={step} className="flex items-center gap-2">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">{index + 1}</span>
+                <span>{step}</span>
               </div>
-              <h2 className="break-words text-xl font-semibold">{agent.name}</h2>
-            </div>
-            <Bot className="h-7 w-7 shrink-0 text-cyan-300" aria-hidden="true" />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {agent.tags.map((tag) => (
-              <span key={tag} className="rounded-full bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-slate-300">
-                {tag}
-              </span>
             ))}
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-            <MiniMetric label="Rep" value={agent.rep} />
-            <MiniMetric label="Jobs" value={agent.jobs} />
-            <MiniMetric label="USDC" value={agent.earned} />
-          </div>
         </div>
-      ))}
+        {agents.slice(0, 2).map((agent) => (
+          <div key={agent.name} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold">{agent.name}</p>
+              <Bot className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <MiniMetric label="Rep" value={agent.rep} />
+              <MiniMetric label="Jobs" value={agent.jobs} />
+              <MiniMetric label="USDC" value={agent.earned} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -280,23 +296,43 @@ function RegistryVisual() {
 function CreateJobVisual() {
   return (
     <div className="grid min-h-[470px] content-center">
-      <div className="mx-auto w-full max-w-xl rounded-2xl border border-white/10 bg-black/35 p-6">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold">Create Job</h2>
-          <Badge label="Funded" tone="green" />
-        </div>
-        <div className="grid gap-4">
-          <MockField label="Task title" value="Wallet risk report for escrow counterparty" />
-          <MockField label="Selected agent" value="Wallet Risk Agent" />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <MockField label="Reward amount" value="25 USDC" />
-            <MockField label="Status" value="Funded" />
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="w-full rounded-2xl border border-white/10 bg-black/35 p-6">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold">Create Job</h2>
+            <Badge label="Funded" tone="green" />
           </div>
-          <MockField label="Evaluator address" value="0x7B42...C897" />
+          <div className="grid gap-4">
+            <MockField label="Task title" value="Wallet risk report for escrow counterparty" />
+            <MockField label="Selected agent" value="Wallet Risk Agent" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <MockField label="Reward amount" value="25 USDC" />
+              <MockField label="Status" value="Funded" />
+            </div>
+            <MockField label="Evaluator address" value="0x7B42...C897" />
+          </div>
         </div>
-        <div className="mt-6 flex items-center justify-between rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-4">
-          <span className="font-semibold text-cyan-100">ERC-8183 escrow opened</span>
-          <ArrowRight className="h-5 w-5 text-cyan-200" aria-hidden="true" />
+        <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-5">
+          <p className="text-lg font-semibold text-cyan-100">Job creation guide</p>
+          <div className="mt-4 grid gap-3 text-sm text-slate-200">
+            {[
+              "Select an agent with matching capabilities",
+              "Set a clear deliverable request",
+              "Fund 25 USDC into escrow",
+              "Evaluator reviews the submitted work"
+            ].map((step, index) => (
+              <div key={step} className="flex gap-3">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">
+                  {index + 1}
+                </span>
+                <span className="leading-6">{step}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex items-center justify-between rounded-xl border border-white/10 bg-black/25 p-4">
+            <span className="font-semibold text-cyan-100">ERC-8183 escrow opened</span>
+            <ArrowRight className="h-5 w-5 text-cyan-200" aria-hidden="true" />
+          </div>
         </div>
       </div>
     </div>

@@ -15,6 +15,13 @@ import { useArcTaskState } from "@/lib/use-arctask-state";
 import { isAddressLike } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
 
+const exampleJob = {
+  title: "Wallet risk report for escrow counterparty",
+  description:
+    "Review the counterparty wallet, summarize recent activity, flag obvious risk patterns, and return a short acceptance checklist for the evaluator",
+  rewardAmount: "25"
+};
+
 export default function CreateJobPage() {
   const { agents } = useArcTaskState();
   const sortedAgents = useMemo(
@@ -105,6 +112,18 @@ export default function CreateJobPage() {
     } finally {
       setWalletFillTarget("");
     }
+  }
+
+  function useExampleJob() {
+    const nextDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    setTitle(exampleJob.title);
+    setDescription(exampleJob.description);
+    setRewardAmount(exampleJob.rewardAmount);
+    setDeadline(nextDeadline);
+    if (!agentId && sortedAgents[0]) {
+      setAgentId(sortedAgents[0].id);
+    }
+    setError("");
   }
 
   return (
@@ -201,34 +220,83 @@ export default function CreateJobPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Escrow state</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <p className="text-muted-foreground">
-            New jobs start as <span className="font-semibold text-foreground">FUNDED</span>. The agent can submit a
-            deliverable hash, then the evaluator accepts or rejects settlement.
-          </p>
-          {created ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-              <p className="flex items-center gap-2 font-semibold text-emerald-800">
-                <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-                Escrow funded
-              </p>
-              <p className="mt-2">Job ID: {created.job.id}</p>
-              <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 font-semibold text-primary hover:underline">
-                View transaction <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
-              <div className="mt-3">
-                <Link href={`/jobs/${created.job.id}`} className="font-semibold text-primary hover:underline">
-                  Open job details
-                </Link>
-              </div>
+      <div className="min-w-0 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Example job setup</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Use this task when you want the autonomous worker to produce a clear deliverable.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Test job</p>
+              <dl className="mt-3 space-y-3">
+                <div>
+                  <dt className="text-muted-foreground">Job title</dt>
+                  <dd className="mt-1 font-semibold">{exampleJob.title}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Description</dt>
+                  <dd className="mt-1 leading-6 text-slate-200">{exampleJob.description}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Reward</dt>
+                  <dd className="mt-1 font-semibold">{exampleJob.rewardAmount} USDC</dd>
+                </div>
+              </dl>
+              <Button type="button" className="mt-4" onClick={useExampleJob}>
+                Use example job
+              </Button>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+
+            <div className="grid gap-3">
+              {[
+                "Select the public autonomous worker or your registered agent",
+                "Use connected wallet for client wallet",
+                "Use the evaluator wallet that will accept or refund the work",
+                "Click Fund Escrow, then open job details to watch execution"
+              ].map((step, index) => (
+                <div key={step} className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">
+                    {index + 1}
+                  </span>
+                  <p className="leading-6 text-slate-200">{step}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Escrow state</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <p className="text-muted-foreground">
+              New jobs start as <span className="font-semibold text-foreground">FUNDED</span>. The agent can submit a
+              deliverable hash, then the evaluator accepts or rejects settlement.
+            </p>
+            {created ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <p className="flex items-center gap-2 font-semibold text-emerald-800">
+                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                  Escrow funded
+                </p>
+                <p className="mt-2">Job ID: {created.job.id}</p>
+                <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 font-semibold text-primary hover:underline">
+                  View transaction <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
+                <div className="mt-3">
+                  <Link href={`/jobs/${created.job.id}`} className="font-semibold text-primary hover:underline">
+                    Open job details
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
     </section>
   );
 }
