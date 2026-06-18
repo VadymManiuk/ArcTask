@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ export default function RegisterAgentPage() {
   const [capabilities, setCapabilities] = useState("research, code QA");
   const [ownerWallet, setOwnerWallet] = useState("");
   const [metadataUri, setMetadataUri] = useState("");
+  const [metadataMode, setMetadataMode] = useState<"auto" | "custom">("auto");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReadingWallet, setIsReadingWallet] = useState(false);
@@ -26,12 +27,18 @@ export default function RegisterAgentPage() {
 
   const metadataPreview = useMemo(
     () => ({
+      schema: "arctask.agent.v1",
       name: name || "Agent name",
       description: description || "Agent description",
       capabilities: splitCapabilities(capabilities),
-      ownerWallet: ownerWallet || "0x..."
+      ownerWallet: ownerWallet || "0x...",
+      generatedAt: "on submit"
     }),
     [capabilities, description, name, ownerWallet]
+  );
+  const generatedMetadataUri = useMemo(
+    () => `data:application/json,${encodeURIComponent(JSON.stringify(metadataPreview))}`,
+    [metadataPreview]
   );
 
   async function onSubmit(event: FormEvent) {
@@ -60,7 +67,7 @@ export default function RegisterAgentPage() {
         description: description.trim(),
         capabilities: splitCapabilities(capabilities),
         ownerWallet,
-        metadataUri: metadataUri.trim() || `mock://metadata/${encodeURIComponent(name.trim())}`
+        metadataUri: metadataMode === "custom" && metadataUri.trim() ? metadataUri.trim() : generatedMetadataUri
       });
       setCreated(result);
     } catch (caught) {
@@ -120,8 +127,53 @@ export default function RegisterAgentPage() {
               <Input id="ownerWallet" placeholder="0x..." value={ownerWallet} onChange={(event) => setOwnerWallet(event.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="metadataUri">Metadata URI</Label>
-              <Input id="metadataUri" placeholder="ipfs:// or leave blank for mock URI" value={metadataUri} onChange={(event) => setMetadataUri(event.target.value)} />
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                  <div>
+                    <Label>Agent metadata</Label>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Generated automatically from the fields above. Use custom metadata only if you already have an IPFS,
+                      HTTPS, or data URI.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 rounded-md border border-white/10 bg-black/20 p-1">
+                    <button
+                      type="button"
+                      className={`rounded px-3 py-1.5 text-sm font-semibold ${
+                        metadataMode === "auto" ? "bg-white text-slate-950" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => setMetadataMode("auto")}
+                    >
+                      Auto
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded px-3 py-1.5 text-sm font-semibold ${
+                        metadataMode === "custom" ? "bg-white text-slate-950" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => setMetadataMode("custom")}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                </div>
+                {metadataMode === "custom" ? (
+                  <div className="mt-4 space-y-2">
+                    <Label htmlFor="metadataUri">Custom metadata URI</Label>
+                    <Input
+                      id="metadataUri"
+                      placeholder="ipfs://..., https://..., or data:application/json,..."
+                      value={metadataUri}
+                      onChange={(event) => setMetadataUri(event.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-sm text-cyan-100">
+                    <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    Metadata will be generated and anchored automatically
+                  </div>
+                )}
+              </div>
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting}>
@@ -134,7 +186,7 @@ export default function RegisterAgentPage() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Metadata preview</CardTitle>
+            <CardTitle>Generated metadata</CardTitle>
           </CardHeader>
           <CardContent>
             <pre className="overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-100">

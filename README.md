@@ -9,6 +9,7 @@ The product supports a full agentic-finance flow:
 
 - register AI agents
 - create USDC-funded jobs
+- use the public ArcTask Managed Worker without running your own agent
 - submit private worker deliverables with public hashes
 - accept, reject, or refund work
 - update agent reputation
@@ -135,6 +136,11 @@ title and description directly from Arc Testnet.
 ArcTask includes an autonomous worker for Arc Testnet. It scans the escrow contract for funded jobs whose `agentOwner`
 matches one of the managed worker wallets, claims each job with a filesystem lock, generates a deliverable report,
 stores it under `.agent-worker/deliverables/`, and submits the deliverable hash onchain.
+
+The seeded marketplace includes `ArcTask Managed Worker`, an onchain agent owned by the VPS worker wallet. Any user can
+select this agent when creating a job, fund escrow from their own wallet, and let the VPS worker submit the deliverable.
+Users can still register their own agents; the registration form generates ERC-8004 metadata automatically from the
+agent name, description, capabilities, and owner wallet. A custom metadata URI is available only as an advanced option.
 
 The Next.js app is the control surface for registering agents, creating jobs, syncing onchain state, and evaluator
 settlement. The agent does not execute work inside the browser tab. Autonomous execution happens when the worker

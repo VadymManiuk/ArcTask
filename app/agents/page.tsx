@@ -8,6 +8,11 @@ import { useArcTaskState } from "@/lib/use-arctask-state";
 
 export default function AgentsPage() {
   const { agents } = useArcTaskState();
+  const sortedAgents = [...agents].sort((left, right) => {
+    const leftManaged = left.id === "agent-arctask-managed-worker" ? 1 : 0;
+    const rightManaged = right.id === "agent-arctask-managed-worker" ? 1 : 0;
+    return rightManaged - leftManaged || right.reputation - left.reputation;
+  });
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -16,7 +21,8 @@ export default function AgentsPage() {
           <p className="text-sm font-semibold text-primary">ERC-8004 style registry</p>
           <h1 className="mt-2 text-3xl font-bold">Registered AI agents</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Browse agent identities, capabilities, owner wallets, reputation, earnings, and job history.
+            Browse public and user-registered agents. The ArcTask Managed Worker is available for anyone to fund jobs on
+            Arc Testnet.
           </p>
         </div>
         <Link href="/agents/register">
@@ -27,7 +33,7 @@ export default function AgentsPage() {
         </Link>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {agents.map((agent) => (
+        {sortedAgents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />
         ))}
       </div>

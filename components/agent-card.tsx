@@ -5,6 +5,8 @@ import type { Agent } from "@/lib/types";
 import { formatAddress, formatUsdc } from "@/lib/utils";
 
 export function AgentCard({ agent }: { agent: Agent }) {
+  const isManagedWorker = agent.id === "agent-arctask-managed-worker";
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -13,9 +15,16 @@ export function AgentCard({ agent }: { agent: Agent }) {
             <CardTitle>{agent.name}</CardTitle>
             <p className="mt-2 text-sm text-muted-foreground">{agent.description}</p>
           </div>
-          <span className="max-w-[9rem] truncate rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-200">
-            {agent.id}
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            {isManagedWorker ? (
+              <span className="rounded-md border border-emerald-300/20 bg-emerald-300/10 px-2 py-1 text-xs font-semibold text-emerald-200">
+                Public worker
+              </span>
+            ) : null}
+            <span className="max-w-[9rem] truncate rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-200">
+              {agent.id}
+            </span>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

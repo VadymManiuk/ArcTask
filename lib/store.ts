@@ -3,7 +3,7 @@
 import { keccak256, stringToHex } from "viem";
 import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
-import { seedState } from "@/lib/mock-data";
+import { managedArcTaskAgent, seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
 import { normalizeAddress } from "@/lib/utils";
 
@@ -99,6 +99,21 @@ function getFreshSeedState() {
   return cloneState(seedState);
 }
 
+function applyStateMigrations(state: ArcTaskState) {
+  const hasManagedAgent = state.agents.some(
+    (agent) => agent.id === managedArcTaskAgent.id || agent.onchainAgentId === managedArcTaskAgent.onchainAgentId
+  );
+
+  if (hasManagedAgent) {
+    return state;
+  }
+
+  return {
+    ...state,
+    agents: [cloneState({ agents: [managedArcTaskAgent], jobs: [] }).agents[0], ...state.agents]
+  };
+}
+
 function readState(): ArcTaskState {
   if (typeof window === "undefined") {
     return getFreshSeedState();
@@ -118,8 +133,13 @@ function readState(): ArcTaskState {
       throw new Error("Invalid ArcTask local state.");
     }
 
-    cachedState = parsed;
-    return parsed;
+    const migrated = applyStateMigrations(parsed);
+    if (migrated !== parsed) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    }
+
+    cachedState = migrated;
+    return migrated;
   } catch {
     const freshState = getFreshSeedState();
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));

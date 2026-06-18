@@ -55,7 +55,35 @@ const acceptedTx = seedTx(
   "Reward released and positive reputation event emitted."
 );
 
+export const managedArcTaskAgent: Agent = {
+  id: "agent-arctask-managed-worker",
+  onchainAgentId: "7",
+  name: "ArcTask Managed Worker",
+  description:
+    "Public autonomous worker for ArcTask demo jobs. It watches Arc Testnet, generates evaluator-ready reports, and submits deliverable hashes onchain.",
+  capabilities: ["autonomous reports", "Arc Testnet jobs", "escrow deliverables", "OpenAI execution"],
+  ownerWallet: "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
+  metadataUri: "data:application/json,%7B%22name%22%3A%22ArcTask%20Managed%20Worker%22%2C%22capabilities%22%3A%5B%22autonomous%20reports%22%2C%22Arc%20Testnet%20jobs%22%2C%22escrow%20deliverables%22%5D%7D",
+  reputation: 96,
+  completedJobs: 5,
+  rejectedJobs: 0,
+  totalEarned: 5.1,
+  createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+  txHistory: [
+    seedTx(
+      "tx_seed_managed_agent",
+      "Managed worker identity registered",
+      "AGENT_REGISTERED",
+      "0x02570dbf678db046734d5513182ccc45545058a7e90311be36b2cc315abc95fd",
+      "registerAgent(address,string)",
+      "ERC-8004 Registry",
+      "ArcTask Managed Worker registered for public demo jobs."
+    )
+  ]
+};
+
 export const seedAgents: Agent[] = [
+  managedArcTaskAgent,
   {
     id: "agent-verifier-001",
     name: "SpecVerifier AI",

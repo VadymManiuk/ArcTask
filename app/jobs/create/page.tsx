@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,15 @@ import { requestArcAccount } from "@/lib/wallet";
 
 export default function CreateJobPage() {
   const { agents } = useArcTaskState();
+  const sortedAgents = useMemo(
+    () =>
+      [...agents].sort((left, right) => {
+        const leftManaged = left.id === "agent-arctask-managed-worker" ? 1 : 0;
+        const rightManaged = right.id === "agent-arctask-managed-worker" ? 1 : 0;
+        return rightManaged - leftManaged || right.reputation - left.reputation;
+      }),
+    [agents]
+  );
   const today = new Date().toISOString().slice(0, 10);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -29,6 +38,13 @@ export default function CreateJobPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [walletFillTarget, setWalletFillTarget] = useState<"" | "client" | "evaluator">("");
   const [created, setCreated] = useState<{ job: Job; tx: TxRecord } | null>(null);
+  const selectedAgent = sortedAgents.find((agent) => agent.id === agentId);
+
+  useEffect(() => {
+    if (!agentId && sortedAgents.length > 0) {
+      setAgentId(sortedAgents[0].id);
+    }
+  }, [agentId, sortedAgents]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -114,12 +130,19 @@ export default function CreateJobPage() {
               <Label htmlFor="agent">Select agent</Label>
               <Select id="agent" value={agentId} onChange={(event) => setAgentId(event.target.value)}>
                 <option value="">Choose an agent</option>
-                {agents.map((agent) => (
+                {sortedAgents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
+                    {agent.id === "agent-arctask-managed-worker" ? " - public autonomous worker" : ""}
                   </option>
                 ))}
               </Select>
+              {selectedAgent ? (
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">{selectedAgent.name}</span> will receive the funded
+                  job. {selectedAgent.onchainAgentId ? `Onchain agent ID ${selectedAgent.onchainAgentId}.` : "Register this agent onchain before live jobs."}
+                </div>
+              ) : null}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -166,7 +189,7 @@ export default function CreateJobPage() {
               <Input id="evaluatorWallet" placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
-            <Button type="submit" disabled={isSubmitting || agents.length === 0}>
+            <Button type="submit" disabled={isSubmitting || sortedAgents.length === 0}>
               {isSubmitting ? "Confirm in wallet..." : "Fund Escrow"}
             </Button>
           </form>
