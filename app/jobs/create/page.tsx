@@ -139,13 +139,14 @@ export default function CreateJobPage() {
           <form className="space-y-5" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="title">Job title</Label>
-              <Input id="title" value={title} onChange={(event) => setTitle(event.target.value)} />
+              <Input id="title" maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 className="min-h-32"
+                maxLength={2000}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
               />
@@ -196,7 +197,7 @@ export default function CreateJobPage() {
                   {walletFillTarget === "client" ? "Reading wallet..." : "Use connected wallet"}
                 </button>
               </div>
-              <Input id="clientWallet" placeholder="0x..." value={clientWallet} onChange={(event) => setClientWallet(event.target.value)} />
+              <Input id="clientWallet" maxLength={42} placeholder="0x..." value={clientWallet} onChange={(event) => setClientWallet(event.target.value)} />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
@@ -210,7 +211,7 @@ export default function CreateJobPage() {
                   {walletFillTarget === "evaluator" ? "Reading wallet..." : "Use connected wallet"}
                 </button>
               </div>
-              <Input id="evaluatorWallet" placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
+              <Input id="evaluatorWallet" maxLength={42} placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
             </div>
             {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting || sortedAgents.length === 0}>

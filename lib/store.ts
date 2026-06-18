@@ -5,9 +5,16 @@ import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
 import { managedArcTaskAgent, seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
-import { isPastDateInputValue, normalizeAddress } from "@/lib/utils";
+import { assertMaxLength, isPastDateInputValue, normalizeAddress } from "@/lib/utils";
 
 const STORAGE_KEY = "arctask.mock.v1";
+const maxAgentNameLength = 80;
+const maxAgentDescriptionLength = 1_000;
+const maxCapabilityLength = 60;
+const maxMetadataUriLength = 4_000;
+const maxJobTitleLength = 120;
+const maxJobDescriptionLength = 2_000;
+const maxDeliverableLength = 20_000;
 let cachedState: ArcTaskState | null = null;
 const onchainJobStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 
@@ -198,9 +205,15 @@ export function registerAgent(input: {
   if (!input.name.trim() || !input.description.trim()) {
     throw new Error("Name and description are required.");
   }
+  assertMaxLength(input.name.trim(), maxAgentNameLength, "Agent name");
+  assertMaxLength(input.description.trim(), maxAgentDescriptionLength, "Agent description");
+  assertMaxLength(input.metadataUri.trim(), maxMetadataUriLength, "Metadata URI");
 
   if (capabilities.length === 0) {
     throw new Error("Add at least one agent capability.");
+  }
+  for (const capability of capabilities) {
+    assertMaxLength(capability, maxCapabilityLength, "Capability");
   }
 
   const tx = createRecordedTx("AGENT_REGISTERED", "ERC-8004 style agent identity registered", {
@@ -252,6 +265,8 @@ export function createJob(input: {
   if (!input.title.trim() || !input.description.trim()) {
     throw new Error("Title and description are required.");
   }
+  assertMaxLength(input.title.trim(), maxJobTitleLength, "Job title");
+  assertMaxLength(input.description.trim(), maxJobDescriptionLength, "Job description");
 
   if (!agent) {
     throw new Error("Selected agent does not exist.");
@@ -321,6 +336,7 @@ export function submitDeliverable(
   if (!deliverable) {
     throw new Error("Deliverable content is required.");
   }
+  assertMaxLength(deliverable, maxDeliverableLength, "Deliverable content");
 
   const deliverableHash = onchain?.deliverableHash ?? keccak256(stringToHex(deliverable));
   const tx = createRecordedTx("DELIVERABLE_SUBMITTED", "Deliverable hash submitted", {

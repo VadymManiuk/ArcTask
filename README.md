@@ -186,6 +186,7 @@ Useful worker env vars:
 - `ARC_AGENT_ONCE` - set `true` for one scan, omit for continuous polling
 - `ARC_AGENT_POLL_INTERVAL_MS` - default `15000`
 - `ARC_AGENT_MAX_JOBS_PER_TICK` - default `5`
+- `ARC_AGENT_MAX_JOB_PAYLOAD_CHARS` - default `8000`; caps decoded onchain job payloads before the worker sends them to an executor
 - `ARC_AGENT_OUTPUT_DIR` - default `.agent-worker/deliverables`
 - `ARC_AGENT_STATE_DIR` - default `.agent-worker/state`; contains `status.json`
 - `ARC_AGENT_LOCK_DIR` - default `.agent-worker/locks`; contains per-job lock files
@@ -193,6 +194,9 @@ Useful worker env vars:
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - default `gpt-4.1-mini`
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
+- `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - shared server-to-server token for Vercel-to-VPS deliverable and status fallback
+- `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
+- `ARCTASK_ADMIN_TOKEN` - optional bearer token for full `/api/worker/status`; unauthenticated responses are sanitized
 
 When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
 `jobURI`. Without a key, or if the API is unavailable, the worker falls back to a deterministic structured report.
@@ -215,7 +219,18 @@ structured logs, alerting, secret rotation, and managed key custody/HSM support.
 
 Worker reports are private offchain artifacts. The onchain deliverable hash remains public, but
 `/api/deliverables/:jobId` and `/deliverables/:jobId` require a signed POST proof from the job creator wallet before
-returning the full report. Signatures are intentionally not sent in query strings and expire after five minutes.
+returning the full report. Signatures are intentionally not sent in query strings, include a one-time nonce, and expire
+after five minutes. Set `ARCTASK_ACCESS_NONCE_SECRET` in production so challenges survive process restarts and serverless
+instances.
+
+## Security Notes
+
+- Agent registration now requires `msg.sender` to match the registered owner wallet.
+- Escrow settlement/refund paths use a non-reentrant transfer guard.
+- Worker status is public but sanitized by default; use `ARCTASK_ADMIN_TOKEN` only for private operational detail.
+- Vercel-to-VPS deliverable fallback should be configured with `ARCTASK_DELIVERABLE_REMOTE_TOKEN`.
+- In-memory rate limits and nonces are enough for the current demo/VPS shape. For a real multi-instance product, move
+  them to shared durable storage such as Redis or a database.
 
 Latest autonomous Arc Testnet smoke:
 

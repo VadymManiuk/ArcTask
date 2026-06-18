@@ -21,6 +21,7 @@ interface WorkerStatusResponse {
     executor?: string;
     escrowAddress?: string;
     pollIntervalMs?: number;
+    managedAgentCount?: number;
     managedAgents?: Array<{ address?: string }>;
     queue?: {
       pending?: number;
@@ -132,6 +133,7 @@ export function ServiceStatusPanel() {
   const queue = workerStatus?.status?.queue;
   const metrics = workerStatus?.status?.metrics;
   const managedAgents = workerStatus?.status?.managedAgents?.filter((agent) => agent.address) ?? [];
+  const managedAgentCount = workerStatus?.status?.managedAgentCount ?? managedAgents.length;
   const recentEvents = useMemo(() => workerStatus?.status?.recentEvents?.slice(0, 4) ?? [], [workerStatus]);
 
   return (
@@ -166,8 +168,8 @@ export function ServiceStatusPanel() {
           <StatusTile
             icon={Users}
             label="Managed agents"
-            value={managedAgents.length}
-            detail={managedAgents.map((agent) => formatAddress(agent.address ?? "")).join(", ") || "none configured"}
+            value={managedAgentCount}
+            detail={managedAgents.length > 0 ? managedAgents.map((agent) => formatAddress(agent.address ?? "")).join(", ") : "addresses hidden"}
           />
           <StatusTile
             icon={Activity}

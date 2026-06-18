@@ -31,6 +31,7 @@ contract ArcTaskEscrow {
     IArcTaskAgentRegistry public immutable registry;
     uint256 public nextJobId = 1;
     mapping(uint256 => Job) public jobs;
+    bool private locked;
 
     event JobCreated(
         uint256 indexed jobId,
@@ -49,6 +50,13 @@ contract ArcTaskEscrow {
     constructor(address registryAddress) {
         require(registryAddress != address(0), "registry required");
         registry = IArcTaskAgentRegistry(registryAddress);
+    }
+
+    modifier nonReentrant() {
+        require(!locked, "reentrant call");
+        locked = true;
+        _;
+        locked = false;
     }
 
     function createJob(
@@ -97,7 +105,7 @@ contract ArcTaskEscrow {
         emit DeliverableSubmitted(jobId, deliverableHash);
     }
 
-    function acceptWork(uint256 jobId) external {
+    function acceptWork(uint256 jobId) external nonReentrant {
         Job storage job = jobs[jobId];
         require(job.status == JobStatus.Submitted, "not submitted");
         require(msg.sender == job.evaluator, "not evaluator");
@@ -109,7 +117,7 @@ contract ArcTaskEscrow {
         emit WorkAccepted(jobId, job.agentOwner, job.rewardAmount);
     }
 
-    function rejectWork(uint256 jobId) external {
+    function rejectWork(uint256 jobId) external nonReentrant {
         Job storage job = jobs[jobId];
         require(job.status == JobStatus.Submitted, "not submitted");
         require(msg.sender == job.evaluator, "not evaluator");
@@ -121,7 +129,7 @@ contract ArcTaskEscrow {
         emit WorkRejected(jobId, job.client, job.rewardAmount);
     }
 
-    function refundExpired(uint256 jobId) external {
+    function refundExpired(uint256 jobId) external nonReentrant {
         Job storage job = jobs[jobId];
         require(job.status == JobStatus.Funded || job.status == JobStatus.Submitted, "not active");
         require(msg.sender == job.client, "not client");

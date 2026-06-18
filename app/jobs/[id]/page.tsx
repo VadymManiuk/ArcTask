@@ -310,6 +310,7 @@ export default function JobDetailsPage() {
               <form className="space-y-4" onSubmit={onSubmitDeliverable}>
                 <Textarea
                   disabled={!canSubmit}
+                  maxLength={20000}
                   value={deliverable}
                   onChange={(event) => setDeliverable(event.target.value)}
                   placeholder={canSubmit ? "Paste deliverable content to hash with keccak256" : "Deliverable submission is not available for this status"}

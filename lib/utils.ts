@@ -51,3 +51,9 @@ export function splitCapabilities(value: string) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
+
+export function assertMaxLength(value: string, maxLength: number, label: string) {
+  if (value.length > maxLength) {
+    throw new Error(`${label} must be ${maxLength} characters or less.`);
+  }
+}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, defineChain, formatUnits, http } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
+import { rateLimit } from "@/lib/server-rate-limit";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
 import type { Address, JobStatus } from "@/lib/types";
 
@@ -97,6 +98,11 @@ async function readJob(jobId: bigint) {
 }
 
 export async function GET(request: Request) {
+  const rateLimitResponse = rateLimit(request, { keyPrefix: "network-jobs", limit: 60, windowMs: 60_000 });
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   const { searchParams } = new URL(request.url);
   const limitValue = Number(searchParams.get("limit") ?? 50);
   const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 50;

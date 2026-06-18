@@ -19,6 +19,7 @@ const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
 const statusVersion = 1;
+const defaultMaxJobPayloadChars = 8_000;
 
 function loadLocalEnv() {
   const envPath = path.join(rootDir, ".env.local");
@@ -103,7 +104,10 @@ function parsePrivateKeys() {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  const fallbackKey = process.env.ARC_AGENT_PRIVATE_KEY ?? process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY;
+  const allowDeployerFallback = getBooleanEnv("ARC_AGENT_ALLOW_DEPLOYER_FALLBACK", false);
+  const fallbackKey =
+    process.env.ARC_AGENT_PRIVATE_KEY ??
+    (allowDeployerFallback ? process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY : undefined);
   const keys = uniq(rawKeys.length > 0 ? rawKeys : fallbackKey ? [fallbackKey] : []);
 
   if (keys.length === 0) {
@@ -280,8 +284,18 @@ function decodeJobPayloadUri(jobURI) {
     return null;
   }
 
+  const encodedPayload = jobURI.slice("data:application/json,".length);
+  if (encodedPayload.length > maxJobPayloadChars * 3) {
+    return null;
+  }
+
   try {
-    return JSON.parse(decodeURIComponent(jobURI.slice("data:application/json,".length)));
+    const decoded = decodeURIComponent(encodedPayload);
+    if (decoded.length > maxJobPayloadChars) {
+      return null;
+    }
+
+    return JSON.parse(decoded);
   } catch {
     return null;
   }
@@ -629,6 +643,7 @@ const openAiModel = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 60_000);
 const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 900);
+const maxJobPayloadChars = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_PAYLOAD_CHARS", defaultMaxJobPayloadChars);
 
 const arcTestnet = defineChain({
   id: 5042002,
@@ -678,8 +693,13 @@ console.log(`mode: ${dryRun ? "dry-run" : "live"}`);
 console.log(`executor: ${openAiApiKey ? `openai:${openAiModel}` : "deterministic-fallback"}`);
 console.log(`status: ${path.relative(rootDir, statusPath)}`);
 
-if (!process.env.ARC_AGENT_PRIVATE_KEY && !process.env.ARC_AGENT_PRIVATE_KEYS && process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY) {
-  console.log("warning: using ARC_TESTNET_DEPLOYER_PRIVATE_KEY fallback; set ARC_AGENT_PRIVATE_KEY for production.");
+if (
+  !process.env.ARC_AGENT_PRIVATE_KEY &&
+  !process.env.ARC_AGENT_PRIVATE_KEYS &&
+  getBooleanEnv("ARC_AGENT_ALLOW_DEPLOYER_FALLBACK", false) &&
+  process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY
+) {
+  console.log("warning: using ARC_TESTNET_DEPLOYER_PRIVATE_KEY fallback because ARC_AGENT_ALLOW_DEPLOYER_FALLBACK=true.");
 }
 
 atomicWriteJson(statusPath, createInitialStatus());

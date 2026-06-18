@@ -32,7 +32,7 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
     try {
       const proof = await requestDeliverableAccessProof(jobId);
 
-      const response = await fetch(`/api/deliverables/${jobId}`, {
+      const response = await fetch(`/api/deliverables/${encodeURIComponent(jobId)}`, {
         method: "POST",
         cache: "no-store",
         headers: {

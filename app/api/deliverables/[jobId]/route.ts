@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import { createPublicClient, defineChain, http, verifyMessage } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
 import { deliverableAccessTtlMs, getDeliverableAccessMessage } from "@/lib/deliverable-access";
+import { createDeliverableNonce, consumeDeliverableNonce } from "@/lib/server-deliverable-nonce";
+import { rateLimit } from "@/lib/server-rate-limit";
+import { isSafeRemoteBaseUrl } from "@/lib/server-remote";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
 import type { Address } from "@/lib/types";
 
@@ -56,6 +59,7 @@ interface WorkerDeliverableFile {
 interface DeliverableAccessProof {
   address: string;
   issuedAt: string;
+  nonce: string;
   signature: string;
 }
 
@@ -69,6 +73,15 @@ function isAddress(value: string): value is Address {
 
 function sameAddress(left: string, right: string) {
   return left.toLowerCase() === right.toLowerCase();
+}
+
+function isTrustedRemoteRequest(request: Request) {
+  const token = process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN;
+  if (!token) {
+    return false;
+  }
+
+  return request.headers.get("x-arctask-remote-token") === token;
 }
 
 function getRecord(value: unknown): Record<string, unknown> | null {
@@ -113,10 +126,15 @@ async function getOnchainClientWallet(jobId: string) {
 async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: string) {
   const address = proof.address.trim();
   const issuedAt = proof.issuedAt.trim();
+  const nonce = proof.nonce.trim();
   const signature = proof.signature.trim();
 
-  if (!isAddress(address) || !signature) {
+  if (!isAddress(address) || !nonce || !signature) {
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
+  }
+
+  if (!consumeDeliverableNonce(jobId, nonce)) {
+    return NextResponse.json({ error: "Deliverable access challenge expired. Sign again." }, { status: 401 });
   }
 
   const issuedAtMs = Date.parse(issuedAt);
@@ -129,7 +147,7 @@ async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: str
   try {
     isValidSignature = await verifyMessage({
       address,
-      message: getDeliverableAccessMessage(jobId, address, issuedAt),
+      message: getDeliverableAccessMessage(jobId, address, issuedAt, nonce),
       signature: signature as `0x${string}`
     });
   } catch {
@@ -161,7 +179,7 @@ async function readLocalDeliverable(filePath: string, jobId: string) {
 
 async function fetchRemoteDeliverable(request: Request, jobId: string, proof: DeliverableAccessProof) {
   const remoteBaseUrl = process.env.ARCTASK_DELIVERABLE_REMOTE_BASE_URL;
-  if (!remoteBaseUrl) {
+  if (!remoteBaseUrl || !isSafeRemoteBaseUrl(remoteBaseUrl)) {
     return null;
   }
 
@@ -175,7 +193,10 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
       method: "POST",
       cache: "no-store",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...(process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN
+          ? { "x-arctask-remote-token": process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN }
+          : {})
       },
       body: JSON.stringify(proof)
     });
@@ -192,35 +213,54 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
 
 async function getProofFromRequest(request: Request): Promise<DeliverableAccessProof | null> {
   const body = (await request.json().catch(() => null)) as Partial<DeliverableAccessProof> | null;
-  if (!body || typeof body.address !== "string" || typeof body.signature !== "string") {
+  if (!body || typeof body.address !== "string" || typeof body.nonce !== "string" || typeof body.signature !== "string") {
     return null;
   }
 
   return {
     address: body.address,
     issuedAt: typeof body.issuedAt === "string" ? body.issuedAt : "",
+    nonce: body.nonce,
     signature: body.signature
   };
 }
 
-export async function GET() {
-  return NextResponse.json({ error: "Use POST with a wallet signature to view this deliverable." }, { status: 401 });
-}
+export async function GET(request: Request, { params }: { params: { jobId: string } }) {
+  const rateLimitResponse = rateLimit(request, { keyPrefix: "deliverable-challenge", limit: 20, windowMs: 60_000 });
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
 
-export async function POST(request: Request, { params }: { params: { jobId: string } }) {
   const jobId = params.jobId.trim();
   if (!/^\d+$/.test(jobId)) {
     return NextResponse.json({ error: "Invalid onchain job ID." }, { status: 400 });
   }
 
-  const proof = await getProofFromRequest(request);
-  if (!proof) {
-    return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
+  return NextResponse.json(createDeliverableNonce(jobId));
+}
+
+export async function POST(request: Request, { params }: { params: { jobId: string } }) {
+  const rateLimitResponse = rateLimit(request, { keyPrefix: "deliverable-unlock", limit: 30, windowMs: 60_000 });
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
-  const accessError = await assertDeliverableAccess(proof, jobId);
-  if (accessError) {
-    return accessError;
+  const jobId = params.jobId.trim();
+  if (!/^\d+$/.test(jobId)) {
+    return NextResponse.json({ error: "Invalid onchain job ID." }, { status: 400 });
+  }
+
+  const trustedRemoteRequest = isTrustedRemoteRequest(request);
+  const proof = trustedRemoteRequest ? null : await getProofFromRequest(request);
+  if (!trustedRemoteRequest) {
+    if (!proof) {
+      return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
+    }
+
+    const accessError = await assertDeliverableAccess(proof, jobId);
+    if (accessError) {
+      return accessError;
+    }
   }
 
   const outputDir = process.env.ARC_AGENT_OUTPUT_DIR ?? path.join(process.cwd(), ".agent-worker", "deliverables");
@@ -230,7 +270,7 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
     return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId) });
   } catch (caught) {
     if ((caught as NodeJS.ErrnoException).code === "ENOENT") {
-      const remoteDeliverable = await fetchRemoteDeliverable(request, jobId, proof);
+      const remoteDeliverable = proof ? await fetchRemoteDeliverable(request, jobId, proof) : null;
       if (remoteDeliverable) {
         return NextResponse.json(remoteDeliverable);
       }

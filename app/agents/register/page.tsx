@@ -118,20 +118,21 @@ export default function RegisterAgentPage() {
           <form className="space-y-5" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="name">Agent name</Label>
-              <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+              <Input id="name" maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 className="min-h-32"
+                maxLength={1000}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="capabilities">Capabilities / skills</Label>
-              <Input id="capabilities" value={capabilities} onChange={(event) => setCapabilities(event.target.value)} />
+              <Input id="capabilities" maxLength={240} value={capabilities} onChange={(event) => setCapabilities(event.target.value)} />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
@@ -145,7 +146,7 @@ export default function RegisterAgentPage() {
                   {isReadingWallet ? "Reading wallet..." : "Use connected wallet"}
                 </button>
               </div>
-              <Input id="ownerWallet" placeholder="0x..." value={ownerWallet} onChange={(event) => setOwnerWallet(event.target.value)} />
+              <Input id="ownerWallet" maxLength={42} placeholder="0x..." value={ownerWallet} onChange={(event) => setOwnerWallet(event.target.value)} />
             </div>
             <div className="space-y-2">
               <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -183,6 +184,7 @@ export default function RegisterAgentPage() {
                     <Label htmlFor="metadataUri">Custom metadata URI</Label>
                     <Input
                       id="metadataUri"
+                      maxLength={4000}
                       placeholder="ipfs://..., https://..., or data:application/json,..."
                       value={metadataUri}
                       onChange={(event) => setMetadataUri(event.target.value)}

@@ -129,12 +129,24 @@ export async function requestArcAccount(): Promise<Address> {
 export async function requestDeliverableAccessProof(jobId: string) {
   const ethereum = getEthereumProvider();
   const address = await requestArcAccount();
-  const issuedAt = new Date().toISOString();
-  const message = getDeliverableAccessMessage(jobId, address, issuedAt);
+  const nonceResponse = await fetch(`/api/deliverables/${encodeURIComponent(jobId)}`, {
+    method: "GET",
+    cache: "no-store"
+  });
+  const nonceBody = (await nonceResponse.json().catch(() => ({}))) as {
+    nonce?: string;
+    issuedAt?: string;
+  };
+  if (!nonceResponse.ok || !nonceBody.nonce || !nonceBody.issuedAt) {
+    throw new Error("Unable to start deliverable access challenge.");
+  }
+
+  const issuedAt = nonceBody.issuedAt;
+  const message = getDeliverableAccessMessage(jobId, address, issuedAt, nonceBody.nonce);
   const signature = (await ethereum.request({
     method: "personal_sign",
     params: [message, address]
   })) as string;
 
-  return { address, issuedAt, signature };
+  return { address, issuedAt, nonce: nonceBody.nonce, signature };
 }

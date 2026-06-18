@@ -17,6 +17,7 @@ contract ArcTaskAgentRegistry {
 
     function registerAgent(address owner, string calldata metadataURI) external returns (uint256 agentId) {
         require(owner != address(0), "owner required");
+        require(msg.sender == owner, "owner must register");
         require(bytes(metadataURI).length != 0, "metadata required");
 
         agentId = nextAgentId++;
