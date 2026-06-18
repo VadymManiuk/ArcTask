@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createJobAction } from "@/lib/store";
 import type { Job, TxRecord } from "@/lib/types";
 import { useArcTaskState } from "@/lib/use-arctask-state";
-import { isAddressLike } from "@/lib/utils";
+import { getTodayDateInputValue, isAddressLike } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
 
 const exampleJob = {
@@ -33,7 +33,7 @@ export default function CreateJobPage() {
       }),
     [agents]
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayDateInputValue();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [agentId, setAgentId] = useState("");

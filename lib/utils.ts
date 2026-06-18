@@ -20,6 +20,17 @@ export function formatUsdc(amount: number) {
   }).format(amount);
 }
 
+export function getTodayDateInputValue(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+export function isPastDateInputValue(value: string, now = new Date()) {
+  const dateMs = Date.parse(`${value}T00:00:00Z`);
+  const todayMs = Date.parse(`${getTodayDateInputValue(now)}T00:00:00Z`);
+
+  return Number.isFinite(dateMs) && dateMs < todayMs;
+}
+
 export function isAddressLike(value: string): value is `0x${string}` {
   return /^0x[a-fA-F0-9]{40}$/.test(value.trim());
 }

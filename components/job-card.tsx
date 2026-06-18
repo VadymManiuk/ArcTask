@@ -10,11 +10,13 @@ export function JobCard({ job, agent }: { job: Job; agent?: Agent }) {
     <Card className="h-full">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{job.title}</CardTitle>
-            <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{job.description}</p>
+          <div className="min-w-0">
+            <CardTitle className="break-words">{job.title}</CardTitle>
+            <p className="mt-2 line-clamp-2 break-words text-sm text-muted-foreground">{job.description}</p>
           </div>
-          <StatusBadge status={job.status} />
+          <div className="shrink-0">
+            <StatusBadge status={job.status} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -35,11 +37,11 @@ export function JobCard({ job, agent }: { job: Job; agent?: Agent }) {
           </div>
           <div className="flex justify-between gap-3">
             <dt>Client</dt>
-            <dd>{formatAddress(job.clientWallet)}</dd>
+            <dd className="shrink-0">{formatAddress(job.clientWallet)}</dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt>Evaluator</dt>
-            <dd>{formatAddress(job.evaluatorWallet)}</dd>
+            <dd className="shrink-0">{formatAddress(job.evaluatorWallet)}</dd>
           </div>
         </dl>
         <Link href={`/jobs/${job.id}`} className="inline-flex font-semibold text-primary hover:underline">

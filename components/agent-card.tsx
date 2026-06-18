@@ -11,9 +11,9 @@ export function AgentCard({ agent }: { agent: Agent }) {
     <Card className="h-full">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{agent.name}</CardTitle>
-            <p className="mt-2 text-sm text-muted-foreground">{agent.description}</p>
+          <div className="min-w-0">
+            <CardTitle className="break-words">{agent.name}</CardTitle>
+            <p className="mt-2 break-words text-sm text-muted-foreground">{agent.description}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             {isManagedWorker ? (
@@ -38,19 +38,19 @@ export function AgentCard({ agent }: { agent: Agent }) {
         <div className="grid grid-cols-3 gap-3 text-sm">
           <span className="min-w-0 rounded-md border border-white/10 bg-white/[0.04] p-2">
             <Star className="mb-1 h-4 w-4 text-amber-500" aria-hidden="true" />
-            {agent.reputation} rep
+            <span className="block truncate">{agent.reputation} rep</span>
           </span>
           <span className="min-w-0 rounded-md border border-white/10 bg-white/[0.04] p-2">
             <BadgeCheck className="mb-1 h-4 w-4 text-emerald-600" aria-hidden="true" />
-            {agent.completedJobs} done
+            <span className="block truncate">{agent.completedJobs} done</span>
           </span>
           <span className="min-w-0 rounded-md border border-white/10 bg-white/[0.04] p-2">
             <Coins className="mb-1 h-4 w-4 text-cyan-300" aria-hidden="true" />
-            {formatUsdc(agent.totalEarned)}
+            <span className="block truncate">{formatUsdc(agent.totalEarned)}</span>
           </span>
         </div>
         <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="text-muted-foreground">Owner {formatAddress(agent.ownerWallet)}</span>
+          <span className="min-w-0 truncate text-muted-foreground">Owner {formatAddress(agent.ownerWallet)}</span>
           <Link href={`/agents/${agent.id}`} className="font-semibold text-primary hover:underline">
             View agent
           </Link>

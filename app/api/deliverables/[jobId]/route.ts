@@ -36,10 +36,15 @@ const publicClient = createPublicClient({
 });
 
 interface WorkerDeliverableFile {
+  jobId?: unknown;
   generatedAt?: unknown;
   deliverableHash?: unknown;
   txHash?: unknown;
   txUrl?: unknown;
+  title?: unknown;
+  mode?: unknown;
+  model?: unknown;
+  summary?: unknown;
   result?: {
     title?: unknown;
     mode?: unknown;
@@ -64,6 +69,33 @@ function isAddress(value: string): value is Address {
 
 function sameAddress(left: string, right: string) {
   return left.toLowerCase() === right.toLowerCase();
+}
+
+function getRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeDeliverablePayload(value: unknown, jobId: string) {
+  const envelope = getRecord(value);
+  const sourceValue = envelope && "deliverable" in envelope ? envelope.deliverable : value;
+  const source = getRecord(sourceValue) as WorkerDeliverableFile | null;
+  const result = getRecord(source?.result);
+
+  if (!source) {
+    return null;
+  }
+
+  return {
+    jobId,
+    generatedAt: asString(source.generatedAt),
+    deliverableHash: asString(source.deliverableHash),
+    txHash: asString(source.txHash),
+    txUrl: asString(source.txUrl),
+    title: asString(source.title) ?? asString(result?.title) ?? `Job ${jobId} deliverable`,
+    mode: asString(source.mode) ?? asString(result?.mode),
+    model: asString(source.model) ?? asString(result?.model),
+    summary: asString(source.summary) ?? asString(result?.summary) ?? ""
+  };
 }
 
 async function getOnchainClientWallet(jobId: string) {
@@ -118,19 +150,13 @@ async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: str
 
 async function readLocalDeliverable(filePath: string, jobId: string) {
   const raw = await fs.readFile(filePath, "utf8");
-  const parsed = JSON.parse(raw) as WorkerDeliverableFile;
+  const parsed = JSON.parse(raw) as unknown;
+  const deliverable = normalizeDeliverablePayload(parsed, jobId);
+  if (!deliverable) {
+    throw new Error("Invalid worker deliverable file.");
+  }
 
-  return {
-    jobId,
-    generatedAt: asString(parsed.generatedAt),
-    deliverableHash: asString(parsed.deliverableHash),
-    txHash: asString(parsed.txHash),
-    txUrl: asString(parsed.txUrl),
-    title: asString(parsed.result?.title) ?? `Job ${jobId} deliverable`,
-    mode: asString(parsed.result?.mode),
-    model: asString(parsed.result?.model),
-    summary: asString(parsed.result?.summary) ?? ""
-  };
+  return deliverable;
 }
 
 async function fetchRemoteDeliverable(request: Request, jobId: string, proof: DeliverableAccessProof) {
@@ -144,19 +170,24 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
     return null;
   }
 
-  const response = await fetch(remoteUrl, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(proof)
-  });
-  if (!response.ok) {
+  try {
+    const response = await fetch(remoteUrl, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(proof)
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const deliverable = normalizeDeliverablePayload(await response.json().catch(() => null), jobId);
+    return deliverable ? { deliverable } : null;
+  } catch {
     return null;
   }
-
-  return response.json() as Promise<unknown>;
 }
 
 async function getProofFromRequest(request: Request): Promise<DeliverableAccessProof | null> {

@@ -167,6 +167,7 @@ function createJobPayloadUri(input: {
   description: string;
   agentId: string;
   onchainAgentId: string;
+  clientWallet: Address;
   rewardAmount: number;
   deadline: string;
   evaluatorWallet: Address;
@@ -177,6 +178,7 @@ function createJobPayloadUri(input: {
     description: input.description,
     localAgentId: input.agentId,
     onchainAgentId: input.onchainAgentId,
+    clientWallet: input.clientWallet,
     rewardAmount: input.rewardAmount,
     deadline: input.deadline,
     evaluatorWallet: input.evaluatorWallet,
@@ -281,12 +283,14 @@ export async function createJobOnchain(input: {
   description: string;
   agentId: string;
   onchainAgentId: string;
+  clientWallet: Address;
   rewardAmount: number;
   deadline: string;
   evaluatorWallet: Address;
 }) {
   const escrowAddress = getContractAddress("erc8183Escrow");
-  const { walletClient } = await getConnectedWalletClient();
+  const { account, walletClient } = await getConnectedWalletClient();
+  assertConnectedWallet(account, input.clientWallet, "client wallet");
   const jobId = (await publicClient.readContract({
     address: escrowAddress,
     abi: escrowAbi,

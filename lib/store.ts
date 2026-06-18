@@ -5,7 +5,7 @@ import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
 import { managedArcTaskAgent, seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
-import { normalizeAddress } from "@/lib/utils";
+import { isPastDateInputValue, normalizeAddress } from "@/lib/utils";
 
 const STORAGE_KEY = "arctask.mock.v1";
 let cachedState: ArcTaskState | null = null;
@@ -265,6 +265,10 @@ export function createJob(input: {
     throw new Error("Deadline must be a valid date.");
   }
 
+  if (isPastDateInputValue(input.deadline)) {
+    throw new Error("Deadline cannot be in the past.");
+  }
+
   const tx = createRecordedTx("JOB_FUNDED", "ERC-8183 style escrow funded with testnet USDC", {
     actor: clientWallet,
     contractLabel: "ERC-8183 Escrow",
@@ -504,6 +508,7 @@ export async function createJobAction(input: {
     description: input.description,
     agentId: input.agentId,
     onchainAgentId: agent.onchainAgentId,
+    clientWallet: input.clientWallet,
     rewardAmount: input.rewardAmount,
     deadline: input.deadline,
     evaluatorWallet: input.evaluatorWallet
