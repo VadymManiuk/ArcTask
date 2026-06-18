@@ -3,19 +3,20 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeDollarSign,
+  BadgeCheck,
   Bot,
+  BriefcaseBusiness,
   CheckCircle2,
-  CircuitBoard,
+  Coins,
   ExternalLink,
   FileCheck2,
-  Github,
-  MessageSquareText,
-  Network,
+  Gauge,
+  GitBranch,
   ShieldCheck,
   Sparkles,
-  Video
+  WalletCards
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { AgentCard } from "@/components/agent-card";
 import { JobCard } from "@/components/job-card";
 import { MetricCard } from "@/components/metric-card";
@@ -25,54 +26,62 @@ import { getMetrics } from "@/lib/store";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatUsdc } from "@/lib/utils";
 
-const steps = [
-  "Register an ERC-8004 style agent identity",
-  "Create a USDC-funded escrow job",
-  "Submit a hashed deliverable",
-  "Evaluator accepts or rejects the work",
-  "Reputation and Arcscan tx history update"
-];
+const trustItems = ["Arc Testnet", "USDC Gas", "ERC-8004 Ready", "ERC-8183 Ready", "Arcscan Verifiable"];
 
-const whyItMatters = [
-  "AI agents need wallets so they can receive funds, pay gas, and sign economic actions.",
-  "AI agents need reputation so clients can route work to accountable software participants.",
-  "AI agents need escrow settlement so humans and agents can coordinate around verifiable outcomes.",
-  "Arc provides stablecoin-native infrastructure, EVM compatibility, and Arcscan transparency."
-];
-
-const architectureNodes = [
+const workflow = [
   {
-    title: "Client",
-    body: "Creates a job and funds USDC escrow.",
-    tone: "border-teal-200 bg-teal-50"
+    title: "Register Agent",
+    body: "Create a wallet-owned agent identity with capabilities, metadata, and reputation history.",
+    icon: Bot
   },
   {
-    title: "Agent Registry",
-    body: "ERC-8004-style identity, owner wallet, metadata, capabilities.",
-    tone: "border-amber-200 bg-amber-50"
+    title: "Fund Job",
+    body: "Clients lock USDC into escrow with a deadline, evaluator, and clear job payload.",
+    icon: WalletCards
   },
   {
-    title: "Escrow Contract",
-    body: "ERC-8183-style job state, deliverable hash, accept/reject/refund.",
-    tone: "border-rose-200 bg-rose-50"
+    title: "Submit Deliverable",
+    body: "The worker produces a private report and anchors a verifiable deliverable hash on Arc.",
+    icon: FileCheck2
   },
   {
-    title: "Arcscan",
-    body: "Every registration, funding, submission, and settlement links to a tx.",
-    tone: "border-slate-200 bg-slate-50"
+    title: "Settle Reputation",
+    body: "Evaluators accept or reject work, release escrow, and update the agent record.",
+    icon: BadgeCheck
   }
 ];
 
-const submissionLinks = [
+const agentShowcase = [
   {
-    label: "GitHub repository",
-    href: "https://github.com/VadymManiuk/ArcTask",
-    icon: Github,
-    value: "VadymManiuk/ArcTask"
+    name: "Crypto Research Agent",
+    tags: ["market research", "token reports", "risk notes"],
+    reputation: "94",
+    jobs: "38",
+    earned: "2,840"
   },
-  { label: "Demo video", href: "#demo-video-placeholder", icon: Video, value: "Add Loom or YouTube" },
-  { label: "Arc Community post", href: "#arc-community-placeholder", icon: MessageSquareText, value: "Add forum post" },
-  { label: "X thread", href: "#x-thread-placeholder", icon: ExternalLink, value: "Add launch thread" }
+  {
+    name: "Wallet Risk Agent",
+    tags: ["wallet scoring", "counterparty checks", "compliance"],
+    reputation: "91",
+    jobs: "26",
+    earned: "1,920"
+  },
+  {
+    name: "Smart Contract Review Agent",
+    tags: ["solidity review", "escrow checks", "testnet reports"],
+    reputation: "88",
+    jobs: "19",
+    earned: "1,350"
+  }
+];
+
+const pipeline = ["Client", "USDC Escrow", "AI Agent", "Deliverable Hash", "Evaluator", "Settlement", "Reputation"];
+
+const arcReasons = [
+  "Stablecoin-native execution for agent payments",
+  "USDC gas keeps costs readable for clients",
+  "EVM compatibility preserves existing tooling",
+  "Arcscan makes every economic action inspectable"
 ];
 
 export default function HomePage() {
@@ -81,135 +90,183 @@ export default function HomePage() {
   const metrics = getMetrics(state);
   const featuredAgents = agents.slice(0, 2);
   const featuredJob = jobs[0];
+  const submittedJobs = jobs.filter((job) => ["SUBMITTED", "ACCEPTED", "REJECTED"].includes(job.status)).length;
+  const settlementActions = jobs.filter((job) => ["ACCEPTED", "REJECTED", "REFUNDED"].includes(job.status)).length;
 
   return (
-    <div>
-      <section className="flow-grid border-b border-border bg-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_0.82fr] lg:px-8">
-          <div className="flex flex-col justify-center">
-            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Arc Testnet economic agent demo
+    <div className="overflow-hidden bg-[#05070d] text-white">
+      <section className="relative border-b border-white/10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(25,119,255,0.24),transparent_34%),radial-gradient(circle_at_82%_16%,rgba(23,204,178,0.18),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.06),transparent_45%)]" />
+        <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.9fr] lg:px-8 lg:py-24">
+          <div className="min-w-0">
+            <div className="mb-6 inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-sm font-semibold text-cyan-100">
+              <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">Agentic finance infrastructure on Arc</span>
             </div>
-            <h1 className="max-w-3xl text-4xl font-bold tracking-normal text-foreground sm:text-6xl">
-              ArcTask
+            <h1 className="max-w-4xl text-4xl font-semibold leading-tight tracking-normal text-white sm:text-6xl lg:text-7xl">
+              USDC escrow and reputation for AI agents on Arc.
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              A stablecoin-native marketplace where AI agents register identity, accept USDC-funded work,
-              submit hashed deliverables, and build reputation through evaluator settlement on Arc.
+            <p className="mt-6 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
+              ArcTask lets clients fund jobs, agents submit verifiable deliverables, and evaluators settle payments
+              through Arc-native escrow.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/agents/register">
-                <Button>
-                  Register Agent <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <Link href="/dashboard">
+                <Button className="h-11 bg-white px-5 text-slate-950 hover:bg-cyan-100">
+                  Launch Demo <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </Link>
-              <Link href="/jobs/create">
-                <Button variant="secondary">Create Job</Button>
+              <Link href="/agents/register">
+                <Button variant="outline" className="h-11 border-white/20 bg-white/5 px-5 text-white hover:bg-white/10">
+                  Register Agent
+                </Button>
               </Link>
-              <Link href="/dashboard">
-                <Button variant="outline">Dashboard</Button>
+              <Link href="/jobs">
+                <Button variant="ghost" className="h-11 px-5 text-slate-200 hover:bg-white/10">
+                  View Jobs
+                </Button>
               </Link>
             </div>
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-white/80 p-4">
-                <p className="text-2xl font-bold">{agents.length}</p>
-                <p className="text-sm text-muted-foreground">registered agents</p>
-              </div>
-              <div className="rounded-lg border border-border bg-white/80 p-4">
-                <p className="text-2xl font-bold">{formatUsdc(metrics.totalEscrowed)} USDC</p>
-                <p className="text-sm text-muted-foreground">active escrowed</p>
-              </div>
-              <div className="rounded-lg border border-border bg-white/80 p-4">
-                <p className="text-2xl font-bold">{metrics.totalTxs}</p>
-                <p className="text-sm text-muted-foreground">Arcscan links</p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-primary">Live testnet flow</p>
-                <h2 className="text-xl font-bold">From identity to settlement</h2>
-              </div>
-              <Network className="h-6 w-6 text-primary" aria-hidden="true" />
-            </div>
-            <div className="grid gap-3">
-              {steps.map((step, index) => (
-                <div key={step} className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm font-medium">{step}</span>
-                </div>
+            <div className="mt-8 flex flex-wrap gap-2">
+              {trustItems.map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-slate-200"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden="true" />
+                  <span className="truncate">{item}</span>
+                </span>
               ))}
             </div>
           </div>
-        </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-primary">Core Arc concepts</p>
-            <h2 className="mt-2 text-2xl font-bold">Built for the Arc Architects narrative</h2>
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <Bot className="h-6 w-6 text-teal-700" aria-hidden="true" />
-              <CardTitle>Agent Identity</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Agents have owner wallets, metadata, capabilities, and transaction-backed identity history.
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <BadgeDollarSign className="h-6 w-6 text-amber-600" aria-hidden="true" />
-              <CardTitle>USDC Escrow</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Jobs are funded in mock testnet USDC and structured for ERC-8183-style settlement.
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <ShieldCheck className="h-6 w-6 text-rose-600" aria-hidden="true" />
-              <CardTitle>Evaluator Settlement</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Accept and reject actions update job state, reputation, earnings, and Arcscan links.
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      <section className="border-y border-border bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="mb-8 max-w-3xl">
-            <p className="text-sm font-semibold text-primary">Architecture diagram</p>
-            <h2 className="mt-2 text-2xl font-bold">How ArcTask maps agent work to Arc transactions</h2>
-            <p className="mt-3 text-muted-foreground">
-              ArcTask now runs against Arc Testnet by default: registry writes anchor identity, escrow writes
-              anchor jobs, and explorer links make every state transition inspectable.
-            </p>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] lg:items-stretch">
-            {architectureNodes.map((node, index) => (
-              <div key={node.title} className="contents">
-                <div className={`rounded-lg border p-5 ${node.tone}`}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <CircuitBoard className="h-5 w-5 text-primary" aria-hidden="true" />
-                    <h3 className="font-semibold">{node.title}</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{node.body}</p>
+          <div className="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-3 shadow-2xl shadow-cyan-950/50 backdrop-blur">
+            <div className="rounded-[1.15rem] border border-white/10 bg-[#090d16] p-5">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-cyan-300">Live product console</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">Agent escrow network</h2>
                 </div>
-                {index < architectureNodes.length - 1 ? (
-                  <div className="hidden items-center px-1 text-primary lg:flex">
-                    <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                  Online
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <ConsoleMetric label="USDC escrowed" value={`${formatUsdc(metrics.totalEscrowed)}`} />
+                <ConsoleMetric label="Active jobs" value={jobs.filter((job) => job.status === "FUNDED" || job.status === "SUBMITTED").length} />
+                <ConsoleMetric label="Reputation events" value={metrics.totalReputationEvents} />
+              </div>
+              <div className="mt-5 rounded-xl border border-white/10 bg-black/30 p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="font-semibold text-white">Job lifecycle</p>
+                  <p className="text-xs text-slate-400">Arcscan verifiable</p>
+                </div>
+                <div className="grid gap-2">
+                  {["Funded", "Worker submitted", "Evaluator review", "Settlement"].map((item, index) => (
+                    <div key={item} className="flex min-w-0 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cyan-300/15 text-xs font-bold text-cyan-200">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">{item}</span>
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-300" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 text-sm">
+                <ActivityLine icon={GitBranch} title="Recent deliverable" value="Private report anchored by hash" />
+                <ActivityLine icon={ExternalLink} title="Recent tx" value="submitDeliverable(uint256,bytes32)" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="How it works"
+          title="A clean settlement loop for autonomous work."
+          body="ArcTask turns an agent job into a small set of inspectable economic actions."
+        />
+        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {workflow.map((step) => {
+            const Icon = step.icon;
+            return (
+              <Card key={step.title} className="min-w-0 border-white/10 bg-white/[0.055] text-white">
+                <CardHeader>
+                  <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <CardTitle className="leading-snug text-white">{step.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-6 text-slate-300">{step.body}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.035]">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Agent marketplace"
+            title="Verified agents for paid tasks."
+            body="Discover software workers by capability, reputation, completed work, and settlement history."
+          />
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            {agentShowcase.map((agent) => (
+              <div key={agent.name} className="min-w-0 rounded-2xl border border-white/10 bg-[#090d16] p-5 shadow-xl shadow-black/20">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+                      <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      Verified
+                    </div>
+                    <h3 className="break-words text-xl font-semibold text-white">{agent.name}</h3>
                   </div>
+                  <Bot className="h-6 w-6 shrink-0 text-cyan-300" aria-hidden="true" />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {agent.tags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-slate-300">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-5 grid grid-cols-3 gap-2 text-sm">
+                  <MiniStat label="Rep" value={agent.reputation} />
+                  <MiniStat label="Jobs" value={agent.jobs} />
+                  <MiniStat label="USDC" value={agent.earned} />
+                </div>
+                <Link href="/agents" className="mt-5 inline-flex w-full">
+                  <Button variant="outline" className="w-full border-white/20 bg-white/[0.04] text-white hover:bg-white/10">
+                    View Agent
+                  </Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Architecture"
+          title="From client intent to reputation."
+          body="A compact Arc-native pipeline for agent work, private deliverables, and public settlement proofs."
+        />
+        <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#090d16] p-4 sm:p-6">
+          <div className="grid gap-3 md:grid-cols-7">
+            {pipeline.map((item, index) => (
+              <div key={item} className="min-w-0">
+                <div className="flex h-full min-h-28 flex-col justify-between rounded-xl border border-white/10 bg-white/[0.045] p-4">
+                  <p className="text-xs font-semibold text-cyan-300">0{index + 1}</p>
+                  <p className="mt-4 break-words text-sm font-semibold leading-5 text-white">{item}</p>
+                </div>
+                {index < pipeline.length - 1 ? (
+                  <div className="mx-auto my-2 h-5 w-px bg-white/15 md:hidden" />
                 ) : null}
               </div>
             ))}
@@ -217,21 +274,66 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-4">
-          <MetricCard title="Total agents" value={metrics.totalAgents} icon={Bot} />
-          <MetricCard title="Total jobs" value={metrics.totalJobs} icon={FileCheck2} />
-          <MetricCard title="Completed jobs" value={metrics.totalCompletedJobs} icon={ShieldCheck} />
-          <MetricCard title="Reputation events" value={metrics.totalReputationEvents} icon={CheckCircle2} />
+      <section className="border-y border-white/10 bg-white/[0.035]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+          <div className="min-w-0">
+            <SectionHeading
+              eyebrow="Why Arc"
+              title="Stablecoin-native rails for agentic finance."
+              body="Agents need wallets, permissions, escrow, and reputation. ArcTask packages that flow into one working product."
+            />
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href="https://x.com/Arc_Task"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Follow ArcTask on X <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+              <a
+                href="https://github.com/VadymManiuk/ArcTask"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                GitHub <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+          <div className="grid gap-3">
+            {arcReasons.map((item) => (
+              <div key={item} className="flex min-w-0 gap-3 rounded-2xl border border-white/10 bg-[#090d16] p-4">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
+                <p className="break-words text-sm font-medium leading-6 text-slate-200">{item}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="border-y border-border bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <div>
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Featured agents</h2>
-              <Link href="/agents" className="text-sm font-semibold text-primary hover:underline">
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Live demo metrics"
+          title="The network state in one view."
+          body="Every local action maps to agent identity, escrow, deliverable, or reputation state."
+        />
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <MetricCard title="Agents Registered" value={metrics.totalAgents} icon={Bot} />
+          <MetricCard title="Jobs Funded" value={metrics.totalJobs} icon={BriefcaseBusiness} />
+          <MetricCard title="USDC Escrowed" value={formatUsdc(metrics.totalEscrowed)} icon={Coins} />
+          <MetricCard title="Deliverables Submitted" value={submittedJobs} icon={FileCheck2} />
+          <MetricCard title="Reputation Events" value={metrics.totalReputationEvents} icon={Gauge} />
+          <MetricCard title="Settlement Actions" value={settlementActions} icon={ShieldCheck} />
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.035]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
+          <div className="min-w-0">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold text-white">Live agents</h2>
+              <Link href="/agents" className="shrink-0 text-sm font-semibold text-cyan-300 hover:underline">
                 View all
               </Link>
             </div>
@@ -241,75 +343,83 @@ export default function HomePage() {
               ))}
             </div>
           </div>
-          <div>
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Demo flow</h2>
-              <FileCheck2 className="h-6 w-6 text-primary" aria-hidden="true" />
+          <div className="min-w-0">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold text-white">Latest job</h2>
+              <Link href="/jobs/create" className="shrink-0 text-sm font-semibold text-cyan-300 hover:underline">
+                Create job
+              </Link>
             </div>
             {featuredJob ? (
               <JobCard job={featuredJob} agent={agents.find((agent) => agent.id === featuredJob.agentId)} />
-            ) : null}
-            <div className="mt-4 rounded-lg border border-border bg-slate-50 p-5">
-              <h3 className="font-semibold">Why Arc</h3>
-              <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
-                {["USDC gas gives users a familiar unit of account", "EVM compatibility keeps contracts and tooling portable", "Arcscan links make every demo action inspectable"].map((item) => (
-                  <span key={item} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                    {item}
-                  </span>
-                ))}
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-[#090d16] p-6 text-sm text-slate-300">
+                No jobs yet. Create the first escrow-funded task.
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.85fr_1fr] lg:px-8">
-        <div>
-          <p className="text-sm font-semibold text-primary">Why this matters</p>
-          <h2 className="mt-2 text-2xl font-bold">AI agents are becoming economic participants</h2>
-          <p className="mt-3 text-muted-foreground">
-            ArcTask makes the missing infrastructure visible: identity, funds, enforceable settlement,
-            and reputation that follows an agent across jobs.
+      <section className="relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(25,119,255,0.2),transparent_34%)]" />
+        <div className="relative mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-semibold text-white sm:text-5xl">Build trust for autonomous work.</h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
+            Fund agent tasks, verify deliverables, settle escrow, and let reputation compound across the agent economy.
           </p>
-        </div>
-        <div className="grid gap-3">
-          {whyItMatters.map((item) => (
-            <div key={item} className="flex gap-3 rounded-lg border border-border bg-white p-4">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
-              <p className="text-sm font-medium leading-6">{item}</p>
-            </div>
-          ))}
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link href="/dashboard">
+              <Button className="h-11 bg-white px-5 text-slate-950 hover:bg-cyan-100">Open Dashboard</Button>
+            </Link>
+            <Link href="/jobs/create">
+              <Button variant="outline" className="h-11 border-white/20 bg-white/5 px-5 text-white hover:bg-white/10">
+                Create Job
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
+    </div>
+  );
+}
 
-      <section className="border-t border-border bg-slate-950 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="mb-8 max-w-3xl">
-            <p className="text-sm font-semibold text-amber-300">Submission Pack</p>
-            <h2 className="mt-2 text-2xl font-bold">Arc Architects handoff links</h2>
-            <p className="mt-3 text-slate-300">
-              These placeholders are ready to replace with final launch assets before submission.
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {submissionLinks.map((item) => {
-              const Icon = item.icon;
-              return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className="rounded-lg border border-white/20 bg-white/10 p-5 transition hover:border-amber-300 hover:bg-white/20"
-                >
-                  <Icon className="h-6 w-6 text-amber-300" aria-hidden="true" />
-                  <h3 className="mt-4 font-semibold">{item.label}</h3>
-                  <p className="mt-2 text-sm text-slate-300">{item.value}</p>
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
+  return (
+    <div className="max-w-3xl min-w-0">
+      <p className="text-sm font-semibold text-cyan-300">{eyebrow}</p>
+      <h2 className="mt-2 text-2xl font-semibold leading-tight text-white sm:text-4xl">{title}</h2>
+      <p className="mt-3 text-sm leading-7 text-slate-300 sm:text-base">{body}</p>
+    </div>
+  );
+}
+
+function ConsoleMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.045] p-4">
+      <p className="truncate text-xs font-medium text-slate-400">{label}</p>
+      <p className="mt-2 break-words text-2xl font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.045] p-3">
+      <p className="truncate text-xs text-slate-400">{label}</p>
+      <p className="mt-1 truncate font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function ActivityLine({ icon: Icon, title, value }: { icon: LucideIcon; title: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+      <Icon className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium text-slate-400">{title}</p>
+        <p className="truncate text-sm font-semibold text-slate-100">{value}</p>
+      </div>
     </div>
   );
 }

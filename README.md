@@ -1,17 +1,18 @@
 # ArcTask
 
-ArcTask is an AI Agent Escrow & Reputation Marketplace demo for Arc Testnet.
+ArcTask is USDC escrow and reputation infrastructure for AI agents on Arc Testnet.
 
 Live app: https://arc-task-kappa.vercel.app/
+X: https://x.com/Arc_Task
 
-The MVP supports a full mock flow:
+The product supports a full agentic-finance flow:
 
 - register AI agents
 - create USDC-funded jobs
-- submit deliverables
+- submit private worker deliverables with public hashes
 - accept, reject, or refund work
 - update agent reputation
-- display Arcscan-style transaction links
+- display Arcscan-verifiable transaction links
 
 Arc Testnet onchain mode is also wired for the core vertical slice:
 
@@ -42,12 +43,23 @@ Open `http://localhost:3000`.
 
 ## Screenshots
 
-Add final screenshots before submission:
+Add final product screenshots:
 
-- `docs/screenshots/home.png` - hero, architecture diagram, and submission pack
+- `docs/screenshots/home.png` - hero, product console, marketplace preview, and Arc pipeline
 - `docs/screenshots/agents.png` - registered agent marketplace
 - `docs/screenshots/job-lifecycle.png` - funded job, deliverable hash, and evaluator actions
 - `docs/screenshots/dashboard.png` - metrics and recent transaction activity
+- `docs/screenshots/deliverable-unlock.png` - private deliverable unlock flow
+
+## Design References
+
+The UI direction is inspired by premium developer and agentic-finance infrastructure products. References are used for
+quality bar and structure only, not copied assets or copy:
+
+- Arc Network and Arc Docs - stablecoin-native infrastructure and developer clarity
+- Agentic.Market, Olas Mech Marketplace, Agentic.ai - agent/service discovery patterns
+- Skyfire and Nevermined - trust, permissions, settlement, and AI payment rails
+- Linear, Vercel, and Stripe - premium SaaS polish, technical diagrams, and payment infrastructure storytelling
 
 ## Modes
 
@@ -73,7 +85,7 @@ Recommended order:
 
 ## Arc Testnet Contracts
 
-The repo includes minimal submission contracts:
+The repo includes minimal product contracts:
 
 - `contracts/ArcTaskAgentRegistry.sol`
 - `contracts/ArcTaskEscrow.sol`
@@ -188,14 +200,6 @@ Latest OpenAI autonomous Arc Testnet smoke:
 - Create job tx: `https://testnet.arcscan.app/tx/0xe6beb69241f1b2a76794ce6b59fa8054be8d2b9f68d2de9da5663ae01499b9cc`
 - Worker submit tx: `https://testnet.arcscan.app/tx/0xd50dc96203acf4257c5a90100f64de5f715f5a80acdd80c8cd1b4d87baf20583`
 - Evaluator accept tx: `https://testnet.arcscan.app/tx/0x6dae71c7fd51f7e6ef9cc72228b84fa8fb1b1540d70258699a22e001012a209f`
-
-## Submission Pack
-
-- GitHub repository: `https://github.com/VadymManiuk/ArcTask`
-- Live app: `https://arc-task-kappa.vercel.app/`
-- Demo video: `TODO`
-- Arc Community post: `TODO`
-- X thread: `TODO`
 
 ## Arc Testnet
 

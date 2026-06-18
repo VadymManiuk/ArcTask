@@ -2,11 +2,11 @@ import type { JobStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const styles: Record<JobStatus, string> = {
-  FUNDED: "border-teal-200 bg-teal-50 text-teal-800",
-  SUBMITTED: "border-amber-200 bg-amber-50 text-amber-800",
-  ACCEPTED: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  REJECTED: "border-rose-200 bg-rose-50 text-rose-800",
-  REFUNDED: "border-slate-200 bg-slate-100 text-slate-700"
+  FUNDED: "border-cyan-300/25 bg-cyan-300/10 text-cyan-100",
+  SUBMITTED: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+  ACCEPTED: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
+  REJECTED: "border-rose-300/25 bg-rose-300/10 text-rose-100",
+  REFUNDED: "border-slate-300/20 bg-slate-300/10 text-slate-200"
 };
 
 export function StatusBadge({ status, className }: { status: JobStatus; className?: string }) {

@@ -13,7 +13,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
             <CardTitle>{agent.name}</CardTitle>
             <p className="mt-2 text-sm text-muted-foreground">{agent.description}</p>
           </div>
-          <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">
+          <span className="max-w-[9rem] truncate rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-200">
             {agent.id}
           </span>
         </div>
@@ -27,16 +27,16 @@ export function AgentCard({ agent }: { agent: Agent }) {
           ))}
         </div>
         <div className="grid grid-cols-3 gap-3 text-sm">
-          <span className="rounded-md bg-slate-50 p-2">
+          <span className="min-w-0 rounded-md border border-white/10 bg-white/[0.04] p-2">
             <Star className="mb-1 h-4 w-4 text-amber-500" aria-hidden="true" />
             {agent.reputation} rep
           </span>
-          <span className="rounded-md bg-slate-50 p-2">
+          <span className="min-w-0 rounded-md border border-white/10 bg-white/[0.04] p-2">
             <BadgeCheck className="mb-1 h-4 w-4 text-emerald-600" aria-hidden="true" />
             {agent.completedJobs} done
           </span>
-          <span className="rounded-md bg-slate-50 p-2">
-            <Coins className="mb-1 h-4 w-4 text-teal-700" aria-hidden="true" />
+          <span className="min-w-0 rounded-md border border-white/10 bg-white/[0.04] p-2">
+            <Coins className="mb-1 h-4 w-4 text-cyan-300" aria-hidden="true" />
             {formatUsdc(agent.totalEarned)}
           </span>
         </div>

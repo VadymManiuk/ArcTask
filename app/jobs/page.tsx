@@ -44,8 +44,8 @@ export default function JobsPage() {
             type="button"
             onClick={() => setFilter(item)}
             className={cn(
-              "rounded-md border border-border bg-white px-3 py-2 text-sm font-semibold transition",
-              filter === item && "border-primary bg-teal-50 text-primary"
+              "rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-white/[0.08] hover:text-foreground",
+              filter === item && "border-cyan-300/40 bg-cyan-300/10 text-cyan-100"
             )}
           >
             {item}
@@ -58,7 +58,7 @@ export default function JobsPage() {
         ))}
       </div>
       {filteredJobs.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-white p-6 text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed border-white/20 bg-white/[0.04] p-6 text-sm text-muted-foreground">
           No jobs match this status yet.
         </div>
       ) : null}

@@ -19,19 +19,19 @@ export function JobCard({ job, agent }: { job: Job; agent?: Agent }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 text-sm sm:grid-cols-2">
-          <span className="flex items-center gap-2 rounded-md bg-slate-50 p-2">
-            <Coins className="h-4 w-4 text-teal-700" aria-hidden="true" />
-            {formatUsdc(job.rewardAmount)} USDC
+          <span className="flex min-w-0 items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] p-2">
+            <Coins className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+            <span className="truncate">{formatUsdc(job.rewardAmount)} USDC</span>
           </span>
-          <span className="flex items-center gap-2 rounded-md bg-slate-50 p-2">
-            <CalendarDays className="h-4 w-4 text-rose-600" aria-hidden="true" />
-            {job.deadline}
+          <span className="flex min-w-0 items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] p-2">
+            <CalendarDays className="h-4 w-4 shrink-0 text-violet-300" aria-hidden="true" />
+            <span className="truncate">{job.deadline}</span>
           </span>
         </div>
         <dl className="grid gap-2 text-sm text-muted-foreground">
           <div className="flex justify-between gap-3">
             <dt>Agent</dt>
-            <dd className="font-medium text-foreground">{agent?.name ?? "Unknown agent"}</dd>
+            <dd className="min-w-0 truncate font-medium text-foreground">{agent?.name ?? "Unknown agent"}</dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt>Client</dt>
