@@ -5,17 +5,20 @@ import { usePathname } from "next/navigation";
 import { Bot, BriefcaseBusiness, ExternalLink, Gauge, Github, Home, PlusCircle, RotateCcw, UserRoundPlus } from "lucide-react";
 import { TestnetStatus } from "@/components/testnet-status";
 import { WalletConnect } from "@/components/wallet-connect";
-import { Button } from "@/components/ui/button";
 import { resetMockState } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Home", icon: Home },
+  { href: "/", label: "Product", icon: Home },
   { href: "/agents", label: "Agents", icon: Bot },
-  { href: "/agents/register", label: "Register", icon: UserRoundPlus },
   { href: "/jobs", label: "Jobs", icon: BriefcaseBusiness },
-  { href: "/jobs/create", label: "Create", icon: PlusCircle },
   { href: "/dashboard", label: "Dashboard", icon: Gauge }
+];
+
+const mobileNavItems = [
+  ...navItems,
+  { href: "/agents/register", label: "Register", icon: UserRoundPlus },
+  { href: "/jobs/create", label: "Create", icon: PlusCircle }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -30,51 +33,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05070d]/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2 font-bold">
+        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr] items-center gap-4 px-4 py-3 sm:px-6 lg:grid-cols-[1fr_auto_1fr] lg:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-2 font-bold">
             <span className="grid h-9 w-9 place-items-center rounded-md bg-cyan-300 text-slate-950">
               AT
             </span>
             <span className="text-white">ArcTask</span>
           </Link>
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden items-center justify-center gap-1 rounded-full border border-white/10 bg-white/[0.035] p-1 lg:flex">
             {navItems.map((item) => {
-              const Icon = item.icon;
               const active = pathname === item.href;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "inline-flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground",
+                    "inline-flex items-center whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.07] hover:text-foreground",
                     active && "bg-white/[0.08] text-white"
                   )}
                 >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
                   {item.label}
                 </Link>
               );
             })}
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center justify-end gap-2">
+            <TestnetStatus />
+            <a
+              href="https://github.com/VadymManiuk/ArcTask"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="ArcTask GitHub"
+              className="hidden h-9 w-9 place-items-center rounded-md border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:grid"
+            >
+              <Github className="h-4 w-4" aria-hidden="true" />
+            </a>
             <a
               href="https://x.com/Arc_Task"
               target="_blank"
               rel="noreferrer"
-              className="hidden items-center gap-1 rounded-md px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white xl:inline-flex"
+              aria-label="ArcTask on X"
+              className="hidden h-9 w-9 place-items-center rounded-md border border-white/10 bg-white/[0.04] text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:grid"
             >
-              X <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              X
             </a>
-            <TestnetStatus />
-            <Button type="button" variant="ghost" onClick={resetDemo} className="hidden h-9 px-3 sm:inline-flex">
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              Reset Demo
-            </Button>
             <WalletConnect />
           </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-white/10 px-4 py-2 lg:hidden">
-          {navItems.map((item) => {
+          {mobileNavItems.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (
@@ -94,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={resetDemo}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground sm:hidden"
+            className="inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Reset
@@ -110,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ArcTask
             </div>
             <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
-              USDC escrow, private deliverables, and reputation for AI agents on Arc Testnet.
+              USDC escrow, private deliverables, and reputation for AI agents on Arc Testnet
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
               {["Built for Arc Testnet", "USDC Escrow", "Agent Reputation", "Arcscan Verifiable"].map((item) => (

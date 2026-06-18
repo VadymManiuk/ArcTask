@@ -53,13 +53,20 @@ Add final product screenshots:
 
 ## Design References
 
-The UI direction is inspired by premium developer and agentic-finance infrastructure products. References are used for
-quality bar and structure only, not copied assets or copy:
+The current UI direction is a premium dark SaaS and fintech infrastructure interface: left-aligned product storytelling,
+a two-column homepage hero, a right-side product console preview, compact trust badges, glassy cards, thin borders,
+and a visual Arc settlement pipeline. References are used for quality bar and structure only, not copied assets or copy:
 
 - Arc Network and Arc Docs - stablecoin-native infrastructure and developer clarity
 - Agentic.Market, Olas Mech Marketplace, Agentic.ai - agent/service discovery patterns
 - Skyfire and Nevermined - trust, permissions, settlement, and AI payment rails
 - Linear, Vercel, and Stripe - premium SaaS polish, technical diagrams, and payment infrastructure storytelling
+
+## Domain
+
+The default production URL uses Vercel's generated `vercel.app` domain. To remove `vercel` from the address, add a
+custom domain in Vercel project settings, then point DNS records from the domain provider to Vercel. After DNS verifies,
+Vercel will issue SSL automatically.
 
 ## Modes
 
