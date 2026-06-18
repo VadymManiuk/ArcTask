@@ -17,6 +17,7 @@ interface WorkerStatus {
   escrowAddress?: string;
   pollIntervalMs?: number;
   maxJobsPerTick?: number;
+  managedAgentCount?: number;
   managedAgents?: Array<{ address?: string }>;
   queue?: {
     pending?: number;
@@ -67,7 +68,7 @@ function sanitizeStatus(status: WorkerStatus) {
     mode: status.mode,
     executor: status.executor ? status.executor.split(":")[0] : undefined,
     pollIntervalMs: status.pollIntervalMs,
-    managedAgentCount: status.managedAgents?.length ?? 0,
+    managedAgentCount: status.managedAgentCount ?? status.managedAgents?.length ?? 0,
     managedAgents: [],
     queue: status.queue,
     metrics: status.metrics
