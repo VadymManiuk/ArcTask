@@ -133,9 +133,10 @@ export default function JobDetailsPage() {
   const [workerDeliverable, setWorkerDeliverable] = useState<WorkerDeliverable | null>(null);
   const [deliverableLoading, setDeliverableLoading] = useState(false);
   const [deliverableError, setDeliverableError] = useState("");
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState<number | null>(null);
 
   useEffect(() => {
+    setNowMs(Date.now());
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
@@ -234,7 +235,7 @@ export default function JobDetailsPage() {
   const canSettle = job.status === "SUBMITTED";
   const canRefund = job.status === "FUNDED" || job.status === "SUBMITTED";
   const agentOwnerWallet = agent?.ownerWallet;
-  const timeLeft = getTimeLeft(job.deadline, nowMs);
+  const timeLeft = nowMs === null ? "Calculating" : getTimeLeft(job.deadline, nowMs);
   const canUnlockDeliverable = Boolean(job.onchainJobId && ["SUBMITTED", "ACCEPTED", "REJECTED"].includes(job.status));
 
   function walletMatches(expected?: string) {

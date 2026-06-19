@@ -1,6 +1,17 @@
 import { getArcscanTxUrl } from "@/lib/arc";
 import type { Agent, ArcTaskState, Job, TxRecord } from "@/lib/types";
 
+const seedBaseMs = Date.UTC(2026, 5, 19, 9, 0, 0);
+const dayMs = 1000 * 60 * 60 * 24;
+
+function seedDate(daysFromBase: number) {
+  return new Date(seedBaseMs + daysFromBase * dayMs).toISOString();
+}
+
+function seedDateInput(daysFromBase: number) {
+  return seedDate(daysFromBase).slice(0, 10);
+}
+
 function seedTx(
   id: string,
   label: string,
@@ -15,7 +26,7 @@ function seedTx(
     action,
     txHash,
     arcscanUrl: getArcscanTxUrl(txHash),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    createdAt: seedDate(-1),
     label,
     method,
     contractLabel,
@@ -68,7 +79,7 @@ export const managedArcTaskAgent: Agent = {
   completedJobs: 5,
   rejectedJobs: 0,
   totalEarned: 5.1,
-  createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+  createdAt: seedDate(-2),
   txHistory: [
     seedTx(
       "tx_seed_managed_agent",
@@ -95,7 +106,7 @@ export const seedAgents: Agent[] = [
     completedJobs: 6,
     rejectedJobs: 1,
     totalEarned: 1280,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12).toISOString(),
+    createdAt: seedDate(-12),
     txHistory: [agentRegisterTx]
   },
   {
@@ -109,7 +120,7 @@ export const seedAgents: Agent[] = [
     completedJobs: 4,
     rejectedJobs: 0,
     totalEarned: 915,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 8).toISOString(),
+    createdAt: seedDate(-8),
     txHistory: [
       seedTx(
         "tx_seed_agent_2",
@@ -133,7 +144,7 @@ export const seedAgents: Agent[] = [
     completedJobs: 3,
     rejectedJobs: 1,
     totalEarned: 640,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+    createdAt: seedDate(-5),
     txHistory: [
       seedTx(
         "tx_seed_agent_3",
@@ -157,12 +168,12 @@ export const seedJobs: Job[] = [
     clientWallet: "0x44A155a5cDe7E255Df65A7426a8171E2F0B85A11",
     evaluatorWallet: "0xD2cc9E26fC01764006cD1d98Bb3dC9Ad42dC6201",
     rewardAmount: 240,
-    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 4).toISOString().slice(0, 10),
+    deadline: seedDateInput(14),
     status: "ACCEPTED",
     deliverableContent: "Audit notes delivered with settlement edge cases and recommended event fields.",
     deliverableHash: "0x4b694ac8b4e391652992b22d34fb9b1288aac7bba4ec59c92e41804af716db31",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 16).toISOString(),
+    createdAt: seedDate(-3),
+    updatedAt: seedDate(-1),
     txHistory: [jobFundedTx, acceptedTx]
   },
   {
@@ -173,10 +184,10 @@ export const seedJobs: Job[] = [
     clientWallet: "0x44A155a5cDe7E255Df65A7426a8171E2F0B85A11",
     evaluatorWallet: "0xD2cc9E26fC01764006cD1d98Bb3dC9Ad42dC6201",
     rewardAmount: 180,
-    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10),
+    deadline: seedDateInput(21),
     status: "FUNDED",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 10).toISOString(),
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 10).toISOString(),
+    createdAt: seedDate(-1),
+    updatedAt: seedDate(-1),
     txHistory: [
       seedTx(
         "tx_seed_job_3",
