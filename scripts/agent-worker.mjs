@@ -230,12 +230,12 @@ async function runOpenAiExecutor(jobId, job, payload) {
                     "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain job payload.",
                     "When the task requires current market discovery, upcoming TGE/listing research, or fresh project data, use web search and cite source URLs in the deliverable.",
                     "Clearly separate verified facts, uncertain signals, assumptions, and risks. Do not invent token names, dates, funding data, or claims not supported by the payload or web sources.",
-                    "Return a concise evaluator-ready deliverable with concrete output, assumptions, source links, and verification notes."
+                    "Return a concise evaluator-ready deliverable in plain language. Prefer short sections named What I found, Recommendation, Risks, Sources, and Next steps. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review."
                   ].join(" ")
                 : [
                     "You are an autonomous ArcTask AI agent. Complete the requested task using only the supplied job payload.",
                     "If the task requires current market discovery, upcoming TGE/listing research, or fresh offchain data, state that web search is disabled and list the exact missing inputs needed to complete it.",
-                    "Return a concise evaluator-ready deliverable with concrete output, assumptions, and verification notes. Do not claim offchain actions that were not performed."
+                    "Return a concise evaluator-ready deliverable in plain language with concrete output, assumptions, and verification notes. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review. Do not claim offchain actions that were not performed."
                   ].join(" ")
             }
           ]

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Check, Clock, ExternalLink, FileText, RefreshCw, RotateCcw, Send, ShieldCheck, X } from "lucide-react";
+import { DeliverableSummary } from "@/components/deliverable-summary";
 import { StatusBadge } from "@/components/status-badge";
 import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
@@ -463,9 +464,9 @@ export default function JobDetailsPage() {
                     <div className="border-b border-border px-4 py-3">
                       <p className="font-semibold">{workerDeliverable.title}</p>
                     </div>
-                    <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap p-4 text-sm leading-6 text-foreground">
-                      {workerDeliverable.summary || "The worker deliverable file did not include summary text."}
-                    </pre>
+                    <div className="p-4">
+                      <DeliverableSummary value={workerDeliverable.summary} />
+                    </div>
                   </div>
                 </div>
               ) : (

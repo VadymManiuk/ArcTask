@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Lock, RefreshCw } from "lucide-react";
+import { DeliverableSummary } from "@/components/deliverable-summary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatAddress } from "@/lib/utils";
@@ -136,9 +137,7 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
                   <dd className="break-all font-semibold">{deliverable.deliverableHash ?? "Not recorded"}</dd>
                 </div>
               </dl>
-              <pre className="max-h-[42rem] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-4 text-sm leading-6">
-                {deliverable.summary || "The worker deliverable file did not include summary text."}
-              </pre>
+              <DeliverableSummary value={deliverable.summary} />
             </>
           )}
 
