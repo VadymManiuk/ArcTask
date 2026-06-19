@@ -193,6 +193,7 @@ Useful worker env vars:
 - `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - default `gpt-4.1-mini`
+- `OPENAI_MAX_OUTPUT_TOKENS` - default `1800`; keep enough room for research, review, and source-cited deliverables
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `low`; use `medium` or `high` only when jobs need deeper source coverage
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel

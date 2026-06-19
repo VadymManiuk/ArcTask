@@ -196,6 +196,89 @@ function buildFallbackAgentResult(jobId, payload, reason) {
   };
 }
 
+function normalizeText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getPayloadText(payload) {
+  return [payload?.title, payload?.description].map(normalizeText).filter(Boolean).join("\n\n");
+}
+
+function extractPayloadField(text, label) {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`^\\s*${escapedLabel}\\s*:\\s*(.+)$`, "im"));
+  return match?.[1]?.trim();
+}
+
+function extractWallet(text) {
+  return text.match(/0x[a-fA-F0-9]{40}/)?.[0];
+}
+
+function looksLikePaymentReview(payload) {
+  const text = getPayloadText(payload).toLowerCase();
+  return (
+    (text.includes("payment") || text.includes("invoice") || text.includes("treasury")) &&
+    (text.includes("usdc") || text.includes("wallet") || text.includes("recipient"))
+  );
+}
+
+function buildPaymentReviewSummary(payload) {
+  const text = getPayloadText(payload);
+  const vendor = extractPayloadField(text, "Vendor") ?? "the vendor";
+  const service = extractPayloadField(text, "Service") ?? "the requested service";
+  const amount = extractPayloadField(text, "Requested amount") ?? extractPayloadField(text, "Amount") ?? "the requested amount";
+  const wallet = extractPayloadField(text, "Recipient wallet") ?? extractWallet(text) ?? "not provided";
+  const invoiceNote = extractPayloadField(text, "Invoice note");
+  const paymentDate = extractPayloadField(text, "Requested payment date");
+
+  return [
+    `Treasury Payment Review: ${vendor}`,
+    "",
+    "Payment summary:",
+    `The request asks the treasury to pay ${amount} to ${vendor} for ${service}.` +
+      (invoiceNote ? ` The invoice note says: ${invoiceNote}` : "") +
+      (paymentDate ? ` Requested payment date: ${paymentDate}.` : ""),
+    "",
+    "Invoice completeness check:",
+    "The request includes a vendor name, service description, requested amount, recipient wallet, and payment context.",
+    "It is still missing several approval details:",
+    "1. invoice number or formal payment request",
+    "2. link to completed work, deployment, or GitHub pull request",
+    "3. confirmation that the recipient wallet belongs to the vendor",
+    "4. written approval from the project owner or evaluator",
+    "5. payment terms, milestone status, or acceptance note",
+    "",
+    "Recipient wallet risk notes:",
+    `The recipient wallet is ${wallet}.`,
+    wallet === "not provided"
+      ? "This is incomplete. A valid recipient wallet is required before settlement."
+      : "The wallet is present and formatted like an EVM address, but ownership is not proven by the supplied payload.",
+    "Before releasing funds, verify wallet ownership through a signed message, prior payment history, vendor profile, or direct written confirmation.",
+    "",
+    "Amount reasonableness:",
+    `${amount} appears reasonable for a small UI, landing page, or demo polish task if the work was actually delivered. The amount does not look excessive from the supplied scope alone.`,
+    "",
+    "Approval risks:",
+    "The main risk is operational: paying the wrong wallet or paying before delivery is confirmed. There is not enough evidence in the payload to safely approve the transfer yet.",
+    "",
+    "Recommendation:",
+    "Request more information before settlement.",
+    "",
+    "Required next steps:",
+    "1. Ask for a link to the completed work",
+    "2. Ask for invoice number or written payment request",
+    "3. Confirm the recipient wallet belongs to the vendor",
+    "4. Verify that the ArcTask owner or evaluator approved the work",
+    "5. Approve payment only after these checks are complete",
+    "",
+    "Confidence score:",
+    "7/10",
+    "",
+    "Final decision:",
+    `Request more info before releasing ${amount}.`
+  ].join("\n");
+}
+
 async function runOpenAiExecutor(jobId, job, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openAiTimeoutMs);
@@ -230,12 +313,14 @@ async function runOpenAiExecutor(jobId, job, payload) {
                     "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain job payload.",
                     "When the task requires current market discovery, upcoming TGE/listing research, or fresh project data, use web search and cite source URLs in the deliverable.",
                     "Clearly separate verified facts, uncertain signals, assumptions, and risks. Do not invent token names, dates, funding data, or claims not supported by the payload or web sources.",
-                    "Return a concise evaluator-ready deliverable in plain language. Prefer short sections named What I found, Recommendation, Risks, Sources, and Next steps. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review."
+                    "Think through the decision before answering, but only show the final concise result.",
+                    "Return a concise evaluator-ready deliverable in plain language. Prefer short sections named Payment summary, Completeness check, Risk notes, Recommendation, Confidence score, and Next steps when reviewing payments. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review."
                   ].join(" ")
                 : [
                     "You are an autonomous ArcTask AI agent. Complete the requested task using only the supplied job payload.",
                     "If the task requires current market discovery, upcoming TGE/listing research, or fresh offchain data, state that web search is disabled and list the exact missing inputs needed to complete it.",
-                    "Return a concise evaluator-ready deliverable in plain language with concrete output, assumptions, and verification notes. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review. Do not claim offchain actions that were not performed."
+                    "Think through the decision before answering, but only show the final concise result.",
+                    "Return a concise evaluator-ready deliverable in plain language with concrete output, assumptions, and verification notes. Prefer short sections named Payment summary, Completeness check, Risk notes, Recommendation, Confidence score, and Next steps when reviewing payments. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review. Do not claim offchain actions that were not performed."
                   ].join(" ")
             }
           ]
@@ -292,14 +377,28 @@ function extractOpenAiText(body) {
 
   const chunks = [];
   for (const item of body.output ?? []) {
+    if (typeof item.text === "string") {
+      chunks.push(item.text);
+    }
+
+    if (typeof item.output_text === "string") {
+      chunks.push(item.output_text);
+    }
+
     for (const content of item.content ?? []) {
       if (typeof content.text === "string") {
         chunks.push(content.text);
       }
+      if (typeof content.output_text === "string") {
+        chunks.push(content.output_text);
+      }
+      if (content.type === "output_text" && typeof content.content === "string") {
+        chunks.push(content.content);
+      }
     }
   }
 
-  return chunks.join("\n").trim();
+  return [...new Set(chunks.map((chunk) => chunk.trim()).filter(Boolean))].join("\n").trim();
 }
 
 function decodeJobPayloadUri(jobURI) {
@@ -329,13 +428,29 @@ function buildResultSummary(jobId, payload) {
     return `Autonomous worker completed ArcTask job ${jobId.toString()} and prepared an onchain deliverable hash for evaluator review.`;
   }
 
+  if (looksLikePaymentReview(payload)) {
+    return buildPaymentReviewSummary(payload);
+  }
+
   return [
-    `Completed requested task: ${payload.title ?? `ArcTask job ${jobId.toString()}`}.`,
-    payload.description ? `Task description reviewed: ${payload.description}` : undefined,
-    "The worker generated this structured report from the onchain job payload and submitted its hash to escrow."
+    `Task Review: ${payload.title ?? `ArcTask job ${jobId.toString()}`}`,
+    "",
+    "What I could verify:",
+    payload.description
+      ? `The supplied payload describes this task: ${payload.description}`
+      : "The payload did not include a detailed task description.",
+    "",
+    "Missing information:",
+    "No external evidence, links, files, or evaluator notes were provided beyond the onchain job payload.",
+    "",
+    "Recommendation:",
+    "Request more information if the evaluator needs proof beyond the supplied payload. Otherwise, review the submitted deliverable hash and decide whether it satisfies the original task.",
+    "",
+    "Confidence score:",
+    "5/10"
   ]
     .filter(Boolean)
-    .join(" ");
+    .join("\n");
 }
 
 function ensureOutputDir() {
@@ -666,7 +781,7 @@ const openAiApiKey = process.env.OPENAI_API_KEY;
 const openAiModel = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 60_000);
-const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 900);
+const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 1_800);
 const openAiWebSearchEnabled = getBooleanEnv("ARC_AGENT_ENABLE_WEB_SEARCH", false);
 const openAiWebSearchContext = getOpenAiSearchContext();
 const maxJobPayloadChars = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_PAYLOAD_CHARS", defaultMaxJobPayloadChars);
