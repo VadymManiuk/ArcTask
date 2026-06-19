@@ -63,6 +63,10 @@ interface DeliverableAccessProof {
   signature: string;
 }
 
+type DeliverableAccessOptions = {
+  consumeNonce: boolean;
+};
+
 function asString(value: unknown) {
   return typeof value === "string" ? value : undefined;
 }
@@ -82,6 +86,10 @@ function isTrustedRemoteRequest(request: Request) {
   }
 
   return request.headers.get("x-arctask-remote-token") === token;
+}
+
+function isVerifiedFallbackRequest(request: Request) {
+  return request.headers.get("x-arctask-verified-fallback") === "1";
 }
 
 function getRecord(value: unknown): Record<string, unknown> | null {
@@ -123,7 +131,11 @@ async function getOnchainClientWallet(jobId: string) {
   return job[0];
 }
 
-async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: string) {
+async function assertDeliverableAccess(
+  proof: DeliverableAccessProof,
+  jobId: string,
+  options: DeliverableAccessOptions = { consumeNonce: true }
+) {
   const address = proof.address.trim();
   const issuedAt = proof.issuedAt.trim();
   const nonce = proof.nonce.trim();
@@ -133,7 +145,7 @@ async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: str
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
   }
 
-  if (!consumeDeliverableNonce(jobId, nonce)) {
+  if (options.consumeNonce && !consumeDeliverableNonce(jobId, nonce)) {
     return NextResponse.json({ error: "Deliverable access challenge expired. Sign again." }, { status: 401 });
   }
 
@@ -194,6 +206,7 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        "x-arctask-verified-fallback": "1",
         ...(process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN
           ? { "x-arctask-remote-token": process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN }
           : {})
@@ -251,13 +264,14 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
   }
 
   const trustedRemoteRequest = isTrustedRemoteRequest(request);
+  const verifiedFallbackRequest = isVerifiedFallbackRequest(request);
   const proof = trustedRemoteRequest ? null : await getProofFromRequest(request);
   if (!trustedRemoteRequest) {
     if (!proof) {
       return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
     }
 
-    const accessError = await assertDeliverableAccess(proof, jobId);
+    const accessError = await assertDeliverableAccess(proof, jobId, { consumeNonce: !verifiedFallbackRequest });
     if (accessError) {
       return accessError;
     }
