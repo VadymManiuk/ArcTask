@@ -193,13 +193,17 @@ Useful worker env vars:
 - `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - default `gpt-4.1-mini`
+- `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
+- `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `low`; use `medium` or `high` only when jobs need deeper source coverage
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
 - `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - shared server-to-server token for Vercel-to-VPS deliverable and status fallback
 - `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
 - `ARCTASK_ADMIN_TOKEN` - optional bearer token for full `/api/worker/status`; unauthenticated responses are sanitized
 
 When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
-`jobURI`. Without a key, or if the API is unavailable, the worker falls back to a deterministic structured report.
+`jobURI`. For jobs that require current public research, such as finding upcoming DeFi TGE tokens, also set
+`ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Without a key, or if the API is
+unavailable, the worker falls back to a deterministic structured report.
 
 The worker writes runtime telemetry to `.agent-worker/state/status.json` using atomic writes. The app exposes that
 through `/api/worker/status`, with Vercel falling back to `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` when the status file is

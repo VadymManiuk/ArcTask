@@ -94,6 +94,15 @@ function getOptionalPositiveIntegerEnv(name, defaultValue) {
   return getPositiveIntegerEnv(name, defaultValue);
 }
 
+function getOpenAiSearchContext() {
+  const value = (process.env.ARC_AGENT_WEB_SEARCH_CONTEXT ?? "low").toLowerCase();
+  if (["low", "medium", "high"].includes(value)) {
+    return value;
+  }
+
+  throw new Error("ARC_AGENT_WEB_SEARCH_CONTEXT must be low, medium, or high.");
+}
+
 function uniq(values) {
   return [...new Set(values)];
 }
@@ -190,6 +199,7 @@ function buildFallbackAgentResult(jobId, payload, reason) {
 async function runOpenAiExecutor(jobId, job, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openAiTimeoutMs);
+  const tools = openAiWebSearchEnabled ? [{ type: "web_search", search_context_size: openAiWebSearchContext }] : undefined;
   const task = {
     jobId: jobId.toString(),
     payload,
@@ -205,6 +215,43 @@ async function runOpenAiExecutor(jobId, job, payload) {
   };
 
   try {
+    const requestBody = {
+      model: openAiModel,
+      max_output_tokens: openAiMaxOutputTokens,
+      ...(tools ? { tools } : {}),
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: openAiWebSearchEnabled
+                ? [
+                    "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain job payload.",
+                    "When the task requires current market discovery, upcoming TGE/listing research, or fresh project data, use web search and cite source URLs in the deliverable.",
+                    "Clearly separate verified facts, uncertain signals, assumptions, and risks. Do not invent token names, dates, funding data, or claims not supported by the payload or web sources.",
+                    "Return a concise evaluator-ready deliverable with concrete output, assumptions, source links, and verification notes."
+                  ].join(" ")
+                : [
+                    "You are an autonomous ArcTask AI agent. Complete the requested task using only the supplied job payload.",
+                    "If the task requires current market discovery, upcoming TGE/listing research, or fresh offchain data, state that web search is disabled and list the exact missing inputs needed to complete it.",
+                    "Return a concise evaluator-ready deliverable with concrete output, assumptions, and verification notes. Do not claim offchain actions that were not performed."
+                  ].join(" ")
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: JSON.stringify(task, null, 2)
+            }
+          ]
+        }
+      ]
+    };
+
     const response = await fetch(`${openAiBaseUrl}/responses`, {
       method: "POST",
       signal: controller.signal,
@@ -212,31 +259,7 @@ async function runOpenAiExecutor(jobId, job, payload) {
         Authorization: `Bearer ${openAiApiKey}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model: openAiModel,
-        max_output_tokens: openAiMaxOutputTokens,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text:
-                  "You are an autonomous ArcTask AI agent. Complete the requested task using only the supplied job payload. Return a concise, evaluator-ready deliverable with concrete output, assumptions, and verification notes. Do not claim offchain actions that were not performed."
-              }
-            ]
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: JSON.stringify(task, null, 2)
-              }
-            ]
-          }
-        ]
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const body = await response.json().catch(() => ({}));
@@ -357,6 +380,7 @@ function createInitialStatus() {
     lastHeartbeatAt: now,
     mode: dryRun ? "dry-run" : "live",
     executor: openAiApiKey ? `openai:${openAiModel}` : "deterministic-fallback",
+    webSearchEnabled: Boolean(openAiApiKey && openAiWebSearchEnabled),
     rpcUrl,
     explorerUrl,
     escrowAddress,
@@ -643,6 +667,8 @@ const openAiModel = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 60_000);
 const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 900);
+const openAiWebSearchEnabled = getBooleanEnv("ARC_AGENT_ENABLE_WEB_SEARCH", false);
+const openAiWebSearchContext = getOpenAiSearchContext();
 const maxJobPayloadChars = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_PAYLOAD_CHARS", defaultMaxJobPayloadChars);
 
 const arcTestnet = defineChain({

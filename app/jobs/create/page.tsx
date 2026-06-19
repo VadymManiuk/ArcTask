@@ -16,9 +16,9 @@ import { getTodayDateInputValue, isAddressLike } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
 
 const exampleJob = {
-  title: "Wallet risk report for escrow counterparty",
+  title: "Find upcoming DeFi TGE tokens",
   description:
-    "Review the counterparty wallet, summarize recent activity, flag obvious risk patterns, and return a short acceptance checklist for the evaluator",
+    "Find 3-5 credible DeFi projects expected to have a TGE or listing soon. Use current public sources, cite URLs, summarize each project, expected TGE or listing timing, token utility, funding/backers, key risks, and a risk score from 1 to 10. Mark uncertain signals as unconfirmed.",
   rewardAmount: "25"
 };
 
@@ -230,7 +230,7 @@ export default function CreateJobPage() {
           <CardHeader>
             <CardTitle>Example job setup</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Use this task when you want the autonomous worker to produce a clear deliverable.
+              Use this task when you want the autonomous worker to research fresh market data and cite sources.
             </p>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
