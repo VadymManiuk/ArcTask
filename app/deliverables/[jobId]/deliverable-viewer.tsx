@@ -20,6 +20,14 @@ interface WorkerDeliverable {
   summary: string;
 }
 
+function getFriendlyErrorMessage(message: string) {
+  if (message.includes("Worker deliverable was not found")) {
+    return "The private result is not available yet. If the agent submitted recently, wait a few seconds and try again.";
+  }
+
+  return message;
+}
+
 export function DeliverableViewer({ jobId }: { jobId: string }) {
   const [deliverable, setDeliverable] = useState<WorkerDeliverable | null>(null);
   const [walletAddress, setWalletAddress] = useState("");
@@ -53,7 +61,7 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
       setDeliverable(body.deliverable);
     } catch (caught) {
       setDeliverable(null);
-      setError(caught instanceof Error ? caught.message : "Unable to unlock worker deliverable.");
+      setError(getFriendlyErrorMessage(caught instanceof Error ? caught.message : "Unable to unlock worker deliverable."));
     } finally {
       setLoading(false);
     }
@@ -68,10 +76,10 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
         <CardHeader>
           <p className="text-sm font-semibold text-primary">Onchain job #{jobId}</p>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <CardTitle className="text-3xl">{deliverable?.title ?? "Private worker deliverable"}</CardTitle>
+            <CardTitle className="text-3xl">{deliverable?.title ?? "Private work result"}</CardTitle>
             <Button type="button" disabled={loading} onClick={unlockDeliverable}>
               <Lock className="h-4 w-4" aria-hidden="true" />
-              {loading ? "Checking..." : deliverable ? "Refresh Access" : "Unlock with Creator Wallet"}
+              {loading ? "Checking..." : deliverable ? "Refresh result" : "Unlock result"}
             </Button>
           </div>
         </CardHeader>
