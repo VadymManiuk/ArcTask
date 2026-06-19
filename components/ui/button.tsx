@@ -5,7 +5,7 @@ type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 
 const variantClass: Record<ButtonVariant, string> = {
   primary:
-    "bg-[linear-gradient(135deg,#1263ff_0%,#19e6f2_55%,#19f4c8_100%)] text-slate-950 shadow-[0_0_24px_rgba(25,230,242,0.22)] hover:brightness-110",
+    "bg-[linear-gradient(135deg,#0f55d8_0%,#15c8d8_58%,#16d9b8_100%)] text-slate-950 shadow-[0_0_18px_rgba(25,230,242,0.16)] hover:brightness-105",
   secondary: "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.18)] hover:bg-blue-500",
   outline: "border border-white/20 bg-white/[0.04] text-foreground hover:bg-white/[0.08]",
   ghost: "text-foreground hover:bg-white/[0.08]",

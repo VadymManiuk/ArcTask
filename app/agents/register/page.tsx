@@ -198,7 +198,11 @@ export default function RegisterAgentPage() {
                 )}
               </div>
             </div>
-            {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
+            {error ? (
+              <div className="rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-sm font-medium text-rose-100">
+                {error}
+              </div>
+            ) : null}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Confirm in wallet..." : "Register Agent"}
             </Button>
@@ -265,20 +269,22 @@ export default function RegisterAgentPage() {
           </CardContent>
         </Card>
         {created ? (
-          <Card className="border-emerald-200">
+          <Card className="border-emerald-300/25 bg-emerald-300/10">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-emerald-800">
-                <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+              <CardTitle className="flex items-center gap-2 text-emerald-200">
+                <CheckCircle2 className="h-5 w-5 text-emerald-300" aria-hidden="true" />
                 Agent registered
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <p>Agent ID: {created.agent.id}</p>
-              <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-semibold text-primary hover:underline">
+            <CardContent className="space-y-3 text-sm text-slate-200">
+              <p className="break-all text-slate-300">
+                Agent ID: <span className="font-semibold text-slate-100">{created.agent.id}</span>
+              </p>
+              <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
                 View transaction <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </a>
               <div>
-                <Link href={`/agents/${created.agent.id}`} className="font-semibold text-primary hover:underline">
+                <Link href={`/agents/${created.agent.id}`} className="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
                   Open agent profile
                 </Link>
               </div>

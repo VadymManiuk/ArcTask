@@ -213,7 +213,11 @@ export default function CreateJobPage() {
               </div>
               <Input id="evaluatorWallet" maxLength={42} placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
             </div>
-            {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
+            {error ? (
+              <div className="rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-sm font-medium text-rose-100">
+                {error}
+              </div>
+            ) : null}
             <Button type="submit" disabled={isSubmitting || sortedAgents.length === 0}>
               {isSubmitting ? "Confirm in wallet..." : "Fund Escrow"}
             </Button>
@@ -279,17 +283,19 @@ export default function CreateJobPage() {
               deliverable hash, then the evaluator accepts or rejects settlement.
             </p>
             {created ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                <p className="flex items-center gap-2 font-semibold text-emerald-800">
-                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+              <div className="rounded-lg border border-emerald-300/25 bg-emerald-300/10 p-4 text-sm text-slate-200 shadow-[0_0_32px_rgba(45,212,191,0.08)]">
+                <p className="flex items-center gap-2 font-semibold text-emerald-200">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-300" aria-hidden="true" />
                   Escrow funded
                 </p>
-                <p className="mt-2">Job ID: {created.job.id}</p>
-                <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 font-semibold text-primary hover:underline">
+                <p className="mt-2 break-all text-slate-300">
+                  Job ID: <span className="font-semibold text-slate-100">{created.job.id}</span>
+                </p>
+                <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
                   View transaction <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </a>
                 <div className="mt-3">
-                  <Link href={`/jobs/${created.job.id}`} className="font-semibold text-primary hover:underline">
+                  <Link href={`/jobs/${created.job.id}`} className="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
                     Open job details
                   </Link>
                 </div>

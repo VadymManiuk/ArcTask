@@ -213,7 +213,9 @@ export default function JobDetailsPage() {
           {message || error ? (
             <div
               className={`rounded-lg border px-4 py-3 text-sm font-medium ${
-                error ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                error
+                  ? "border-rose-300/25 bg-rose-300/10 text-rose-100"
+                  : "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
               }`}
             >
               {error || message}
@@ -249,7 +251,7 @@ export default function JobDetailsPage() {
               {!job.onchainJobId ? (
                 <p className="text-sm text-muted-foreground">Worker deliverables are available for onchain jobs only.</p>
               ) : deliverableError ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+                <div className="rounded-md border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
                   {deliverableError}
                 </div>
               ) : workerDeliverable ? (
@@ -379,13 +381,13 @@ export default function JobDetailsPage() {
                 </p>
               ) : null}
               <div className="space-y-2">
-                <p className={walletMatches(agentOwnerWallet) ? "font-semibold text-emerald-700" : "text-muted-foreground"}>
+                <p className={walletMatches(agentOwnerWallet) ? "font-semibold text-emerald-300" : "text-muted-foreground"}>
                   Submit deliverable: {agentOwnerWallet ?? "Unknown agent owner"}
                 </p>
-                <p className={walletMatches(job.evaluatorWallet) ? "font-semibold text-emerald-700" : "text-muted-foreground"}>
+                <p className={walletMatches(job.evaluatorWallet) ? "font-semibold text-emerald-300" : "text-muted-foreground"}>
                   Accept/reject work: {job.evaluatorWallet}
                 </p>
-                <p className={walletMatches(job.clientWallet) ? "font-semibold text-emerald-700" : "text-muted-foreground"}>
+                <p className={walletMatches(job.clientWallet) ? "font-semibold text-emerald-300" : "text-muted-foreground"}>
                   Refund escrow: {job.clientWallet}
                 </p>
               </div>

@@ -13,10 +13,10 @@ export default function ErrorPage({
 }) {
   return (
     <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-      <Card className="border-rose-200">
+      <Card className="border-rose-300/25">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-rose-800">
-            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+          <CardTitle className="flex items-center gap-2 text-rose-100">
+            <AlertTriangle className="h-5 w-5 text-rose-300" aria-hidden="true" />
             Something failed
           </CardTitle>
         </CardHeader>
@@ -24,7 +24,9 @@ export default function ErrorPage({
           <p className="text-sm text-muted-foreground">
             The demo route hit an unexpected error. Try again or reset the mock data from the header.
           </p>
-          <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-800">{error.message}</p>
+          <p className="rounded-md border border-rose-300/25 bg-rose-300/10 p-3 text-sm text-rose-100">
+            {error.message}
+          </p>
           <Button type="button" onClick={reset}>
             Retry
           </Button>

@@ -83,7 +83,7 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
           ) : null}
 
           {error ? (
-            <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
+            <div className="rounded-md border border-rose-300/25 bg-rose-300/10 px-4 py-3 text-sm font-medium text-rose-100">
               {error}
             </div>
           ) : null}

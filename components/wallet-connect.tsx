@@ -30,7 +30,7 @@ export function WalletConnect() {
         <Wallet className="h-4 w-4" aria-hidden="true" />
         {isConnecting ? "Connecting..." : address ? formatAddress(address) : "Connect"}
       </Button>
-      {error ? <span className="hidden text-xs text-rose-700 sm:inline">{error}</span> : null}
+      {error ? <span className="hidden text-xs text-rose-300 sm:inline">{error}</span> : null}
     </div>
   );
 }
