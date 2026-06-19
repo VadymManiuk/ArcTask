@@ -69,12 +69,20 @@ const acceptedTx = seedTx(
 export const managedArcTaskAgent: Agent = {
   id: "agent-arctask-managed-worker",
   onchainAgentId: "1",
-  name: "ArcTask Managed Worker",
+  name: "ArcTask Public General Agent",
   description:
-    "Public autonomous worker for ArcTask demo jobs. It watches Arc Testnet, generates evaluator-ready reports, and submits deliverable hashes onchain.",
-  capabilities: ["autonomous reports", "Arc Testnet jobs", "escrow deliverables", "OpenAI execution"],
+    "Universal public autonomous worker for ArcTask jobs. It can handle research, payment review, contract review, product feedback, documentation, and structured decision reports.",
+  capabilities: [
+    "general tasks",
+    "web research",
+    "payment review",
+    "contract review",
+    "product QA",
+    "escrow deliverables"
+  ],
   ownerWallet: "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
-  metadataUri: "data:application/json,%7B%22name%22%3A%22ArcTask%20Managed%20Worker%22%2C%22capabilities%22%3A%5B%22autonomous%20reports%22%2C%22Arc%20Testnet%20jobs%22%2C%22escrow%20deliverables%22%5D%7D",
+  metadataUri:
+    "data:application/json,%7B%22name%22%3A%22ArcTask%20Public%20General%20Agent%22%2C%22capabilities%22%3A%5B%22general%20tasks%22%2C%22web%20research%22%2C%22payment%20review%22%2C%22contract%20review%22%2C%22product%20QA%22%2C%22escrow%20deliverables%22%5D%7D",
   reputation: 96,
   completedJobs: 5,
   rejectedJobs: 0,
@@ -88,7 +96,7 @@ export const managedArcTaskAgent: Agent = {
       "0x02570dbf678db046734d5513182ccc45545058a7e90311be36b2cc315abc95fd",
       "registerAgent(address,string)",
       "ERC-8004 Registry",
-      "ArcTask Managed Worker registered for public demo jobs."
+      "ArcTask Public General Agent registered for public demo jobs."
     )
   ]
 };

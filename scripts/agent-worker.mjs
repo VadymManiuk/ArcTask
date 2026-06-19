@@ -222,6 +222,70 @@ function looksLikePaymentReview(payload) {
   );
 }
 
+function getTaskProfile(payload) {
+  const text = getPayloadText(payload).toLowerCase();
+  if (looksLikePaymentReview(payload)) {
+    return {
+      kind: "treasury_payment_review",
+      instruction:
+        "For treasury payment reviews, check amount reasonableness, invoice completeness, recipient wallet completeness, wallet ownership proof, delivery proof, missing approvals, operational risks, recommendation, required next steps, and confidence score."
+    };
+  }
+
+  if (text.includes("contract") || text.includes("solidity") || text.includes("smart contract") || text.includes("audit")) {
+    return {
+      kind: "contract_review",
+      instruction:
+        "For contract reviews, produce severity-ranked findings, affected lifecycle, exploit or failure scenario, impact, concrete fix, and deployment recommendation. Do not overstate findings if source code is incomplete."
+    };
+  }
+
+  if (
+    text.includes("tge") ||
+    text.includes("token") ||
+    text.includes("market") ||
+    text.includes("research") ||
+    text.includes("find") ||
+    text.includes("sources")
+  ) {
+    return {
+      kind: "market_research",
+      instruction:
+        "For research tasks, identify candidates or facts, cite source URLs, separate confirmed facts from unconfirmed signals, summarize risks, and give a concise recommendation. Use web search when available."
+    };
+  }
+
+  if (text.includes("ui") || text.includes("ux") || text.includes("design") || text.includes("frontend") || text.includes("product")) {
+    return {
+      kind: "product_review",
+      instruction:
+        "For product or UI reviews, evaluate clarity, workflow, visual hierarchy, missing states, user risks, and give prioritized fixes with a final ship or revise recommendation."
+    };
+  }
+
+  if (text.includes("doc") || text.includes("readme") || text.includes("spec") || text.includes("write")) {
+    return {
+      kind: "documentation_task",
+      instruction:
+        "For documentation tasks, produce clear structured content, assumptions, missing inputs, and ready-to-use copy without unnecessary meta commentary."
+    };
+  }
+
+  if (text.includes("wallet") || text.includes("risk") || text.includes("counterparty")) {
+    return {
+      kind: "wallet_or_counterparty_risk",
+      instruction:
+        "For wallet or counterparty risk tasks, check completeness, obvious red flags from supplied data, missing verification evidence, operational risks, recommendation, and confidence score."
+    };
+  }
+
+  return {
+    kind: "general_task",
+    instruction:
+      "For general tasks, infer the expected deliverable from the payload, make useful assumptions explicit, provide a concrete result, list missing information, and give next steps."
+  };
+}
+
 function buildPaymentReviewSummary(payload) {
   const text = getPayloadText(payload);
   const vendor = extractPayloadField(text, "Vendor") ?? "the vendor";
@@ -283,8 +347,10 @@ async function runOpenAiExecutor(jobId, job, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openAiTimeoutMs);
   const tools = openAiWebSearchEnabled ? [{ type: "web_search", search_context_size: openAiWebSearchContext }] : undefined;
+  const taskProfile = getTaskProfile(payload);
   const task = {
     jobId: jobId.toString(),
+    taskProfile: taskProfile.kind,
     payload,
     onchain: {
       agentId: job.agentId.toString(),
@@ -311,6 +377,7 @@ async function runOpenAiExecutor(jobId, job, payload) {
               text: openAiWebSearchEnabled
                 ? [
                     "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain job payload.",
+                    `Task profile: ${taskProfile.kind}. ${taskProfile.instruction}`,
                     "When the task requires current market discovery, upcoming TGE/listing research, or fresh project data, use web search and cite source URLs in the deliverable.",
                     "Clearly separate verified facts, uncertain signals, assumptions, and risks. Do not invent token names, dates, funding data, or claims not supported by the payload or web sources.",
                     "Think through the decision before answering, but only show the final concise result.",
@@ -318,6 +385,7 @@ async function runOpenAiExecutor(jobId, job, payload) {
                   ].join(" ")
                 : [
                     "You are an autonomous ArcTask AI agent. Complete the requested task using only the supplied job payload.",
+                    `Task profile: ${taskProfile.kind}. ${taskProfile.instruction}`,
                     "If the task requires current market discovery, upcoming TGE/listing research, or fresh offchain data, state that web search is disabled and list the exact missing inputs needed to complete it.",
                     "Think through the decision before answering, but only show the final concise result.",
                     "Return a concise evaluator-ready deliverable in plain language with concrete output, assumptions, and verification notes. Prefer short sections named Payment summary, Completeness check, Risk notes, Recommendation, Confidence score, and Next steps when reviewing payments. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review. Do not claim offchain actions that were not performed."

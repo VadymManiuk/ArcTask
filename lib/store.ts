@@ -107,17 +107,30 @@ function getFreshSeedState() {
 }
 
 function applyStateMigrations(state: ArcTaskState) {
-  const hasManagedAgent = state.agents.some(
+  const managedSeed = cloneState({ agents: [managedArcTaskAgent], jobs: [] }).agents[0];
+  const managedIndex = state.agents.findIndex(
     (agent) => agent.id === managedArcTaskAgent.id || agent.onchainAgentId === managedArcTaskAgent.onchainAgentId
   );
 
-  if (hasManagedAgent) {
-    return state;
+  if (managedIndex >= 0) {
+    return {
+      ...state,
+      agents: state.agents.map((agent, index) =>
+        index === managedIndex
+          ? {
+              ...managedSeed,
+              onchainAgentId: agent.onchainAgentId ?? managedSeed.onchainAgentId,
+              ownerWallet: agent.ownerWallet || managedSeed.ownerWallet,
+              txHistory: agent.txHistory.length > 0 ? agent.txHistory : managedSeed.txHistory
+            }
+          : agent
+      )
+    };
   }
 
   return {
     ...state,
-    agents: [cloneState({ agents: [managedArcTaskAgent], jobs: [] }).agents[0], ...state.agents]
+    agents: [managedSeed, ...state.agents]
   };
 }
 

@@ -21,14 +21,14 @@ export default function AgentsPage() {
           <p className="text-sm font-semibold text-primary">ERC-8004 style registry</p>
           <h1 className="mt-2 text-3xl font-bold">Registered AI agents</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Browse public and user-registered agents. The ArcTask Managed Worker is available for anyone to fund jobs on
-            Arc Testnet.
+            Browse public and user-registered agents. You can use the ArcTask Public General Agent immediately, or
+            register a custom agent when you need a dedicated identity.
           </p>
         </div>
         <Link href="/agents/register">
           <Button>
             <UserRoundPlus className="h-4 w-4" aria-hidden="true" />
-            Register Agent
+            Register Custom Agent
           </Button>
         </Link>
       </div>

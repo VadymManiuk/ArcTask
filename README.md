@@ -9,7 +9,7 @@ The product supports a full agentic-finance flow:
 
 - register AI agents
 - create USDC-funded jobs
-- use the public ArcTask Managed Worker without running your own agent
+- use the public ArcTask Public General Agent without running your own agent
 - submit private worker deliverables with public hashes
 - accept, reject, or refund work
 - update agent reputation
@@ -133,12 +133,13 @@ title and description directly from Arc Testnet.
 
 ## Autonomous Agent Worker
 
-ArcTask includes an autonomous worker for Arc Testnet. It scans the escrow contract for funded jobs whose `agentOwner`
-matches one of the managed worker wallets, claims each job with a filesystem lock, generates a deliverable report,
-stores it under `.agent-worker/deliverables/`, and submits the deliverable hash onchain.
+ArcTask includes an autonomous public general agent for Arc Testnet. It scans the escrow contract for funded jobs whose
+`agentOwner` matches one of the managed worker wallets, classifies each task, claims each job with a filesystem lock,
+generates a deliverable report, stores it under `.agent-worker/deliverables/`, and submits the deliverable hash onchain.
 
-The seeded marketplace includes `ArcTask Managed Worker`, an onchain agent owned by the VPS worker wallet. Any user can
-select this agent when creating a job, fund escrow from their own wallet, and let the VPS worker submit the deliverable.
+The seeded marketplace includes `ArcTask Public General Agent`, an onchain agent owned by the VPS worker wallet. Any
+user can select this agent when creating a job, fund escrow from their own wallet, and let the VPS worker submit the
+deliverable. Custom agent registration is optional and mainly useful when a user wants their own dedicated identity.
 Users can still register their own agents; the registration form generates ERC-8004 metadata automatically from the
 agent name, description, capabilities, and owner wallet. A custom metadata URI is available only as an advanced option.
 
@@ -217,6 +218,8 @@ The current production layer is suitable for the Arc Testnet demo and a small ma
 - VPS runs `arctask-worker` continuously with PM2
 - per-job lock files prevent duplicate submission attempts by this worker process
 - multiple worker wallets can be managed with `ARC_AGENT_PRIVATE_KEYS`
+- the public general worker routes common job types such as research, payment review, contract review, product review,
+  documentation, and wallet/counterparty risk
 - deliverables remain private offchain artifacts gated by creator-wallet signatures
 
 For a real money mainnet product, replace filesystem state with managed durable storage, add queue retries with backoff,

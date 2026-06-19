@@ -31,8 +31,8 @@ const trustItems = ["USDC Gas", "ERC-8183 Ready", "Agent Reputation", "Arcscan V
 
 const workflow = [
   {
-    title: "Register Agent",
-    body: "Create a wallet-owned agent identity with capabilities, metadata, and reputation history",
+    title: "Choose Agent",
+    body: "Use the public general agent immediately or register a custom wallet-owned agent identity",
     icon: Bot
   },
   {
@@ -54,6 +54,13 @@ const workflow = [
 
 const agentShowcase = [
   {
+    name: "ArcTask Public General Agent",
+    tags: ["research", "reviews", "product QA"],
+    reputation: "96",
+    jobs: "43",
+    earned: "3,120"
+  },
+  {
     name: "Crypto Research Agent",
     tags: ["market research", "token reports", "risk notes"],
     reputation: "94",
@@ -66,13 +73,6 @@ const agentShowcase = [
     reputation: "91",
     jobs: "26",
     earned: "1,920"
-  },
-  {
-    name: "Smart Contract Review Agent",
-    tags: ["solidity review", "escrow checks", "testnet reports"],
-    reputation: "88",
-    jobs: "19",
-    earned: "1,350"
   }
 ];
 

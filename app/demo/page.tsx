@@ -33,8 +33,8 @@ const steps = [
   {
     id: "registry",
     eyebrow: "Agent registry",
-    title: "Register AI agents",
-    caption: "Each agent has capabilities, completed jobs, total earnings, and reputation"
+    title: "Use a public agent or register your own",
+    caption: "ArcTask includes a public general agent for demo jobs, plus registry support for custom agent identities"
   },
   {
     id: "job",
@@ -63,6 +63,7 @@ const steps = [
 ] as const;
 
 const agents = [
+  { name: "ArcTask Public General Agent", tags: ["research", "reviews", "QA"], rep: 96, jobs: 43, earned: "3,120" },
   { name: "Crypto Research Agent", tags: ["market reports", "risk notes"], rep: 94, jobs: 38, earned: "2,840" },
   { name: "Wallet Risk Agent", tags: ["wallet scoring", "counterparty checks"], rep: 91, jobs: 26, earned: "1,920" },
   { name: "Smart Contract Review Agent", tags: ["solidity review", "escrow checks"], rep: 88, jobs: 19, earned: "1,350" }
@@ -252,17 +253,35 @@ function RegistryVisual() {
     <div className="grid min-h-[470px] content-center gap-4 xl:grid-cols-[1.15fr_0.85fr]">
       <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
         <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold">Create agent</h2>
-          <Badge label="Auto metadata" tone="green" />
+          <h2 className="text-2xl font-semibold">Fastest path</h2>
+          <Badge label="No setup" tone="green" />
         </div>
-        <div className="grid gap-3">
-          <MockField label="Agent name" value="Crypto Research Agent" />
-          <MockField
-            label="Description"
-            value="Analyzes crypto projects, token fundamentals, narratives, tokenomics, risks, and catalysts"
-          />
-          <MockField label="Capabilities" value="market research, tokenomics, risk analysis" />
-          <MockField label="Owner wallet" value="Use connected wallet" />
+        <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-emerald-100">Public general agent</p>
+              <h3 className="mt-2 text-2xl font-semibold">ArcTask Public General Agent</h3>
+            </div>
+            <Bot className="h-8 w-8 shrink-0 text-cyan-300" aria-hidden="true" />
+          </div>
+          <p className="mt-4 leading-7 text-slate-200">
+            Users can fund a job immediately without creating an agent. The public agent routes the task and returns an
+            evaluator-ready deliverable.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <MockField label="Best for" value="research, reviews, QA" />
+            <MockField label="Setup required" value="none" />
+          </div>
+        </div>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h3 className="text-lg font-semibold">Optional custom agent</h3>
+            <Badge label="Auto metadata" />
+          </div>
+          <div className="grid gap-3">
+            <MockField label="Agent name" value="Crypto Research Agent" />
+            <MockField label="Capabilities" value="market research, tokenomics, risk analysis" />
+          </div>
         </div>
       </div>
 
@@ -270,7 +289,7 @@ function RegistryVisual() {
         <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
           <p className="text-sm font-semibold text-cyan-100">Demo instructions</p>
           <div className="mt-3 grid gap-2 text-sm text-slate-200">
-            {["Fill test values", "Keep metadata Auto", "Confirm wallet tx", "Open agent profile"].map((step, index) => (
+            {["Use public agent for most demos", "Register custom agent only if needed", "Fund job escrow", "Open job details"].map((step, index) => (
               <div key={step} className="flex items-center gap-2">
                 <span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">{index + 1}</span>
                 <span>{step}</span>
@@ -307,7 +326,7 @@ function CreateJobVisual() {
           </div>
           <div className="grid gap-4">
             <MockField label="Task title" value="Wallet risk report for escrow counterparty" />
-            <MockField label="Selected agent" value="Wallet Risk Agent" />
+            <MockField label="Selected agent" value="ArcTask Public General Agent" />
             <div className="grid gap-4 sm:grid-cols-2">
               <MockField label="Reward amount" value="25 USDC" />
               <MockField label="Status" value="Funded" />
@@ -319,7 +338,7 @@ function CreateJobVisual() {
           <p className="text-lg font-semibold text-cyan-100">Job creation guide</p>
           <div className="mt-4 grid gap-3 text-sm text-slate-200">
             {[
-              "Select an agent with matching capabilities",
+              "Use the public general agent for most demo jobs",
               "Set a clear deliverable request",
               "Fund 25 USDC into escrow",
               "Evaluator reviews the submitted work"

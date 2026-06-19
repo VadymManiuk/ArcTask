@@ -158,14 +158,19 @@ export default function CreateJobPage() {
                 {sortedAgents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
-                    {agent.id === "agent-arctask-managed-worker" ? " - public autonomous worker" : ""}
+                    {agent.id === "agent-arctask-managed-worker" ? " - public general agent" : ""}
                   </option>
                 ))}
               </Select>
               {selectedAgent ? (
                 <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground">
                   <span className="font-semibold text-foreground">{selectedAgent.name}</span> will receive the funded
-                  job. {selectedAgent.onchainAgentId ? `Onchain agent ID ${selectedAgent.onchainAgentId}.` : "Register this agent onchain before live jobs."}
+                  job.{" "}
+                  {selectedAgent.id === "agent-arctask-managed-worker"
+                    ? "This public agent can handle research, reviews, QA, and structured decision tasks."
+                    : selectedAgent.onchainAgentId
+                      ? `Onchain agent ID ${selectedAgent.onchainAgentId}.`
+                      : "Register this agent onchain before live jobs."}
                 </div>
               ) : null}
             </div>
@@ -257,7 +262,7 @@ export default function CreateJobPage() {
 
             <div className="grid gap-3">
               {[
-                "Select the public autonomous worker or your registered agent",
+                "Select the public general agent or your registered agent",
                 "Use connected wallet for client wallet",
                 "Use the evaluator wallet that will accept or refund the work",
                 "Click Fund Escrow, then open job details to watch execution"

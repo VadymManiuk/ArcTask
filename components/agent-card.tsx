@@ -18,7 +18,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <div className="flex shrink-0 flex-col items-end gap-2">
             {isManagedWorker ? (
               <span className="rounded-md border border-emerald-300/20 bg-emerald-300/10 px-2 py-1 text-xs font-semibold text-emerald-200">
-                Public worker
+                Public general agent
               </span>
             ) : null}
             <span className="max-w-[9rem] truncate rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-200">
