@@ -6,6 +6,7 @@ import { getWorkerReportHash } from "../lib/deliverable-integrity.ts";
 import { getJobDeadlineMs, getJobDeadlineSeconds } from "../lib/job-deadline.ts";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "../scripts/arc-rpc.mjs";
 import { createDeliverableNonce, consumeDeliverableNonce } from "../lib/server-deliverable-nonce.ts";
+import { isRetryableRpcError, withServerRpcRetry } from "../lib/server-rpc-retry.ts";
 
 function readAbi(fileName) {
   return JSON.parse(fs.readFileSync(new URL(`../lib/contracts/abis/${fileName}`, import.meta.url), "utf8"));
@@ -116,4 +117,23 @@ test("generic RPC retry recovers read calls after a transient limit", async () =
 
   assert.equal(value, 42n);
   assert.equal(attempts, 3);
+});
+
+test("server RPC retry handles nested transient causes without retrying permanent failures", async () => {
+  let attempts = 0;
+  const value = await withServerRpcRetry(
+    async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("RPC Request failed", { cause: new Error("request limit reached") });
+      }
+
+      return "ok";
+    },
+    { maxAttempts: 2, baseDelayMs: 1 }
+  );
+
+  assert.equal(value, "ok");
+  assert.equal(attempts, 2);
+  assert.equal(isRetryableRpcError(new Error("execution reverted")), false);
 });

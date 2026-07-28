@@ -256,6 +256,7 @@ instances.
 - Private deliverables are verified against the hash committed by `submitDeliverable` before the API returns them.
 - Worker failures are isolated per job so one reverting task does not block later managed-agent jobs in the same scan.
 - Worker reads and transaction receipt polling use bounded backoff for transient Arc RPC rate limits.
+- The public job feed aggregates job reads through Arc's Multicall3 contract and retries transient RPC throttling.
 - In-memory rate limits and nonces are enough for the current demo/VPS shape. For a real multi-instance product, move
   them to shared durable storage such as Redis or a database.
 

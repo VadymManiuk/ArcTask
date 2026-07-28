@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { createPublicClient, defineChain, formatUnits, http } from "viem";
+import { createPublicClient, defineChain, formatUnits, http, type Abi } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
 import { rateLimit } from "@/lib/server-rate-limit";
+import { withServerRpcRetry } from "@/lib/server-rpc-retry";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
 import type { Address, JobStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
@@ -24,6 +26,11 @@ const arcTestnet = defineChain({
     default: {
       name: "Arcscan",
       url: ARC_TESTNET.explorerUrl
+    }
+  },
+  contracts: {
+    multicall3: {
+      address: ARC_TESTNET.multicall3Address
     }
   },
   testnet: true
@@ -68,13 +75,7 @@ function getEscrowAddress() {
   return (process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress) as Address;
 }
 
-async function readJob(jobId: bigint) {
-  const job = (await publicClient.readContract({
-    address: getEscrowAddress(),
-    abi: escrowAbi,
-    functionName: "jobs",
-    args: [jobId]
-  })) as OnchainJob;
+function serializeJob(jobId: bigint, job: OnchainJob) {
   const payload = decodeJobPayload(job[6]);
   const status = statuses[job[8]] ?? "FUNDED";
 
@@ -108,11 +109,14 @@ export async function GET(request: Request) {
   const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 50;
 
   try {
-    const nextJobId = (await publicClient.readContract({
-      address: getEscrowAddress(),
-      abi: escrowAbi,
-      functionName: "nextJobId"
-    })) as bigint;
+    const nextJobId = await withServerRpcRetry(
+      () =>
+        publicClient.readContract({
+          address: getEscrowAddress(),
+          abi: escrowAbi,
+          functionName: "nextJobId"
+        }) as Promise<bigint>
+    );
     const one = BigInt(1);
     const firstJobId = nextJobId > BigInt(limit) ? nextJobId - BigInt(limit) : one;
     const jobIds: bigint[] = [];
@@ -120,7 +124,22 @@ export async function GET(request: Request) {
       jobIds.push(jobId);
     }
 
-    const jobs = (await Promise.all(jobIds.map((jobId) => readJob(jobId)))).reverse();
+    const onchainJobs =
+      jobIds.length === 0
+        ? []
+        : await withServerRpcRetry(
+            () =>
+              publicClient.multicall({
+                allowFailure: false,
+                contracts: jobIds.map((jobId) => ({
+                  address: getEscrowAddress(),
+                  abi: escrowAbi as Abi,
+                  functionName: "jobs",
+                  args: [jobId]
+                }))
+              }) as Promise<OnchainJob[]>
+          );
+    const jobs = jobIds.map((jobId, index) => serializeJob(jobId, onchainJobs[index])).reverse();
     const counts = jobs.reduce<Record<JobStatus, number>>(
       (acc, job) => {
         acc[job.status] += 1;

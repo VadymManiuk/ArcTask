@@ -3,6 +3,7 @@ export const ARC_TESTNET = {
   chainId: 5042002,
   rpcUrl: "https://rpc.testnet.arc.network",
   explorerUrl: "https://testnet.arcscan.app",
+  multicall3Address: "0xcA11bde05977b3631167028862bE2a173976CA11",
   nativeCurrency: {
     name: "testnet USDC",
     symbol: "USDC",
