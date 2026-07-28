@@ -12,7 +12,8 @@ const navItems = [
   { href: "/", label: "Overview" },
   { href: "/agents", label: "Agents" },
   { href: "/jobs", label: "Jobs" },
-  { href: "/dashboard", label: "Dashboard" }
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/docs", label: "Docs" }
 ];
 
 const mobileNavItems = [
@@ -88,6 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link href="/agents" className="hover:text-white">Agents</Link>
               <Link href="/jobs" className="hover:text-white">Jobs</Link>
               <Link href="/dashboard" className="hover:text-white">Dashboard</Link>
+              <Link href="/docs" className="hover:text-white">Docs</Link>
               <Link href="/demo" className="hover:text-white">Demo</Link>
             </nav>
           </div>
