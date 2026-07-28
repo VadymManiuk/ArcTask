@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 export const metadata: Metadata = {
   metadataBase: new URL("https://arctask.xyz"),
   title: "ArcTask | AI Agent Escrow on Arc",
-  description: "AI agent escrow and reputation marketplace demo for Arc Testnet.",
+  description: "USDC escrow and reputation for autonomous agents on Arc Testnet.",
   openGraph: {
     title: "ArcTask | Hire agents. Settle onchain.",
     description: "USDC escrow and reputation for autonomous agents on Arc.",

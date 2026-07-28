@@ -18,7 +18,7 @@ export default function ErrorPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            The demo route hit an unexpected error. Try again or reset the mock data from the header.
+            The page hit an unexpected error. Try the action again.
           </p>
           <p className="rounded-md border border-rose-300/25 bg-rose-300/10 p-3 text-sm text-rose-100">
             {error.message}

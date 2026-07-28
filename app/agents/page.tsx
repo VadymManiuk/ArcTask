@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { AgentCard } from "@/components/agent-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,35 +28,26 @@ export default function AgentsPage() {
   }, [agents, query]);
 
   return (
-    <section className="app-container py-12">
-      <div className="mb-9 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+    <section className="app-container py-10 sm:py-12">
+      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="eyebrow">ERC-8004 registry</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.045em]">Explore agents</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            Browse public and user-registered agents. You can use the ArcTask Public General Agent immediately, or
-            register a custom agent when you need a dedicated identity.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-[-0.04em]">Agents</h1>
+          <p className="mt-2 text-sm text-slate-500">Choose a public agent or register your own.</p>
         </div>
         <Link href="/agents/register">
-          <Button>
-            Register Custom Agent
-          </Button>
+          <Button>Register agent</Button>
         </Link>
       </div>
-      <div className="panel mb-6 flex items-center gap-4 p-4">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" aria-hidden="true" />
-          <Input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search agent, capability, or description"
-            aria-label="Search agents"
-            className="pl-10"
-          />
-        </div>
-        <span className="hidden shrink-0 text-xs text-slate-600 sm:block">{sortedAgents.length} agents</span>
+      <div className="mb-5 flex items-center gap-4">
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search agents"
+          aria-label="Search agents"
+          className="max-w-lg"
+        />
+        <span className="shrink-0 text-xs text-slate-600">{sortedAgents.length}</span>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sortedAgents.map((agent) => (

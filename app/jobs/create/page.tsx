@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,13 +13,6 @@ import type { Job, TxRecord } from "@/lib/types";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { getTodayDateInputValue, isAddressLike } from "@/lib/utils";
 import { requestArcAccount } from "@/lib/wallet";
-
-const exampleJob = {
-  title: "Find upcoming DeFi TGE tokens",
-  description:
-    "Find 3-5 credible DeFi projects expected to have a TGE or listing soon. Use current public sources, cite URLs, summarize each project, expected TGE or listing timing, token utility, funding/backers, key risks, and a risk score from 1 to 10. Mark uncertain signals as unconfirmed.",
-  rewardAmount: "25"
-};
 
 export default function CreateJobPage() {
   const { agents } = useArcTaskState();
@@ -45,7 +37,6 @@ export default function CreateJobPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [walletFillTarget, setWalletFillTarget] = useState<"" | "client" | "evaluator">("");
   const [created, setCreated] = useState<{ job: Job; tx: TxRecord } | null>(null);
-  const selectedAgent = sortedAgents.find((agent) => agent.id === agentId);
 
   useEffect(() => {
     if (!agentId && sortedAgents.length > 0) {
@@ -56,23 +47,20 @@ export default function CreateJobPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
-
     const reward = Number(rewardAmount);
+
     if (!title.trim() || !description.trim() || !agentId || !deadline) {
-      setError("Title, description, agent, and deadline are required.");
+      setError("Complete all job fields.");
       return;
     }
-
     if (!Number.isFinite(reward) || reward <= 0) {
       setError("Reward must be greater than zero.");
       return;
     }
-
     if (!isAddressLike(clientWallet) || !isAddressLike(evaluatorWallet)) {
-      setError("Client and evaluator must be valid 0x wallet addresses.");
+      setError("Client and evaluator must be valid wallet addresses.");
       return;
     }
-
     if (deadline < today) {
       setError("Deadline cannot be in the past.");
       return;
@@ -80,16 +68,17 @@ export default function CreateJobPage() {
 
     try {
       setIsSubmitting(true);
-      const result = await createJobAction({
-        title: title.trim(),
-        description: description.trim(),
-        agentId,
-        clientWallet,
-        evaluatorWallet,
-        rewardAmount: reward,
-        deadline
-      });
-      setCreated(result);
+      setCreated(
+        await createJobAction({
+          title: title.trim(),
+          description: description.trim(),
+          agentId,
+          clientWallet,
+          evaluatorWallet,
+          rewardAmount: reward,
+          deadline
+        })
+      );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Escrow funding failed.");
     } finally {
@@ -114,199 +103,113 @@ export default function CreateJobPage() {
     }
   }
 
-  function useExampleJob() {
-    const nextDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    setTitle(exampleJob.title);
-    setDescription(exampleJob.description);
-    setRewardAmount(exampleJob.rewardAmount);
-    setDeadline(nextDeadline);
-    if (!agentId && sortedAgents[0]) {
-      setAgentId(sortedAgents[0].id);
-    }
-    setError("");
-  }
-
   return (
-    <section className="app-container grid items-start gap-6 py-12 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-      <Card>
+    <section className="app-container max-w-3xl py-10 sm:py-12">
+      <Link href="/jobs" className="text-sm text-slate-500 hover:text-white">← Jobs</Link>
+      <Card className="mt-5">
         <CardHeader>
-          <CardTitle>Create USDC-funded job</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Funds an ERC-8183-style escrow job on Arc Testnet and stores the demo job locally.
-          </p>
+          <CardTitle className="text-2xl">Create job</CardTitle>
+          <p className="text-sm text-slate-500">Choose an agent and fund the escrow in USDC.</p>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="title">Job title</Label>
+            <Field label="Title" htmlFor="title">
               <Input id="title" maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                className="min-h-32"
-                maxLength={2000}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="agent">Select agent</Label>
+            </Field>
+            <Field label="Description and acceptance criteria" htmlFor="description">
+              <Textarea id="description" maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} />
+            </Field>
+            <Field label="Agent" htmlFor="agent">
               <Select id="agent" value={agentId} onChange={(event) => setAgentId(event.target.value)}>
                 <option value="">Choose an agent</option>
                 {sortedAgents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name}
-                    {agent.id === "agent-arctask-managed-worker" ? " - public general agent" : ""}
-                  </option>
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
               </Select>
-              {selectedAgent ? (
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">{selectedAgent.name}</span> will receive the funded
-                  job.{" "}
-                  {selectedAgent.id === "agent-arctask-managed-worker"
-                    ? "This public agent can handle research, reviews, QA, and structured decision tasks."
-                    : selectedAgent.onchainAgentId
-                      ? `Onchain agent ID ${selectedAgent.onchainAgentId}.`
-                      : "Register this agent onchain before live jobs."}
-                </div>
-              ) : null}
-            </div>
+            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="reward">Reward amount in USDC</Label>
+              <Field label="Reward, USDC" htmlFor="reward">
                 <Input id="reward" type="number" min="1" step="0.01" value={rewardAmount} onChange={(event) => setRewardAmount(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deadline">Deadline</Label>
-                <Input
-                  id="deadline"
-                  type="date"
-                  min={today}
-                  value={deadline}
-                  onChange={(event) => setDeadline(event.target.value)}
-                />
-              </div>
+              </Field>
+              <Field label="Deadline" htmlFor="deadline">
+                <Input id="deadline" type="date" min={today} value={deadline} onChange={(event) => setDeadline(event.target.value)} />
+              </Field>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="clientWallet">Client wallet address</Label>
-                <button
-                  type="button"
-                  className="text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
-                  disabled={isSubmitting || Boolean(walletFillTarget)}
-                  onClick={() => fillConnectedWallet("client")}
-                >
-                  {walletFillTarget === "client" ? "Reading wallet..." : "Use connected wallet"}
-                </button>
-              </div>
-              <Input id="clientWallet" maxLength={42} placeholder="0x..." value={clientWallet} onChange={(event) => setClientWallet(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="evaluatorWallet">Evaluator wallet address</Label>
-                <button
-                  type="button"
-                  className="text-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
-                  disabled={isSubmitting || Boolean(walletFillTarget)}
-                  onClick={() => fillConnectedWallet("evaluator")}
-                >
-                  {walletFillTarget === "evaluator" ? "Reading wallet..." : "Use connected wallet"}
-                </button>
-              </div>
-              <Input id="evaluatorWallet" maxLength={42} placeholder="0x..." value={evaluatorWallet} onChange={(event) => setEvaluatorWallet(event.target.value)} />
-            </div>
-            {error ? (
-              <div className="rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-sm font-medium text-rose-100">
-                {error}
-              </div>
-            ) : null}
+            <WalletField
+              id="clientWallet"
+              label="Client wallet"
+              value={clientWallet}
+              loading={walletFillTarget === "client"}
+              disabled={isSubmitting || Boolean(walletFillTarget)}
+              onChange={setClientWallet}
+              onConnect={() => fillConnectedWallet("client")}
+            />
+            <WalletField
+              id="evaluatorWallet"
+              label="Evaluator wallet"
+              value={evaluatorWallet}
+              loading={walletFillTarget === "evaluator"}
+              disabled={isSubmitting || Boolean(walletFillTarget)}
+              onChange={setEvaluatorWallet}
+              onConnect={() => fillConnectedWallet("evaluator")}
+            />
+            {error ? <p className="text-sm text-rose-300">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting || sortedAgents.length === 0}>
-              {isSubmitting ? "Confirm in wallet..." : "Fund Escrow"}
+              {isSubmitting ? "Confirm in wallet…" : "Fund escrow"}
             </Button>
           </form>
+
+          {created ? (
+            <div className="mt-6 border-t border-white/[0.07] pt-5 text-sm">
+              <p className="font-semibold text-emerald-300">Escrow funded</p>
+              <p className="mt-2 text-slate-500">{created.job.id}</p>
+              <div className="mt-3 flex gap-4">
+                <Link href={`/jobs/${created.job.id}`} className="text-[#63baff] hover:text-white">Open job</Link>
+                <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="text-[#63baff] hover:text-white">Transaction</a>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
-
-      <div className="min-w-0 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Example job setup</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Use this task when you want the autonomous worker to research fresh market data and cite sources.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Test job</p>
-              <dl className="mt-3 space-y-3">
-                <div>
-                  <dt className="text-muted-foreground">Job title</dt>
-                  <dd className="mt-1 font-semibold">{exampleJob.title}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Description</dt>
-                  <dd className="mt-1 leading-6 text-slate-200">{exampleJob.description}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Reward</dt>
-                  <dd className="mt-1 font-semibold">{exampleJob.rewardAmount} USDC</dd>
-                </div>
-              </dl>
-              <Button type="button" className="mt-4" onClick={useExampleJob}>
-                Use example job
-              </Button>
-            </div>
-
-            <div className="grid gap-3">
-              {[
-                "Select the public general agent or your registered agent",
-                "Use connected wallet for client wallet",
-                "Use the evaluator wallet that will accept or refund the work",
-                "Click Fund Escrow, then open job details to watch execution"
-              ].map((step, index) => (
-                <div key={step} className="grid grid-cols-[2rem_1fr] gap-3 border-t border-white/[0.065] py-3">
-                  <span className="text-xs font-semibold text-[#42adff]">0{index + 1}</span>
-                  <p className="leading-6 text-slate-200">{step}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Escrow state</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <p className="text-muted-foreground">
-              New jobs start as <span className="font-semibold text-foreground">FUNDED</span>. The agent can submit a
-              deliverable hash, then the evaluator accepts or rejects settlement.
-            </p>
-            {created ? (
-              <div className="rounded-lg border border-emerald-300/25 bg-emerald-300/10 p-4 text-sm text-slate-200 shadow-[0_0_32px_rgba(45,212,191,0.08)]">
-                <p className="flex items-center gap-2 font-semibold text-emerald-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
-                  Escrow funded
-                </p>
-                <p className="mt-2 break-all text-slate-300">
-                  Job ID: <span className="font-semibold text-slate-100">{created.job.id}</span>
-                </p>
-                <a href={created.tx.arcscanUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
-                  View transaction <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                </a>
-                <div className="mt-3">
-                  <Link href={`/jobs/${created.job.id}`} className="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
-                    Open job details
-                  </Link>
-                </div>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
     </section>
+  );
+}
+
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function WalletField({
+  id,
+  label,
+  value,
+  loading,
+  disabled,
+  onChange,
+  onConnect
+}: {
+  id: string;
+  label: string;
+  value: string;
+  loading: boolean;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onConnect: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={id}>{label}</Label>
+        <button type="button" className="text-sm text-[#63baff] hover:text-white disabled:text-slate-600" disabled={disabled} onClick={onConnect}>
+          {loading ? "Connecting…" : "Use connected wallet"}
+        </button>
+      </div>
+      <Input id={id} maxLength={42} placeholder="0x…" value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
   );
 }

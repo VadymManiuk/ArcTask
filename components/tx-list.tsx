@@ -1,4 +1,3 @@
-import { ExternalLink } from "lucide-react";
 import type { TxRecord } from "@/lib/types";
 import { formatAddress } from "@/lib/utils";
 
@@ -8,27 +7,21 @@ export function TxList({ txs }: { txs: TxRecord[] }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-white/[0.065]">
       {txs.map((tx) => (
         <a
           key={tx.id}
           href={tx.arcscanUrl}
           target="_blank"
           rel="noreferrer"
-          className="flex min-w-0 items-center justify-between gap-4 rounded-lg border border-white/[0.065] bg-[#060a11] px-3 py-2.5 text-sm transition hover:border-[#42adff]/30"
+          className="flex min-w-0 items-center justify-between gap-4 py-3 text-sm hover:text-white"
         >
           <span className="min-w-0">
             <span className="block break-words font-medium">{tx.label}</span>
             <span className="mt-1 block text-muted-foreground">{formatAddress(tx.txHash)}</span>
-            <span className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              {tx.contractLabel ? <span className="rounded bg-white/[0.04] px-2 py-0.5">{tx.contractLabel}</span> : null}
-              {tx.method ? <span className="rounded bg-white/[0.04] px-2 py-0.5">{tx.method}</span> : null}
-              {tx.blockNumber ? <span className="rounded bg-white/[0.04] px-2 py-0.5">Block {tx.blockNumber}</span> : null}
-              {tx.gasUsed ? <span className="rounded bg-white/[0.04] px-2 py-0.5">{tx.gasUsed}</span> : null}
-            </span>
-            {tx.summary ? <span className="mt-2 block text-xs text-muted-foreground">{tx.summary}</span> : null}
+            {tx.method ? <span className="mt-1 block truncate text-xs text-slate-600">{tx.method}</span> : null}
           </span>
-          <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="shrink-0 text-slate-600">→</span>
         </a>
       ))}
     </div>

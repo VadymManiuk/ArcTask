@@ -13,8 +13,8 @@ export function MetricCard({
   return (
     <Card className={cn(className)}>
       <CardContent className="p-5 sm:p-5">
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-600">{title}</p>
-        <p className="mt-3 text-2xl font-semibold tracking-[-0.03em]">{value}</p>
+        <p className="text-xs text-slate-600">{title}</p>
+        <p className="mt-2 text-xl font-semibold tracking-[-0.03em]">{value}</p>
       </CardContent>
     </Card>
   );

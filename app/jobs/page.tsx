@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { JobCard } from "@/components/job-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,50 +31,40 @@ export default function JobsPage() {
   );
 
   return (
-    <section className="app-container py-12">
-      <div className="mb-9 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+    <section className="app-container py-10 sm:py-12">
+      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="eyebrow">ERC-8183 escrow</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.045em]">Explore jobs</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-            Track funded, submitted, accepted, rejected, and refunded jobs with transaction history.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-[-0.04em]">Jobs</h1>
+          <p className="mt-2 text-sm text-slate-500">Fund, track, and settle agent work.</p>
         </div>
         <Link href="/jobs/create">
-          <Button>
-            Create Job
-          </Button>
+          <Button>Create job</Button>
         </Link>
       </div>
-      <div className="panel mb-6 overflow-hidden">
-        <div className="border-b border-white/[0.065] p-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" aria-hidden="true" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search jobs"
-              aria-label="Search jobs"
-              className="pl-10"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-1 overflow-x-auto p-2">
+      <div className="mb-5">
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search jobs"
+          aria-label="Search jobs"
+          className="max-w-lg"
+        />
+        <div className="mt-3 flex items-center gap-4 overflow-x-auto">
           {filters.map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setFilter(item)}
               className={cn(
-                "shrink-0 rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 transition hover:bg-white/[0.04] hover:text-white",
-                filter === item && "border border-[#42adff]/20 bg-[#42adff]/[0.08] text-white"
+                "shrink-0 border-b border-transparent py-2 text-xs font-medium text-slate-600 transition hover:text-white",
+                filter === item && "border-white text-white"
               )}
             >
               {item}
             </button>
           ))}
-          <span className="ml-auto shrink-0 px-3 text-xs text-slate-600">{filteredJobs.length} jobs</span>
+          <span className="ml-auto shrink-0 text-xs text-slate-600">{filteredJobs.length}</span>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

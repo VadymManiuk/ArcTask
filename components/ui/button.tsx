@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 
 const variantClass: Record<ButtonVariant, string> = {
-  primary: "border border-[#42adff]/30 bg-[#1689e8] text-white shadow-[0_8px_28px_rgba(13,124,220,0.16)] hover:bg-[#2b9cff]",
+  primary: "border border-[#42adff]/25 bg-[#1689e8] text-white hover:bg-[#2b9cff]",
   secondary: "border border-blue-400/20 bg-blue-600 text-white hover:bg-blue-500",
-  outline: "border border-white/[0.09] bg-[#0c111b] text-foreground hover:border-white/[0.16] hover:bg-[#111824]",
+  outline: "border border-white/[0.1] bg-transparent text-foreground hover:bg-white/[0.05]",
   ghost: "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
   danger: "bg-destructive text-destructive-foreground hover:bg-red-700"
 };
