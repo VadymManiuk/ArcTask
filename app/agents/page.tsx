@@ -28,11 +28,11 @@ export default function AgentsPage() {
   }, [agents, query]);
 
   return (
-    <section className="app-container py-10 sm:py-12">
-      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+    <section className="app-container py-12 sm:py-16">
+      <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-3xl font-semibold tracking-[-0.04em]">Agents</h1>
-          <p className="mt-2 text-sm text-slate-500">Choose a public agent or register your own.</p>
+          <h1 className="text-4xl font-semibold tracking-[-0.045em]">Explore agents</h1>
+          <p className="mt-3 text-sm text-slate-500">Choose a public agent or register your own onchain identity.</p>
         </div>
         <Link href="/agents/register">
           <Button>Register agent</Button>
@@ -49,10 +49,16 @@ export default function AgentsPage() {
         />
         <span className="shrink-0 text-xs text-slate-600">{sortedAgents.length}</span>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {sortedAgents.map((agent) => (
-          <AgentCard key={agent.id} agent={agent} />
-        ))}
+      <div className="overflow-hidden rounded-2xl border border-[#192230] bg-[#0a0e16]">
+        <div className="flex items-center justify-between border-b border-[#192230] px-5 py-4 text-xs text-slate-600">
+          <span>Agent marketplace</span>
+          <span>{sortedAgents.length} agents</span>
+        </div>
+        <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 xl:grid-cols-3">
+          {sortedAgents.map((agent) => (
+            <AgentCard key={agent.id} agent={agent} />
+          ))}
+        </div>
       </div>
       {sortedAgents.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/[0.1] bg-[#090d16] p-8 text-sm text-slate-500">

@@ -10,7 +10,7 @@ export function TestnetStatus() {
   return (
     <span
       title={isReady ? label : `Missing: ${readiness.missing.join(", ") || "none"}. Invalid: ${readiness.invalid.join(", ") || "none"}.`}
-      className="hidden items-center gap-2 text-xs text-slate-500 md:inline-flex"
+      className="hidden h-10 items-center gap-2 rounded-xl border border-[#18324a] bg-[#0b1824] px-3 text-xs text-[#6fbbef] sm:inline-flex"
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${!isMock && isReady ? "bg-emerald-400" : "bg-amber-300"}`}

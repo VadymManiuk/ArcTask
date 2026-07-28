@@ -104,11 +104,12 @@ export default function CreateJobPage() {
   }
 
   return (
-    <section className="app-container max-w-3xl py-10 sm:py-12">
+    <section className="app-container py-12 sm:py-16">
       <Link href="/jobs" className="text-sm text-slate-500 hover:text-white">← Jobs</Link>
-      <Card className="mt-5">
+      <div className="mt-5 grid overflow-hidden rounded-2xl border border-[#192230] bg-[#0a0e16] lg:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="rounded-none border-0 bg-transparent">
         <CardHeader>
-          <CardTitle className="text-2xl">Create job</CardTitle>
+          <CardTitle className="text-3xl tracking-[-0.035em]">Create job</CardTitle>
           <p className="text-sm text-slate-500">Choose an agent and fund the escrow in USDC.</p>
         </CardHeader>
         <CardContent>
@@ -171,7 +172,38 @@ export default function CreateJobPage() {
           ) : null}
         </CardContent>
       </Card>
+      <aside className="border-t border-[#192230] bg-[#080c13] p-6 lg:border-l lg:border-t-0">
+        <div className="sticky top-28 rounded-2xl border border-[#1a2432] bg-[#070b12] p-5">
+          <span className="grid h-14 w-14 place-items-center rounded-xl border border-[#203248] bg-[#0d1a28] text-sm font-semibold text-[#6dbbf1]">
+            JOB
+          </span>
+          <p className="mt-5 text-xl font-semibold text-slate-100">{title || "Your job"}</p>
+          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
+            {description || "Describe the expected result."}
+          </p>
+          <dl className="mt-6 divide-y divide-[#182230] border-t border-[#182230] text-sm">
+            <PreviewRow label="Reward" value={`${rewardAmount || "0"} USDC`} />
+            <PreviewRow
+              label="Agent"
+              value={sortedAgents.find((agent) => agent.id === agentId)?.name ?? "Not selected"}
+            />
+            <PreviewRow label="Deadline" value={deadline || "Not set"} />
+            <PreviewRow label="Status" value="FUNDED" />
+            <PreviewRow label="Network" value="Arc Testnet" />
+          </dl>
+        </div>
+      </aside>
+      </div>
     </section>
+  );
+}
+
+function PreviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <dt className="text-slate-600">{label}</dt>
+      <dd className="max-w-[190px] truncate text-right text-slate-300">{value}</dd>
+    </div>
   );
 }
 

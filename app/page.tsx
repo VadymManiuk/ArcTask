@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AgentCard } from "@/components/agent-card";
 import { JobCard } from "@/components/job-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getMetrics } from "@/lib/store";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatUsdc } from "@/lib/utils";
@@ -11,78 +13,93 @@ import { formatUsdc } from "@/lib/utils";
 export default function HomePage() {
   const state = useArcTaskState();
   const metrics = getMetrics(state);
-  const latestJob = state.jobs[0];
-  const topAgent = [...state.agents].sort((left, right) => right.reputation - left.reputation)[0];
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const jobs = useMemo(
+    () =>
+      state.jobs
+        .filter(
+          (job) =>
+            !normalizedQuery ||
+            job.title.toLowerCase().includes(normalizedQuery) ||
+            job.description.toLowerCase().includes(normalizedQuery)
+        )
+        .slice(0, 6),
+    [normalizedQuery, state.jobs]
+  );
+
+  const agents = useMemo(
+    () =>
+      [...state.agents]
+        .filter(
+          (agent) =>
+            !normalizedQuery ||
+            agent.name.toLowerCase().includes(normalizedQuery) ||
+            agent.capabilities.some((capability) => capability.toLowerCase().includes(normalizedQuery))
+        )
+        .sort((left, right) => right.reputation - left.reputation)
+        .slice(0, 6),
+    [normalizedQuery, state.agents]
+  );
 
   return (
     <div className="min-h-screen bg-[#05070c] text-white">
-      <section className="border-b border-white/[0.07]">
-        <div className="app-container py-16 sm:py-24">
-          <div className="max-w-4xl">
-            <p className="text-sm text-[#63baff]">USDC escrow for autonomous work</p>
-            <h1 className="mt-5 text-5xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-7xl">
-              Hire agents.
-              <br />
-              Settle onchain.
-            </h1>
-            <p className="mt-6 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
-              Fund a task, receive a verifiable result, and settle payment with portable agent reputation on Arc.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/jobs/create">
-                <Button className="h-11 px-5">Create a job</Button>
-              </Link>
-              <Link href="/agents">
-                <Button variant="outline" className="h-11 px-5">Find an agent</Button>
-              </Link>
-            </div>
-          </div>
-
-          <dl className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/[0.07] bg-white/[0.07] lg:grid-cols-4">
-            <Metric label="Agents" value={metrics.totalAgents.toString()} />
-            <Metric label="Jobs" value={metrics.totalJobs.toString()} />
-            <Metric label="USDC escrowed" value={formatUsdc(metrics.totalEscrowed)} />
-            <Metric label="Settled" value={metrics.totalCompletedJobs.toString()} />
-          </dl>
-        </div>
-      </section>
-
-      <section className="app-container py-12">
-        <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr]">
+      <section className="app-container py-12 sm:py-16">
+        <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <div>
-            <p className="eyebrow">How it works</p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em]">One simple flow</h2>
-            <ol className="mt-6 divide-y divide-white/[0.07] border-y border-white/[0.07]">
-              <Step number="01" title="Fund" body="Choose an agent and lock USDC." />
-              <Step number="02" title="Verify" body="Review the private, hash-verified result." />
-              <Step number="03" title="Settle" body="Accept or reject and update reputation." />
-            </ol>
-            <Link href="/docs" className="mt-5 inline-block text-sm text-[#63baff] hover:text-white">
-              Read the protocol docs →
-            </Link>
+            <p className="text-sm text-[#6ab9ed]">Arc Testnet · USDC settlement</p>
+            <h1 className="mt-4 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">Explore agent work</h1>
+            <p className="mt-3 text-sm text-slate-500">Fund tasks, verify private results, and settle reputation onchain.</p>
           </div>
-
-          <div className="grid gap-8">
-            {latestJob ? (
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <h2 className="text-sm font-semibold">Latest job</h2>
-                  <Link href="/jobs" className="text-xs text-slate-500 hover:text-white">View all</Link>
-                </div>
-                <JobCard job={latestJob} agent={state.agents.find((agent) => agent.id === latestJob.agentId)} />
-              </div>
-            ) : null}
-            {topAgent ? (
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <h2 className="text-sm font-semibold">Top agent</h2>
-                  <Link href="/agents" className="text-xs text-slate-500 hover:text-white">View all</Link>
-                </div>
-                <AgentCard agent={topAgent} />
-              </div>
-            ) : null}
-          </div>
+          <Link href="/jobs/create">
+            <Button className="h-11 px-5">Create job</Button>
+          </Link>
         </div>
+
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search jobs, agents, or capabilities"
+          aria-label="Search ArcTask"
+          className="mt-10"
+        />
+
+        <dl className="mt-4 grid overflow-hidden rounded-2xl border border-[#192230] bg-[#192230] sm:grid-cols-2 lg:grid-cols-4 lg:gap-px">
+          <Metric label="Agents" value={metrics.totalAgents.toString()} />
+          <Metric label="Jobs" value={metrics.totalJobs.toString()} />
+          <Metric label="USDC escrowed" value={formatUsdc(metrics.totalEscrowed)} />
+          <Metric label="Settled" value={metrics.totalCompletedJobs.toString()} />
+        </dl>
+
+        <MarketplacePanel
+          title="Latest jobs"
+          description="Most recent funded and settled work"
+          count={`${jobs.length} latest`}
+          href="/jobs"
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {jobs.map((job) => (
+              <JobCard key={job.id} job={job} agent={state.agents.find((agent) => agent.id === job.agentId)} />
+            ))}
+          </div>
+          {jobs.length === 0 ? <EmptyState>Nothing matches this search.</EmptyState> : null}
+        </MarketplacePanel>
+
+        <MarketplacePanel
+          title="Agent marketplace"
+          description="Ranked by portable onchain reputation"
+          count={`${agents.length} agents`}
+          href="/agents"
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {agents.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+          {agents.length === 0 ? <EmptyState>Nothing matches this search.</EmptyState> : null}
+        </MarketplacePanel>
       </section>
     </div>
   );
@@ -90,21 +107,40 @@ export default function HomePage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[#070a11] p-4">
+    <div className="bg-[#0a0e16] px-5 py-4">
       <dt className="text-xs text-slate-600">{label}</dt>
-      <dd className="mt-2 text-xl font-semibold tracking-[-0.03em]">{value}</dd>
+      <dd className="mt-2 text-lg font-semibold tracking-[-0.025em] text-slate-200">{value}</dd>
     </div>
   );
 }
 
-function Step({ number, title, body }: { number: string; title: string; body: string }) {
+function MarketplacePanel({
+  title,
+  description,
+  count,
+  href,
+  children
+}: {
+  title: string;
+  description: string;
+  count: string;
+  href: string;
+  children: React.ReactNode;
+}) {
   return (
-    <li className="grid grid-cols-[34px_1fr] gap-3 py-4">
-      <span className="text-xs font-semibold text-[#42adff]">{number}</span>
-      <div>
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="mt-1 text-sm text-slate-500">{body}</p>
+    <section className="mt-5 overflow-hidden rounded-2xl border border-[#192230] bg-[#0a0e16]">
+      <div className="flex items-center justify-between gap-4 border-b border-[#192230] px-5 py-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
+          <p className="mt-1 text-xs text-slate-600">{description}</p>
+        </div>
+        <Link href={href} className="text-xs text-slate-600 hover:text-white">{count} →</Link>
       </div>
-    </li>
+      <div className="p-3 sm:p-4">{children}</div>
+    </section>
   );
+}
+
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return <p className="px-2 py-8 text-center text-sm text-slate-600">{children}</p>;
 }
