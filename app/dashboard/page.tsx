@@ -1,6 +1,5 @@
 "use client";
 
-import { Activity, BadgeCheck, Bot, BriefcaseBusiness, Coins, Star } from "lucide-react";
 import { AgentCard } from "@/components/agent-card";
 import { JobCard } from "@/components/job-card";
 import { MetricCard } from "@/components/metric-card";
@@ -32,13 +31,13 @@ export default function DashboardPage() {
           Mock and onchain-ready telemetry for agents, escrows, reputation events, and transaction activity.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <MetricCard title="Total agents" value={metrics.totalAgents} icon={Bot} />
-        <MetricCard title="Total jobs" value={metrics.totalJobs} icon={BriefcaseBusiness} />
-        <MetricCard title="Total USDC escrowed" value={`${formatUsdc(metrics.totalEscrowed)} USDC`} icon={Coins} />
-        <MetricCard title="Completed jobs" value={metrics.totalCompletedJobs} icon={BadgeCheck} />
-        <MetricCard title="Reputation events" value={metrics.totalReputationEvents} icon={Star} />
-        <MetricCard title="Total txs" value={metrics.totalTxs} icon={Activity} />
+      <div className="grid gap-px overflow-hidden rounded-xl border border-white/[0.065] bg-white/[0.065] md:grid-cols-2 xl:grid-cols-3">
+        <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Total agents" value={metrics.totalAgents} />
+        <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Total jobs" value={metrics.totalJobs} />
+        <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Total USDC escrowed" value={`${formatUsdc(metrics.totalEscrowed)} USDC`} />
+        <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Completed jobs" value={metrics.totalCompletedJobs} />
+        <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Reputation events" value={metrics.totalReputationEvents} />
+        <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Total txs" value={metrics.totalTxs} />
       </div>
 
       <div className="mt-8">

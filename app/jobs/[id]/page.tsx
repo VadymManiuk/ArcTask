@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Check, Clock, ExternalLink, FileText, RefreshCw, RotateCcw, Send, ShieldCheck, X } from "lucide-react";
+import { Check, ExternalLink, RefreshCw, RotateCcw, Send, X } from "lucide-react";
 import { DeliverableSummary } from "@/components/deliverable-summary";
 import { StatusBadge } from "@/components/status-badge";
 import { TxList } from "@/components/tx-list";
@@ -326,49 +326,44 @@ export default function JobDetailsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
-                Job progress
-              </CardTitle>
+              <CardTitle>Job progress</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="grid gap-3 text-sm sm:grid-cols-3">
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-muted-foreground">Current status</p>
+              <div className="grid divide-y divide-white/[0.065] border-y border-white/[0.065] text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <div className="py-3 sm:px-4 sm:first:pl-0">
+                  <p className="text-xs text-muted-foreground">Current status</p>
                   <p className="mt-1 font-semibold text-foreground">{job.status}</p>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-muted-foreground">Time left</p>
+                <div className="py-3 sm:px-4">
+                  <p className="text-xs text-muted-foreground">Time left</p>
                   <p className={timeLeft === "Expired" ? "mt-1 font-semibold text-rose-300" : "mt-1 font-semibold text-foreground"}>
                     {timeLeft}
                   </p>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-muted-foreground">Worker check</p>
+                <div className="py-3 sm:px-4 sm:last:pr-0">
+                  <p className="text-xs text-muted-foreground">Worker check</p>
                   <p className="mt-1 font-semibold text-foreground">
                     {job.status === "FUNDED" ? `about every ${workerPollSeconds}s` : "complete"}
                   </p>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-4">
+              <div className="grid overflow-hidden rounded-xl border border-white/[0.065] sm:grid-cols-4">
                 {statusSteps.map((step, index) => {
                   const state = getStepState(job.status, step.key);
                   return (
                     <div
                       key={step.key}
-                      className={`rounded-lg border p-3 text-sm ${
+                      className={`border-b border-white/[0.065] p-3 text-sm last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 ${
                         state === "complete"
-                          ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+                          ? "bg-emerald-300/[0.06] text-emerald-100"
                           : state === "active"
-                            ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
-                            : "border-white/10 bg-white/[0.03] text-muted-foreground"
+                            ? "bg-[#42adff]/[0.07] text-[#8dceff]"
+                            : "bg-[#060a11] text-muted-foreground"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="grid h-6 w-6 place-items-center rounded-full border border-current text-xs font-semibold">
-                          {state === "complete" ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
-                        </span>
+                        <span className="text-xs font-semibold opacity-75">0{index + 1}</span>
                         <span className="font-semibold">{step.label}</span>
                       </div>
                     </div>
@@ -406,10 +401,7 @@ export default function JobDetailsPage() {
           <Card>
             <CardHeader>
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
-                  Work result
-                </CardTitle>
+                <CardTitle>Work result</CardTitle>
                 {canUnlockDeliverable ? (
                   <Button
                     type="button"
@@ -485,13 +477,10 @@ export default function JobDetailsPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                Tracking
-              </CardTitle>
+              <CardTitle>Tracking</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
-              <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <div className="border-t border-white/[0.065] pt-4">
                 <p className="text-muted-foreground">Next step</p>
                 <p className="mt-1 font-semibold text-foreground">
                   {job.status === "FUNDED"
@@ -501,7 +490,7 @@ export default function JobDetailsPage() {
                       : "No action needed"}
                 </p>
               </div>
-              <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <div className="border-t border-white/[0.065] pt-4">
                 <p className="text-muted-foreground">Deadline</p>
                 <p className="mt-1 font-semibold text-foreground">{job.deadline}</p>
                 <p className="mt-1 text-muted-foreground">{timeLeft === "Expired" ? "Deadline reached" : `${timeLeft} remaining`}</p>

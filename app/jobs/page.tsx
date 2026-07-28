@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { PlusCircle, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { JobCard } from "@/components/job-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,6 @@ export default function JobsPage() {
         </div>
         <Link href="/jobs/create">
           <Button>
-            <PlusCircle className="h-4 w-4" aria-hidden="true" />
             Create Job
           </Button>
         </Link>

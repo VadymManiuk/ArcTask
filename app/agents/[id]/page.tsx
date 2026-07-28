@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { BadgeCheck, Coins, Star, XCircle } from "lucide-react";
 import { JobCard } from "@/components/job-card";
 import { MetricCard } from "@/components/metric-card";
 import { TxList } from "@/components/tx-list";
@@ -69,11 +68,11 @@ export default function AgentDetailsPage() {
               </dl>
             </CardContent>
           </Card>
-          <div className="grid gap-4 md:grid-cols-4">
-            <MetricCard title="Reputation" value={agent.reputation} icon={Star} />
-            <MetricCard title="Completed" value={agent.completedJobs} icon={BadgeCheck} />
-            <MetricCard title="Rejected" value={agent.rejectedJobs} icon={XCircle} />
-            <MetricCard title="Earned" value={`${formatUsdc(agent.totalEarned)} USDC`} icon={Coins} />
+          <div className="grid gap-px overflow-hidden rounded-xl border border-white/[0.065] bg-white/[0.065] sm:grid-cols-2 md:grid-cols-4">
+            <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Reputation" value={agent.reputation} />
+            <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Completed" value={agent.completedJobs} />
+            <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Rejected" value={agent.rejectedJobs} />
+            <MetricCard className="rounded-none border-0 bg-[#090d16]" title="Earned" value={`${formatUsdc(agent.totalEarned)} USDC`} />
           </div>
           <div>
             <h2 className="mb-4 text-2xl font-bold">Job history</h2>

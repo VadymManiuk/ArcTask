@@ -1,16 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowRight,
-  BadgeCheck,
-  Bot,
-  CheckCircle2,
-  FileCheck2,
-  ShieldCheck,
-  Sparkles,
-  WalletCards
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AgentCard } from "@/components/agent-card";
 import { JobCard } from "@/components/job-card";
 import { Button } from "@/components/ui/button";
@@ -22,26 +13,22 @@ const settlementSteps = [
   {
     number: "01",
     title: "Choose an agent",
-    body: "Select a public worker or register a wallet-owned identity.",
-    icon: Bot
+    body: "Select a public worker or register a wallet-owned identity."
   },
   {
     number: "02",
     title: "Fund the escrow",
-    body: "Lock USDC with a deadline, evaluator, and explicit job payload.",
-    icon: WalletCards
+    body: "Lock USDC with a deadline, evaluator, and explicit job payload."
   },
   {
     number: "03",
     title: "Verify the work",
-    body: "Keep the report private while anchoring its hash on Arc.",
-    icon: FileCheck2
+    body: "Keep the report private while anchoring its hash on Arc."
   },
   {
     number: "04",
     title: "Settle reputation",
-    body: "Accept or reject atomically and update the agent’s record.",
-    icon: BadgeCheck
+    body: "Accept or reject atomically and update the agent’s record."
   }
 ];
 
@@ -60,7 +47,7 @@ export default function HomePage() {
           <div className="grid items-end gap-12 lg:grid-cols-[1fr_0.72fr]">
             <div className="max-w-3xl">
               <div className="mb-6 inline-flex items-center gap-2 rounded-lg border border-[#42adff]/20 bg-[#42adff]/[0.07] px-3 py-1.5 text-xs font-medium text-[#7bc5ff]">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#42adff]" aria-hidden="true" />
                 Autonomous work, settled on Arc
               </div>
               <h1 className="text-5xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-6xl lg:text-[76px]">
@@ -124,7 +111,7 @@ export default function HomePage() {
             ].map(([title, body]) => (
               <div key={title} className="bg-[#070a11] p-4 sm:p-5">
                 <div className="mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-[#42adff]" aria-hidden="true" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#42adff]" aria-hidden="true" />
                   <p className="text-sm font-semibold">{title}</p>
                 </div>
                 <p className="text-xs leading-5 text-slate-600">{body}</p>
@@ -173,21 +160,13 @@ export default function HomePage() {
           body="Every economic action stays inspectable while the deliverable itself remains private."
         />
         <div className="mt-7 grid overflow-hidden rounded-2xl border border-white/[0.065] bg-white/[0.065] md:grid-cols-2 xl:grid-cols-4">
-          {settlementSteps.map((step) => {
-            const Icon = step.icon;
-            return (
-              <div key={step.number} className="bg-[#090d16] p-6 xl:min-h-56">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#42adff]">{step.number}</span>
-                  <span className="grid h-9 w-9 place-items-center rounded-lg border border-white/[0.07] bg-[#070b12] text-slate-400">
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                </div>
-                <h3 className="mt-10 text-lg font-semibold">{step.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-slate-500">{step.body}</p>
-              </div>
-            );
-          })}
+          {settlementSteps.map((step) => (
+            <div key={step.number} className="bg-[#090d16] p-6 xl:min-h-56">
+              <span className="text-xs font-semibold text-[#42adff]">{step.number}</span>
+              <h3 className="mt-10 text-lg font-semibold">{step.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{step.body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -195,10 +174,7 @@ export default function HomePage() {
         <div className="app-container py-14">
           <div className="panel grid items-center gap-8 overflow-hidden p-7 sm:p-10 lg:grid-cols-[1fr_auto]">
             <div>
-              <div className="flex items-center gap-2 text-[#42adff]">
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                <p className="eyebrow">Arc-native infrastructure</p>
-              </div>
+              <p className="eyebrow">Arc-native infrastructure</p>
               <h2 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
                 Put an autonomous agent to work.
               </h2>

@@ -1,6 +1,5 @@
 "use client";
 
-import { AlertTriangle, Radio } from "lucide-react";
 import { getOnchainReadiness } from "@/lib/arc-config";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +8,6 @@ export function TestnetStatus() {
   const isMock = readiness.mode === "mock";
   const isReady = readiness.isReady;
   const label = isMock ? "Mock mode" : isReady ? "Arc Testnet ready" : "Onchain config missing";
-  const Icon = isMock || isReady ? Radio : AlertTriangle;
 
   return (
     <span
@@ -21,7 +19,15 @@ export function TestnetStatus() {
         !isMock && !isReady && "border-amber-300/20 bg-amber-300/[0.07] text-amber-200"
       )}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          isMock && "bg-slate-400",
+          !isMock && isReady && "bg-[#42adff]",
+          !isMock && !isReady && "bg-amber-300"
+        )}
+        aria-hidden="true"
+      />
       {label}
     </span>
   );

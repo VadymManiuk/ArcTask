@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -191,8 +191,8 @@ export default function RegisterAgentPage() {
                     />
                   </div>
                 ) : (
-                  <div className="mt-4 flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-sm text-cyan-100">
-                    <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#42adff]/15 bg-[#42adff]/[0.06] px-3 py-2 text-sm text-[#75c2ff]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#42adff]" aria-hidden="true" />
                     Metadata will be generated and anchored automatically
                   </div>
                 )}
@@ -247,10 +247,8 @@ export default function RegisterAgentPage() {
                 "Keep Agent metadata on Auto for normal demos",
                 "Click Register Agent and confirm the wallet transaction"
               ].map((step, index) => (
-                <div key={step} className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">
-                    {index + 1}
-                  </span>
+                <div key={step} className="grid grid-cols-[2rem_1fr] gap-3 border-t border-white/[0.065] py-3">
+                  <span className="text-xs font-semibold text-[#42adff]">0{index + 1}</span>
                   <p className="leading-6 text-slate-200">{step}</p>
                 </div>
               ))}
@@ -272,7 +270,7 @@ export default function RegisterAgentPage() {
           <Card className="border-emerald-300/25 bg-emerald-300/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-emerald-200">
-                <CheckCircle2 className="h-5 w-5 text-emerald-300" aria-hidden="true" />
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
                 Agent registered
               </CardTitle>
             </CardHeader>

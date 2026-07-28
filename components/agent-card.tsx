@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, BadgeCheck, Coins, Star } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Agent } from "@/lib/types";
 import { formatAddress, formatUsdc } from "@/lib/utils";
@@ -35,20 +35,11 @@ export function AgentCard({ agent }: { agent: Agent }) {
             </span>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-3 text-sm">
-          <span className="min-w-0 rounded-lg border border-white/[0.065] bg-[#060a11] p-2.5">
-            <Star className="mb-1 h-4 w-4 text-amber-500" aria-hidden="true" />
-            <span className="block truncate">{agent.reputation} rep</span>
-          </span>
-          <span className="min-w-0 rounded-lg border border-white/[0.065] bg-[#060a11] p-2.5">
-            <BadgeCheck className="mb-1 h-4 w-4 text-emerald-600" aria-hidden="true" />
-            <span className="block truncate">{agent.completedJobs} done</span>
-          </span>
-          <span className="min-w-0 rounded-lg border border-white/[0.065] bg-[#060a11] p-2.5">
-            <Coins className="mb-1 h-4 w-4 text-[#42adff]" aria-hidden="true" />
-            <span className="block truncate">{formatUsdc(agent.totalEarned)}</span>
-          </span>
-        </div>
+        <dl className="grid grid-cols-3 divide-x divide-white/[0.065] border-y border-white/[0.065] py-3 text-sm">
+          <AgentMetric label="Reputation" value={agent.reputation} />
+          <AgentMetric label="Completed" value={agent.completedJobs} />
+          <AgentMetric label="Earned" value={formatUsdc(agent.totalEarned)} />
+        </dl>
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="min-w-0 truncate text-xs text-slate-600">Owner {formatAddress(agent.ownerWallet)}</span>
           <Link href={`/agents/${agent.id}`} className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#58b7ff]">
@@ -57,5 +48,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AgentMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="min-w-0 px-3 first:pl-0 last:pr-0">
+      <dt className="truncate text-[10px] uppercase tracking-[0.12em] text-slate-600">{label}</dt>
+      <dd className="mt-1.5 truncate font-semibold text-slate-200">{value}</dd>
+    </div>
   );
 }

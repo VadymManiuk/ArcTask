@@ -1,6 +1,5 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -15,10 +14,7 @@ export default function ErrorPage({
     <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <Card className="border-rose-300/25">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-rose-100">
-            <AlertTriangle className="h-5 w-5 text-rose-300" aria-hidden="true" />
-            Something failed
-          </CardTitle>
+          <CardTitle className="text-rose-100">Something failed</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">

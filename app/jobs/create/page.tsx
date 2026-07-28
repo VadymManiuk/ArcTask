@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -267,10 +267,8 @@ export default function CreateJobPage() {
                 "Use the evaluator wallet that will accept or refund the work",
                 "Click Fund Escrow, then open job details to watch execution"
               ].map((step, index) => (
-                <div key={step} className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-300 text-xs font-bold text-slate-950">
-                    {index + 1}
-                  </span>
+                <div key={step} className="grid grid-cols-[2rem_1fr] gap-3 border-t border-white/[0.065] py-3">
+                  <span className="text-xs font-semibold text-[#42adff]">0{index + 1}</span>
                   <p className="leading-6 text-slate-200">{step}</p>
                 </div>
               ))}
@@ -290,7 +288,7 @@ export default function CreateJobPage() {
             {created ? (
               <div className="rounded-lg border border-emerald-300/25 bg-emerald-300/10 p-4 text-sm text-slate-200 shadow-[0_0_32px_rgba(45,212,191,0.08)]">
                 <p className="flex items-center gap-2 font-semibold text-emerald-200">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-300" aria-hidden="true" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
                   Escrow funded
                 </p>
                 <p className="mt-2 break-all text-slate-300">

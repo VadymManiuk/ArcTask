@@ -2,23 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, BriefcaseBusiness, ExternalLink, Gauge, Github, Home, PlusCircle, UserRoundPlus } from "lucide-react";
+import { ExternalLink, Github } from "lucide-react";
 import { BrandWordmark } from "@/components/brand";
 import { TestnetStatus } from "@/components/testnet-status";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Overview", icon: Home },
-  { href: "/agents", label: "Agents", icon: Bot },
-  { href: "/jobs", label: "Jobs", icon: BriefcaseBusiness },
-  { href: "/dashboard", label: "Dashboard", icon: Gauge }
+  { href: "/", label: "Overview" },
+  { href: "/agents", label: "Agents" },
+  { href: "/jobs", label: "Jobs" },
+  { href: "/dashboard", label: "Dashboard" }
 ];
 
 const mobileNavItems = [
   ...navItems,
-  { href: "/agents/register", label: "Register", icon: UserRoundPlus },
-  { href: "/jobs/create", label: "Create", icon: PlusCircle }
+  { href: "/agents/register", label: "Register" },
+  { href: "/jobs/create", label: "Create" }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -50,30 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="flex min-w-0 items-center justify-end gap-2">
             <TestnetStatus />
-            <a
-              href="https://github.com/VadymManiuk/ArcTask"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="ArcTask GitHub"
-              className="hidden h-9 w-9 place-items-center rounded-lg border border-white/[0.07] bg-[#090d15] text-slate-400 transition hover:border-white/[0.14] hover:text-white sm:grid"
-            >
-              <Github className="h-4 w-4" aria-hidden="true" />
-            </a>
-            <a
-              href="https://x.com/Arc_Task"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="ArcTask on X"
-              className="hidden h-9 w-9 place-items-center rounded-lg border border-white/[0.07] bg-[#090d15] text-sm font-bold text-slate-400 transition hover:border-white/[0.14] hover:text-white sm:grid"
-            >
-              X
-            </a>
             <WalletConnect />
           </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-white/[0.06] px-4 py-2 lg:hidden">
           {mobileNavItems.map((item) => {
-            const Icon = item.icon;
             const active = pathname === item.href;
             return (
               <Link
@@ -84,7 +65,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   active && "bg-[#141a25] text-white"
                 )}
               >
-                <Icon className="h-4 w-4" aria-hidden="true" />
                 {item.label}
               </Link>
             );

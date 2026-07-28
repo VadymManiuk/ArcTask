@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink, Lock, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { DeliverableSummary } from "@/components/deliverable-summary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,7 +79,6 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <CardTitle className="text-3xl">{deliverable?.title ?? "Private work result"}</CardTitle>
             <Button type="button" disabled={loading} onClick={unlockDeliverable}>
-              <Lock className="h-4 w-4" aria-hidden="true" />
               {loading ? "Checking..." : deliverable ? "Refresh result" : "Unlock result"}
             </Button>
           </div>

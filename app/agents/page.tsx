@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, UserRoundPlus } from "lucide-react";
+import { Search } from "lucide-react";
 import { AgentCard } from "@/components/agent-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,6 @@ export default function AgentsPage() {
         </div>
         <Link href="/agents/register">
           <Button>
-            <UserRoundPlus className="h-4 w-4" aria-hidden="true" />
             Register Custom Agent
           </Button>
         </Link>

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Clock, Database, RefreshCw, Server, Users } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatAddress } from "@/lib/utils";
@@ -157,28 +156,24 @@ export function ServiceStatusPanel() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-px overflow-hidden rounded-xl border border-white/[0.065] bg-white/[0.065] md:grid-cols-2 xl:grid-cols-4">
           <StatusTile
-            icon={workerStatus?.live ? CheckCircle2 : AlertTriangle}
             label="Worker"
             value={workerStatus?.live ? "Live" : "Offline"}
             detail={`heartbeat ${formatAge(workerStatus?.ageMs)}`}
             tone={workerStatus?.live ? "good" : "warn"}
           />
           <StatusTile
-            icon={Users}
             label="Managed agents"
             value={managedAgentCount}
             detail={managedAgents.length > 0 ? managedAgents.map((agent) => formatAddress(agent.address ?? "")).join(", ") : "addresses hidden"}
           />
           <StatusTile
-            icon={Activity}
             label="Jobs submitted"
             value={metrics?.jobsSubmitted ?? 0}
             detail={`${metrics?.ticks ?? 0} scans, ${metrics?.errors ?? 0} errors`}
           />
           <StatusTile
-            icon={Database}
             label="Network jobs"
             value={networkJobs?.nextJobId ? Math.max(Number(networkJobs.nextJobId) - 1, 0) : "unknown"}
             detail={`${networkJobs?.count ?? 0} indexed in latest view`}
@@ -187,10 +182,7 @@ export function ServiceStatusPanel() {
 
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="panel-inset p-4">
-            <div className="mb-3 flex items-center gap-2 font-semibold">
-              <Server className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-              Queue state
-            </div>
+            <div className="mb-3 font-semibold">Queue state</div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <RuntimeKV label="Pending" value={queue?.pending ?? 0} />
               <RuntimeKV label="Locked" value={queue?.locked ?? 0} />
@@ -199,10 +191,7 @@ export function ServiceStatusPanel() {
               <RuntimeKV label="Mode" value={workerStatus?.status?.mode ?? "unknown"} />
               <RuntimeKV label="Executor" value={workerStatus?.status?.executor ?? "unknown"} />
             </div>
-            <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-              Started {formatDate(workerStatus?.status?.startedAt)}
-            </p>
+            <p className="mt-3 text-xs text-muted-foreground">Started {formatDate(workerStatus?.status?.startedAt)}</p>
           </div>
 
           <div className="panel-inset p-4">
@@ -245,24 +234,22 @@ function RuntimeKV({ label, value }: { label: string; value: string | number }) 
 }
 
 function StatusTile({
-  icon: Icon,
   label,
   value,
   detail,
   tone = "neutral"
 }: {
-  icon: LucideIcon;
   label: string;
   value: string | number;
   detail: string;
   tone?: "neutral" | "good" | "warn";
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/[0.065] bg-[#060a11] p-4">
+    <div className="min-w-0 bg-[#060a11] p-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Icon
-          className={`h-4 w-4 ${
-            tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-amber-300" : "text-cyan-300"
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            tone === "good" ? "bg-emerald-300" : tone === "warn" ? "bg-amber-300" : "bg-slate-600"
           }`}
           aria-hidden="true"
         />
