@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createPublicClient, defineChain, http, verifyMessage } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
 import { deliverableAccessTtlMs, getDeliverableAccessMessage } from "@/lib/deliverable-access";
+import { getWorkerReportHash } from "@/lib/deliverable-integrity";
 import { createDeliverableNonce, consumeDeliverableNonce } from "@/lib/server-deliverable-nonce";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { isSafeRemoteBaseUrl } from "@/lib/server-remote";
@@ -13,7 +14,7 @@ import type { Address } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const defaultEscrowAddress = "0x58ca473df727301bce771d6087f883364c83a3b6";
+const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 
 const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,
@@ -63,9 +64,7 @@ interface DeliverableAccessProof {
   signature: string;
 }
 
-type DeliverableAccessOptions = {
-  consumeNonce: boolean;
-};
+class DeliverableIntegrityError extends Error {}
 
 function asString(value: unknown) {
   return typeof value === "string" ? value : undefined;
@@ -86,10 +85,6 @@ function isTrustedRemoteRequest(request: Request) {
   }
 
   return request.headers.get("x-arctask-remote-token") === token;
-}
-
-function isVerifiedFallbackRequest(request: Request) {
-  return request.headers.get("x-arctask-verified-fallback") === "1";
 }
 
 function getRecord(value: unknown): Record<string, unknown> | null {
@@ -131,11 +126,19 @@ async function getOnchainClientWallet(jobId: string) {
   return job[0];
 }
 
-async function assertDeliverableAccess(
-  proof: DeliverableAccessProof,
-  jobId: string,
-  options: DeliverableAccessOptions = { consumeNonce: true }
-) {
+async function getOnchainDeliverableHash(jobId: string) {
+  const escrowAddress = (process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress) as Address;
+  const job = (await publicClient.readContract({
+    address: escrowAddress,
+    abi: escrowAbi,
+    functionName: "jobs",
+    args: [BigInt(jobId)]
+  })) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
+
+  return job[7];
+}
+
+async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: string) {
   const address = proof.address.trim();
   const issuedAt = proof.issuedAt.trim();
   const nonce = proof.nonce.trim();
@@ -145,7 +148,7 @@ async function assertDeliverableAccess(
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
   }
 
-  if (options.consumeNonce && !consumeDeliverableNonce(jobId, nonce)) {
+  if (!consumeDeliverableNonce(jobId, nonce)) {
     return NextResponse.json({ error: "Deliverable access challenge expired. Sign again." }, { status: 401 });
   }
 
@@ -178,9 +181,23 @@ async function assertDeliverableAccess(
   return null;
 }
 
-async function readLocalDeliverable(filePath: string, jobId: string) {
+async function readLocalDeliverable(filePath: string, jobId: string, expectedHash: `0x${string}`) {
   const raw = await fs.readFile(filePath, "utf8");
   const parsed = JSON.parse(raw) as unknown;
+  const storedReport = getRecord(parsed);
+  if (!storedReport) {
+    throw new Error("Invalid worker deliverable file.");
+  }
+
+  const calculatedHash = getWorkerReportHash(storedReport);
+  const storedHash = asString(storedReport.deliverableHash);
+  if (
+    calculatedHash.toLowerCase() !== expectedHash.toLowerCase() ||
+    storedHash?.toLowerCase() !== expectedHash.toLowerCase()
+  ) {
+    throw new DeliverableIntegrityError("Worker deliverable does not match the onchain hash.");
+  }
+
   const deliverable = normalizeDeliverablePayload(parsed, jobId);
   if (!deliverable) {
     throw new Error("Invalid worker deliverable file.");
@@ -206,7 +223,6 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        "x-arctask-verified-fallback": "1",
         ...(process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN
           ? { "x-arctask-remote-token": process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN }
           : {})
@@ -264,14 +280,13 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
   }
 
   const trustedRemoteRequest = isTrustedRemoteRequest(request);
-  const verifiedFallbackRequest = isVerifiedFallbackRequest(request);
   const proof = trustedRemoteRequest ? null : await getProofFromRequest(request);
   if (!trustedRemoteRequest) {
     if (!proof) {
       return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
     }
 
-    const accessError = await assertDeliverableAccess(proof, jobId, { consumeNonce: !verifiedFallbackRequest });
+    const accessError = await assertDeliverableAccess(proof, jobId);
     if (accessError) {
       return accessError;
     }
@@ -281,8 +296,13 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
   const filePath = path.join(outputDir, `job-${jobId}.json`);
 
   try {
-    return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId) });
+    const expectedHash = await getOnchainDeliverableHash(jobId);
+    return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId, expectedHash) });
   } catch (caught) {
+    if (caught instanceof DeliverableIntegrityError) {
+      return NextResponse.json({ error: caught.message }, { status: 409 });
+    }
+
     if ((caught as NodeJS.ErrnoException).code === "ENOENT") {
       const remoteDeliverable = proof ? await fetchRemoteDeliverable(request, jobId, proof) : null;
       if (remoteDeliverable) {

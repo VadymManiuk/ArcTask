@@ -78,9 +78,10 @@ Vercel will issue SSL automatically.
 
 Default onchain configuration:
 
-- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8`
-- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0x58ca473df727301bce771d6087f883364c83a3b6`
+- `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=0xd8499627775ac67cd756335a3c48387d0aff5553`
+- `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=0x08eb8630f6b5d2c1c030688076b80360531a2e9a`
 - `NEXT_PUBLIC_USDC_ADDRESS=native`
+- `NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID=1`
 
 ## Testnet Transition
 
@@ -101,6 +102,10 @@ The repo includes minimal product contracts:
 
 The escrow contract uses Arc native testnet USDC via `msg.value`, so no ERC-20 USDC contract address is required for the initial testnet vertical slice.
 
+Reputation v2 is stored in the registry. New agents start at `50`; accepted work adds `8`, rejected work subtracts
+`6`, and the registry records completed jobs, rejected jobs, and total onchain earnings. Only admin-authorized escrow
+contracts can call `recordOutcome`, so clients and agent owners cannot edit reputation directly.
+
 Compile them locally:
 
 ```bash
@@ -119,14 +124,23 @@ The deploy script prints:
 - `NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS`
 - `NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS`
 - `NEXT_PUBLIC_USDC_ADDRESS=native`
+- `NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID` when `ARC_AGENT_PRIVATE_KEY` is available during deployment
 
 Add those values to `.env.local` and to Vercel Environment Variables before enabling `NEXT_PUBLIC_ARC_MODE=onchain`.
 
 Current Arc Testnet deployment:
 
-- Agent registry: `0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8`
-- Escrow: `0x58ca473df727301bce771d6087f883364c83a3b6`
+- Agent registry: `0xd8499627775ac67cd756335a3c48387d0aff5553`
+- Escrow: `0x08eb8630f6b5d2c1c030688076b80360531a2e9a`
 - USDC mode: `native`
+- Public general agent ID: `1`
+
+The deployment script authorizes the new escrow in the registry. To register the public worker separately using the
+worker environment, run:
+
+```bash
+npm run agent:register-managed
+```
 
 The current escrow stores a `jobURI` payload with every onchain job so autonomous workers can read the actual task
 title and description directly from Arc Testnet.
@@ -235,8 +249,12 @@ instances.
 
 - Agent registration now requires `msg.sender` to match the registered owner wallet.
 - Escrow settlement/refund paths use a non-reentrant transfer guard.
+- Reputation updates can be submitted only by an escrow explicitly authorized by the registry admin.
+- Accepted and rejected settlements update escrow and reputation atomically in the same transaction.
 - Worker status is public but sanitized by default; use `ARCTASK_ADMIN_TOKEN` only for private operational detail.
 - Vercel-to-VPS deliverable fallback should be configured with `ARCTASK_DELIVERABLE_REMOTE_TOKEN`.
+- Private deliverables are verified against the hash committed by `submitDeliverable` before the API returns them.
+- Worker failures are isolated per job so one reverting task does not block later managed-agent jobs in the same scan.
 - In-memory rate limits and nonces are enough for the current demo/VPS shape. For a real multi-instance product, move
   them to shared durable storage such as Redis or a database.
 
@@ -258,14 +276,16 @@ Latest OpenAI autonomous Arc Testnet smoke:
 - Worker submit tx: `https://testnet.arcscan.app/tx/0xd50dc96203acf4257c5a90100f64de5f715f5a80acdd80c8cd1b4d87baf20583`
 - Evaluator accept tx: `https://testnet.arcscan.app/tx/0x6dae71c7fd51f7e6ef9cc72228b84fa8fb1b1540d70258699a22e001012a209f`
 
-Latest hardened contract smoke:
+Latest Reputation v2 contract smoke:
 
-- Agent ID: `1`
-- Job ID: `1`
-- Register agent tx: `https://testnet.arcscan.app/tx/0x818e17bd8ff68e19ff193d12880f3718028bf52717621091e8d82d92bc752879`
-- Create job tx: `https://testnet.arcscan.app/tx/0xfc2999ea15a26701ab44388cfb47cda5271bf40d54c153faf40aed6cb7877179`
-- Submit deliverable tx: `https://testnet.arcscan.app/tx/0xf13b6a4e7f39622bdcc164cd3744c3b309755025176c57e8689bcf62aee98abd`
-- Evaluator accept tx: `https://testnet.arcscan.app/tx/0x2dec31318e14610c71453011659ecc00fc4d9ed0f26e8ca9b5b1a0ccdc75a4f2`
+- Agent ID: `3`
+- Accepted job ID: `2`
+- Rejected job ID: `3`
+- Register agent tx: `https://testnet.arcscan.app/tx/0x7bf7faa5106c27df8a5239786e028e724999d55b5dd4abc165a1040c61c474d9`
+- Accepted job tx: `https://testnet.arcscan.app/tx/0xdcd2a6a0583ebb886e4dacb0d989ad4b2884467578570d648473711d35e8d0af`
+- Rejected job tx: `https://testnet.arcscan.app/tx/0x36a8876a34a64a40ac55f33d65e256ae2631b4cbc65a7d7eb3780459707ea546`
+- Final reputation: `52` (`1` accepted, `1` rejected)
+- Unauthorized direct reputation update: rejected during simulation
 
 ## Arc Testnet
 

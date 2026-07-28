@@ -11,10 +11,11 @@ import {
   stringToHex
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { waitForTransactionReceiptWithRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
-const defaultRegistryAddress = "0x4ab5791a689b15126fcc7a549f8e4c7e16c5e0b8";
-const defaultEscrowAddress = "0x58ca473df727301bce771d6087f883364c83a3b6";
+const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
+const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
@@ -734,7 +735,7 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount) {
     functionName: "submitDeliverable",
     args: [jobId, deliverable.hash]
   });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await waitForTransactionReceiptWithRetry(publicClient, txHash);
   if (receipt.status !== "success") {
     throw new Error(`submitDeliverable failed for job ${jobId}: ${txHash}`);
   }
@@ -783,7 +784,18 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         jobId: jobId.toString(),
         worker: workerAccount.account.address
       });
-      await submitJob(jobId, job, outputDir, dryRun, workerAccount);
+      const submitted = await submitJob(jobId, job, outputDir, dryRun, workerAccount);
+      if (!submitted) {
+        skipped += 1;
+        appendStatusEvent({
+          type: "job_skipped",
+          jobId: jobId.toString(),
+          worker: workerAccount.account.address,
+          reason: "deadline_expired"
+        });
+        continue;
+      }
+
       handled += 1;
       appendStatusEvent({
         type: dryRun ? "job_dry_run" : "job_submitted",
@@ -802,7 +814,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         worker: workerAccount.account.address,
         error: message
       });
-      throw caught;
+      console.error(`job ${jobId} failed: ${message}`);
     } finally {
       lock.release();
     }

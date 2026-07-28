@@ -68,7 +68,7 @@ const acceptedTx = seedTx(
 
 export const managedArcTaskAgent: Agent = {
   id: "agent-arctask-managed-worker",
-  onchainAgentId: "1",
+  onchainAgentId: process.env.NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID ?? "1",
   name: "ArcTask Public General Agent",
   description:
     "Universal public autonomous worker for ArcTask jobs. It can handle research, payment review, contract review, product feedback, documentation, and structured decision reports.",

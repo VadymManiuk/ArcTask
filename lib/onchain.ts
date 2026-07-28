@@ -7,11 +7,13 @@ import {
   formatUnits,
   http,
   keccak256,
+  parseEventLogs,
   parseUnits,
   stringToHex
 } from "viem";
 import { arcTestnet } from "@/lib/arc-chain";
 import { contractAddresses, getOnchainReadiness } from "@/lib/arc-config";
+import { getJobDeadlineSeconds } from "@/lib/job-deadline";
 import { getEthereumProvider, requestArcAccount } from "@/lib/wallet";
 import registryAbi from "@/lib/contracts/abis/ERC8004AgentRegistry.json";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
@@ -37,6 +39,34 @@ type OnchainJob = readonly [
 ];
 
 type OnchainEventName = "JobCreated" | "DeliverableSubmitted" | "WorkAccepted" | "WorkRejected" | "JobRefunded";
+
+const agentRegisteredEventAbi = [
+  {
+    type: "event",
+    name: "AgentRegistered",
+    inputs: [
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "metadataURI", type: "string", indexed: false }
+    ]
+  }
+] as const;
+
+const jobCreatedEventAbi = [
+  {
+    type: "event",
+    name: "JobCreated",
+    inputs: [
+      { name: "jobId", type: "uint256", indexed: true },
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "client", type: "address", indexed: true },
+      { name: "evaluator", type: "address", indexed: false },
+      { name: "rewardAmount", type: "uint256", indexed: false },
+      { name: "deadline", type: "uint64", indexed: false },
+      { name: "jobURI", type: "string", indexed: false }
+    ]
+  }
+] as const;
 
 const jobEventConfigs = [
   {
@@ -207,6 +237,23 @@ export async function getJobSnapshotOnchain(onchainJobId: string) {
   };
 }
 
+export async function getAgentReputationOnchain(onchainAgentId: string) {
+  const registryAddress = getContractAddress("erc8004Registry");
+  const result = (await publicClient.readContract({
+    address: registryAddress,
+    abi: registryAbi,
+    functionName: "getAgentReputation",
+    args: [BigInt(onchainAgentId)]
+  })) as readonly [number, bigint, bigint, bigint];
+
+  return {
+    reputation: Number(result[0]),
+    completedJobs: Number(result[1]),
+    rejectedJobs: Number(result[2]),
+    totalEarned: Number(formatUnits(result[3], arcTestnet.nativeCurrency.decimals))
+  };
+}
+
 export async function getJobTxHistoryOnchain(onchainJobId: string): Promise<OnchainJobEventTx[]> {
   const escrowAddress = getContractAddress("erc8183Escrow");
   const jobId = BigInt(onchainJobId);
@@ -257,11 +304,6 @@ export async function registerAgentOnchain(input: {
   const registryAddress = getContractAddress("erc8004Registry");
   const { account, walletClient } = await getConnectedWalletClient();
   assertConnectedWallet(account, input.ownerWallet, "agent owner wallet");
-  const agentId = (await publicClient.readContract({
-    address: registryAddress,
-    abi: registryAbi,
-    functionName: "nextAgentId"
-  })) as bigint;
   const txHash = await walletClient.writeContract({
     address: registryAddress,
     abi: registryAbi,
@@ -270,6 +312,17 @@ export async function registerAgentOnchain(input: {
   });
 
   const receipt = await waitForHash(txHash);
+  const registeredEvent = parseEventLogs({
+    abi: agentRegisteredEventAbi,
+    logs: receipt.logs,
+    eventName: "AgentRegistered",
+    strict: true
+  }).find((event) => sameAddress(event.address, registryAddress));
+  const agentId = registeredEvent?.args.agentId;
+  if (typeof agentId !== "bigint") {
+    throw new Error(`AgentRegistered event was not found in transaction receipt: ${txHash}`);
+  }
+
   return {
     onchainAgentId: agentId.toString(),
     txHash,
@@ -291,13 +344,8 @@ export async function createJobOnchain(input: {
   const escrowAddress = getContractAddress("erc8183Escrow");
   const { account, walletClient } = await getConnectedWalletClient();
   assertConnectedWallet(account, input.clientWallet, "client wallet");
-  const jobId = (await publicClient.readContract({
-    address: escrowAddress,
-    abi: escrowAbi,
-    functionName: "nextJobId"
-  })) as bigint;
   const rewardValue = parseUnits(input.rewardAmount.toString(), arcTestnet.nativeCurrency.decimals);
-  const deadlineSeconds = BigInt(Math.floor(Date.parse(`${input.deadline}T00:00:00Z`) / 1000));
+  const deadlineSeconds = getJobDeadlineSeconds(input.deadline);
   const jobPayloadUri = createJobPayloadUri(input);
   const txHash = await walletClient.writeContract({
     address: escrowAddress,
@@ -308,6 +356,17 @@ export async function createJobOnchain(input: {
   });
 
   const receipt = await waitForHash(txHash);
+  const createdEvent = parseEventLogs({
+    abi: jobCreatedEventAbi,
+    logs: receipt.logs,
+    eventName: "JobCreated",
+    strict: true
+  }).find((event) => sameAddress(event.address, escrowAddress));
+  const jobId = createdEvent?.args.jobId;
+  if (typeof jobId !== "bigint") {
+    throw new Error(`JobCreated event was not found in transaction receipt: ${txHash}`);
+  }
+
   return {
     onchainJobId: jobId.toString(),
     jobPayloadUri,

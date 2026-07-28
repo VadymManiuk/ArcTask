@@ -628,13 +628,29 @@ export async function syncOnchainJobStateAction(jobId: string) {
     throw new Error("This job does not have an onchain job ID.");
   }
 
-  const { getJobSnapshotOnchain, getJobTxHistoryOnchain } = await import("@/lib/onchain");
+  const { getAgentReputationOnchain, getJobSnapshotOnchain, getJobTxHistoryOnchain } = await import("@/lib/onchain");
   const snapshot = await getJobSnapshotOnchain(job.onchainJobId);
   let syncedTxs: TxRecord[] = [];
   try {
     syncedTxs = (await getJobTxHistoryOnchain(job.onchainJobId)).map(createSyncedTx);
   } catch {
     syncedTxs = [];
+  }
+  const currentAgent = state.agents.find((agent) => agent.id === job.agentId);
+  let onchainReputation:
+    | {
+        reputation: number;
+        completedJobs: number;
+        rejectedJobs: number;
+        totalEarned: number;
+      }
+    | undefined;
+  if (currentAgent?.onchainAgentId) {
+    try {
+      onchainReputation = await getAgentReputationOnchain(currentAgent.onchainAgentId);
+    } catch {
+      // Older ArcTask registry deployments do not expose onchain reputation.
+    }
   }
 
   const status = onchainJobStatuses[snapshot.status];
@@ -666,6 +682,14 @@ export async function syncOnchainJobStateAction(jobId: string) {
     }
 
     const txHistory = mergeTxHistory(agent.txHistory, agentSyncedTxs);
+    if (onchainReputation) {
+      return {
+        ...agent,
+        ...onchainReputation,
+        txHistory
+      };
+    }
+
     if (job.status !== "ACCEPTED" && status === "ACCEPTED") {
       return {
         ...agent,

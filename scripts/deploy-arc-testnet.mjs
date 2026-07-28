@@ -6,9 +6,11 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  http
+  http,
+  parseEventLogs
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { waitForTransactionReceiptWithRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
 const envPath = path.join(rootDir, ".env.local");
@@ -93,6 +95,13 @@ function compileContracts() {
   };
 }
 
+function writeContractAbis(compiled) {
+  const abiDir = path.join(rootDir, "lib", "contracts", "abis");
+  fs.mkdirSync(abiDir, { recursive: true });
+  fs.writeFileSync(path.join(abiDir, "ERC8004AgentRegistry.json"), `${JSON.stringify(compiled.registry.abi, null, 2)}\n`);
+  fs.writeFileSync(path.join(abiDir, "ERC8183Escrow.json"), `${JSON.stringify(compiled.escrow.abi, null, 2)}\n`);
+}
+
 async function deployContract({ walletClient, publicClient, contract, args }) {
   const hash = await walletClient.deployContract({
     abi: contract.abi,
@@ -100,7 +109,7 @@ async function deployContract({ walletClient, publicClient, contract, args }) {
     args
   });
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
   if (receipt.status !== "success") {
     throw new Error(`Deployment failed: ${hash}`);
   }
@@ -111,7 +120,8 @@ async function deployContract({ walletClient, publicClient, contract, args }) {
 loadLocalEnv();
 
 if (process.argv.includes("--compile-only")) {
-  compileContracts();
+  const compiled = compileContracts();
+  writeContractAbis(compiled);
   console.log("Solidity contracts compiled successfully.");
   process.exit(0);
 }
@@ -158,6 +168,7 @@ console.log(`Deploying from ${account.address} to ${arcTestnet.name} (${arcTestn
 console.log("Escrow uses Arc native testnet USDC via msg.value.");
 
 const compiled = compileContracts();
+writeContractAbis(compiled);
 
 const registryAddress = deployEscrowOnly
   ? requiredEnv("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS")
@@ -181,9 +192,70 @@ const escrowAddress = await deployContract({
 });
 console.log(`Escrow deployed: ${escrowAddress}`);
 
+const authorizationHash = await walletClient.writeContract({
+  address: registryAddress,
+  abi: compiled.registry.abi,
+  functionName: "setEscrowAuthorization",
+  args: [escrowAddress, true]
+});
+const authorizationReceipt = await waitForTransactionReceiptWithRetry(publicClient, authorizationHash);
+if (authorizationReceipt.status !== "success") {
+  throw new Error(`Escrow authorization failed: ${authorizationHash}`);
+}
+console.log(`Escrow authorized in registry: ${authorizationHash}`);
+
+let managedAgentId;
+if (process.env.ARC_AGENT_PRIVATE_KEY) {
+  const managedAccount = privateKeyToAccount(normalizePrivateKey(process.env.ARC_AGENT_PRIVATE_KEY));
+  const managedWalletClient = createWalletClient({
+    account: managedAccount,
+    chain: arcTestnet,
+    transport: http(rpcUrl)
+  });
+  const metadataUri = `data:application/json,${encodeURIComponent(JSON.stringify({
+    schema: "arctask.agent.v1",
+    name: "ArcTask Public General Agent",
+    description: "Universal public autonomous worker for ArcTask jobs.",
+    capabilities: [
+      "general tasks",
+      "web research",
+      "payment review",
+      "contract review",
+      "product QA",
+      "escrow deliverables"
+    ],
+    ownerWallet: managedAccount.address
+  }))}`;
+  const managedRegistrationHash = await managedWalletClient.writeContract({
+    address: registryAddress,
+    abi: compiled.registry.abi,
+    functionName: "registerAgent",
+    args: [managedAccount.address, metadataUri]
+  });
+  const managedRegistrationReceipt = await waitForTransactionReceiptWithRetry(publicClient, managedRegistrationHash);
+  if (managedRegistrationReceipt.status !== "success") {
+    throw new Error(`Managed agent registration failed: ${managedRegistrationHash}`);
+  }
+
+  const managedRegistrationEvent = parseEventLogs({
+    abi: compiled.registry.abi,
+    logs: managedRegistrationReceipt.logs,
+    eventName: "AgentRegistered",
+    strict: true
+  }).find((event) => event.address.toLowerCase() === registryAddress.toLowerCase());
+  managedAgentId = managedRegistrationEvent?.args?.agentId;
+  if (typeof managedAgentId !== "bigint") {
+    throw new Error("Managed AgentRegistered event was not found.");
+  }
+  console.log(`Managed agent registered: ${managedAgentId} (${managedRegistrationHash})`);
+}
+
 console.log("\nAdd these to .env.local and Vercel:");
 console.log("NEXT_PUBLIC_ARC_MODE=onchain");
 console.log(`NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}`);
 console.log(`NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}`);
 console.log("NEXT_PUBLIC_USDC_ADDRESS=native");
+if (managedAgentId !== undefined) {
+  console.log(`NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID=${managedAgentId}`);
+}
 console.log(`\nExplorer: ${explorerUrl}/address/${escrowAddress}`);

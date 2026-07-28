@@ -17,6 +17,7 @@ import {
   submitDeliverableAction,
   syncOnchainJobStateAction
 } from "@/lib/store";
+import { getJobDeadlineMs } from "@/lib/job-deadline";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 import { formatAddress, formatUsdc } from "@/lib/utils";
 import { requestArcAccount, requestDeliverableAccessProof } from "@/lib/wallet";
@@ -44,8 +45,11 @@ const statusSteps: Array<{ key: "funded" | "submitted" | "review" | "settled"; l
 ];
 
 function getDeadlineMs(deadline: string) {
-  const parsed = Date.parse(`${deadline}T23:59:59`);
-  return Number.isFinite(parsed) ? parsed : null;
+  try {
+    return getJobDeadlineMs(deadline);
+  } catch {
+    return null;
+  }
 }
 
 function formatDuration(ms: number) {

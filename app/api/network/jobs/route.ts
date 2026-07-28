@@ -8,7 +8,7 @@ import type { Address, JobStatus } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const defaultEscrowAddress = "0x58ca473df727301bce771d6087f883364c83a3b6";
+const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 
 const arcTestnet = defineChain({

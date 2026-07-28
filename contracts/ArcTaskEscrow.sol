@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 interface IArcTaskAgentRegistry {
     function getAgentOwner(uint256 agentId) external view returns (address);
+
+    function recordOutcome(uint256 agentId, bool accepted, uint256 rewardAmount) external;
 }
 
 contract ArcTaskEscrow {
@@ -112,6 +114,7 @@ contract ArcTaskEscrow {
 
         job.status = JobStatus.Accepted;
         job.updatedAt = block.timestamp;
+        registry.recordOutcome(job.agentId, true, job.rewardAmount);
         _sendNativeUsdc(job.agentOwner, job.rewardAmount);
 
         emit WorkAccepted(jobId, job.agentOwner, job.rewardAmount);
@@ -124,6 +127,7 @@ contract ArcTaskEscrow {
 
         job.status = JobStatus.Rejected;
         job.updatedAt = block.timestamp;
+        registry.recordOutcome(job.agentId, false, 0);
         _sendNativeUsdc(job.client, job.rewardAmount);
 
         emit WorkRejected(jobId, job.client, job.rewardAmount);
