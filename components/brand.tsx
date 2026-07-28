@@ -5,7 +5,7 @@ export function BrandMark({ className, imageClassName }: { className?: string; i
   return (
     <span
       className={cn(
-        "relative grid shrink-0 place-items-center overflow-hidden rounded-lg border border-cyan-300/20 bg-[#030711] shadow-[0_0_24px_rgba(34,211,238,0.28)]",
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-xl border border-[#42adff]/20 bg-[#050912] shadow-[0_0_22px_rgba(34,144,255,0.18)]",
         className
       )}
       aria-hidden="true"
@@ -24,9 +24,9 @@ export function BrandMark({ className, imageClassName }: { className?: string; i
 
 export function BrandWordmark({ className, markClassName }: { className?: string; markClassName?: string }) {
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-2 font-bold text-white", className)}>
+    <span className={cn("inline-flex min-w-0 items-center gap-2.5 font-semibold tracking-[-0.02em] text-white", className)}>
       <BrandMark className={cn("h-9 w-9", markClassName)} />
-      <span className="truncate">ArcTask</span>
+      <span className="truncate text-[15px]">ArcTask</span>
     </span>
   );
 }

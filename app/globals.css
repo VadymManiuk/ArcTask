@@ -3,42 +3,40 @@
 @tailwind utilities;
 
 :root {
-  --background: 224 45% 5%;
-  --foreground: 210 40% 96%;
-  --card: 224 38% 9%;
-  --card-foreground: 210 40% 96%;
-  --primary: 187 100% 58%;
+  --background: 228 39% 4%;
+  --foreground: 220 20% 96%;
+  --card: 225 30% 7%;
+  --card-foreground: 220 20% 96%;
+  --primary: 204 100% 58%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 219 100% 56%;
+  --secondary: 216 88% 58%;
   --secondary-foreground: 0 0% 100%;
-  --muted: 224 24% 14%;
-  --muted-foreground: 218 17% 70%;
-  --accent: 262 89% 70%;
+  --muted: 225 22% 12%;
+  --muted-foreground: 220 12% 54%;
+  --accent: 204 100% 58%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 73% 50%;
   --destructive-foreground: 0 0% 100%;
-  --border: 220 21% 20%;
-  --input: 220 21% 20%;
-  --ring: 187 100% 58%;
+  --border: 222 22% 14%;
+  --input: 222 22% 17%;
+  --ring: 204 100% 58%;
 }
 
 * {
   border-color: hsl(var(--border));
+  scrollbar-color: rgba(80, 101, 133, 0.45) transparent;
 }
 
 body {
-  background:
-    radial-gradient(circle at 15% 0%, rgba(25, 119, 255, 0.22), transparent 28%),
-    radial-gradient(circle at 85% 8%, rgba(26, 213, 190, 0.16), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%),
-    hsl(var(--background));
+  background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-feature-settings: "rlig" 1, "calt" 1;
+  letter-spacing: -0.012em;
 }
 
 ::selection {
-  background: rgba(45, 212, 255, 0.22);
+  background: rgba(43, 158, 255, 0.28);
 }
 
 a {
@@ -48,9 +46,9 @@ a {
 
 .flow-grid {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
-  background-size: 28px 28px;
+    linear-gradient(rgba(74, 117, 174, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 117, 174, 0.055) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 html {
@@ -60,4 +58,22 @@ html {
 body,
 main {
   min-width: 320px;
+}
+
+@layer components {
+  .app-container {
+    @apply mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-8;
+  }
+
+  .panel {
+    @apply min-w-0 rounded-2xl border border-white/[0.075] bg-[#090d16];
+  }
+
+  .panel-inset {
+    @apply min-w-0 rounded-xl border border-white/[0.07] bg-[#060a11];
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-[#42adff];
+  }
 }

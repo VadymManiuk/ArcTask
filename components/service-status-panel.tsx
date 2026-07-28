@@ -141,7 +141,7 @@ export function ServiceStatusPanel() {
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-primary">Production runtime</p>
+            <p className="eyebrow">Production runtime</p>
             <CardTitle className="mt-1">Autonomous service status</CardTitle>
           </div>
           <Button type="button" variant="outline" onClick={() => void loadStatus()} disabled={loading}>
@@ -186,7 +186,7 @@ export function ServiceStatusPanel() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="panel-inset p-4">
             <div className="mb-3 flex items-center gap-2 font-semibold">
               <Server className="h-4 w-4 text-cyan-300" aria-hidden="true" />
               Queue state
@@ -205,7 +205,7 @@ export function ServiceStatusPanel() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="panel-inset p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="font-semibold">Recent worker events</p>
               {workerStatus?.source ? <span className="text-xs text-muted-foreground">{workerStatus.source}</span> : null}
@@ -213,7 +213,7 @@ export function ServiceStatusPanel() {
             {recentEvents.length > 0 ? (
               <div className="grid gap-2">
                 {recentEvents.map((event, index) => (
-                  <div key={`${event.createdAt}-${index}`} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm">
+                  <div key={`${event.createdAt}-${index}`} className="rounded-lg border border-white/[0.065] bg-[#090d16] px-3 py-2 text-sm">
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <span className="truncate font-medium text-foreground">{event.type ?? "event"}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">{formatAge(Date.now() - Date.parse(event.createdAt ?? ""))}</span>
@@ -237,7 +237,7 @@ export function ServiceStatusPanel() {
 
 function RuntimeKV({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 p-3">
+    <div className="min-w-0 rounded-lg border border-white/[0.065] bg-[#090d16] p-3">
       <p className="truncate text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 break-words font-semibold">{value}</p>
     </div>
@@ -258,7 +258,7 @@ function StatusTile({
   tone?: "neutral" | "good" | "warn";
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+    <div className="min-w-0 rounded-xl border border-white/[0.065] bg-[#060a11] p-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Icon
           className={`h-4 w-4 ${

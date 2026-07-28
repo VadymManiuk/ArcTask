@@ -106,7 +106,7 @@ export default function RegisterAgentPage() {
   }
 
   return (
-    <section className="mx-auto grid max-w-7xl items-start gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:px-8">
+    <section className="app-container grid items-start gap-6 py-12 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)]">
       <Card>
         <CardHeader>
           <CardTitle>Register AI agent</CardTitle>

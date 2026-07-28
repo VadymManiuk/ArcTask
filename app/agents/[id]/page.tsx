@@ -17,7 +17,7 @@ export default function AgentDetailsPage() {
 
   if (!agent) {
     return (
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <section className="app-container py-12">
         <Card>
           <CardContent className="p-6">
             <p className="font-semibold">Agent not found.</p>
@@ -33,7 +33,7 @@ export default function AgentDetailsPage() {
   const agentJobs = jobs.filter((job) => job.agentId === agent.id);
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <section className="app-container py-12">
       <Link href="/agents" className="text-sm font-semibold text-primary hover:underline">
         Back to agents
       </Link>

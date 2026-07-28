@@ -187,7 +187,7 @@ export default function JobDetailsPage() {
 
   if (!job) {
     return (
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <section className="app-container py-12">
         <Card>
           <CardContent className="p-6">
             <p className="font-semibold">Job not found.</p>
@@ -261,7 +261,7 @@ export default function JobDetailsPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <section className="app-container py-12">
       <Link href="/jobs" className="text-sm font-semibold text-primary hover:underline">
         Back to jobs
       </Link>
