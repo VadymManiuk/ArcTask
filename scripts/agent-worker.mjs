@@ -11,7 +11,7 @@ import {
   stringToHex
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { waitForTransactionReceiptWithRetry } from "./arc-rpc.mjs";
+import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
@@ -692,12 +692,14 @@ function writeDeliverable(outputDir, jobId, deliverable, txHash) {
 }
 
 async function readJob(jobId) {
-  const result = await publicClient.readContract({
-    address: escrowAddress,
-    abi: escrowAbi,
-    functionName: "jobs",
-    args: [jobId]
-  });
+  const result = await withRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "jobs",
+      args: [jobId]
+    })
+  );
 
   return {
     client: result[0],
@@ -747,11 +749,13 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount) {
 }
 
 async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
-  const nextJobId = await publicClient.readContract({
-    address: escrowAddress,
-    abi: escrowAbi,
-    functionName: "nextJobId"
-  });
+  const nextJobId = await withRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "nextJobId"
+    })
+  );
   let handled = 0;
   let scanned = 0;
   let skipped = 0;
@@ -825,6 +829,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   }
 
   writeStatus({
+    lastError: failed > 0 ? statusBeforeTick.lastError : undefined,
     queue: {
       pending,
       locked: listActiveLocks(lockDir),

@@ -4,7 +4,7 @@ import test from "node:test";
 import { keccak256, stringToHex } from "viem";
 import { getWorkerReportHash } from "../lib/deliverable-integrity.ts";
 import { getJobDeadlineMs, getJobDeadlineSeconds } from "../lib/job-deadline.ts";
-import { waitForTransactionReceiptWithRetry } from "../scripts/arc-rpc.mjs";
+import { waitForTransactionReceiptWithRetry, withRpcRetry } from "../scripts/arc-rpc.mjs";
 import { createDeliverableNonce, consumeDeliverableNonce } from "../lib/server-deliverable-nonce.ts";
 
 function readAbi(fileName) {
@@ -98,4 +98,22 @@ test("receipt polling retries rate limits but does not hide permanent errors", a
     ),
     /execution reverted/
   );
+});
+
+test("generic RPC retry recovers read calls after a transient limit", async () => {
+  let attempts = 0;
+  const value = await withRpcRetry(
+    async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        throw new Error("too many requests");
+      }
+
+      return 42n;
+    },
+    { maxAttempts: 3, baseDelayMs: 1 }
+  );
+
+  assert.equal(value, 42n);
+  assert.equal(attempts, 3);
 });

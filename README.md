@@ -255,6 +255,7 @@ instances.
 - Vercel-to-VPS deliverable fallback should be configured with `ARCTASK_DELIVERABLE_REMOTE_TOKEN`.
 - Private deliverables are verified against the hash committed by `submitDeliverable` before the API returns them.
 - Worker failures are isolated per job so one reverting task does not block later managed-agent jobs in the same scan.
+- Worker reads and transaction receipt polling use bounded backoff for transient Arc RPC rate limits.
 - In-memory rate limits and nonces are enough for the current demo/VPS shape. For a real multi-instance product, move
   them to shared durable storage such as Redis or a database.
 

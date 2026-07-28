@@ -18,13 +18,17 @@ function sleep(ms) {
 }
 
 export async function waitForTransactionReceiptWithRetry(publicClient, hash, options = {}) {
+  return withRpcRetry(() => publicClient.waitForTransactionReceipt({ hash }), options);
+}
+
+export async function withRpcRetry(operation, options = {}) {
   const maxAttempts = options.maxAttempts ?? 8;
   const baseDelayMs = options.baseDelayMs ?? 2_000;
   let lastError;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await publicClient.waitForTransactionReceipt({ hash });
+      return await operation();
     } catch (caught) {
       lastError = caught;
       if (!isRetryableRpcError(caught) || attempt === maxAttempts) {
