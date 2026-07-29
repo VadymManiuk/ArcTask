@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
+const defaultSecondaryRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
 const statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 const freshCacheMs = 2_000;
 const staleCacheMs = 15 * 60_000;
@@ -39,10 +40,28 @@ const arcTestnet = defineChain({
   testnet: true
 });
 
-const publicClient = createPublicClient({
-  chain: arcTestnet,
-  transport: http(arcTestnet.rpcUrls.default.http[0])
-});
+function createRpcClient(url: string) {
+  return createPublicClient({
+    chain: arcTestnet,
+    transport: http(url)
+  });
+}
+
+const rpcClients = [
+  {
+    source: "primary",
+    url: arcTestnet.rpcUrls.default.http[0]
+  },
+  {
+    source: "arcscan",
+    url: process.env.ARC_SECONDARY_RPC_URL ?? defaultSecondaryRpcUrl
+  }
+]
+  .filter((entry, index, entries) => entries.findIndex((candidate) => candidate.url === entry.url) === index)
+  .map((entry) => ({
+    ...entry,
+    client: createRpcClient(entry.url)
+  }));
 
 type OnchainJob = readonly [
   Address,
@@ -105,6 +124,109 @@ function isInternalSmokeJob(job: ReturnType<typeof serializeJob>) {
   return /\bsmoke\b/i.test(`${job.title} ${job.description}`);
 }
 
+async function loadJobsSnapshot(
+  rpcClient: ReturnType<typeof createRpcClient>,
+  source: string,
+  limit: number
+) {
+  const [nextJobId, blockNumber] = await Promise.all([
+    withServerRpcRetry(
+      () =>
+        rpcClient.readContract({
+          address: getEscrowAddress(),
+          abi: escrowAbi,
+          functionName: "nextJobId"
+        }) as Promise<bigint>
+    ),
+    withServerRpcRetry(() => rpcClient.getBlockNumber())
+  ]);
+  const one = BigInt(1);
+  const firstJobId = nextJobId > BigInt(limit) ? nextJobId - BigInt(limit) : one;
+  const jobIds: bigint[] = [];
+  for (let jobId = firstJobId; jobId < nextJobId; jobId += one) {
+    jobIds.push(jobId);
+  }
+  const onchainJobs =
+    jobIds.length === 0
+      ? []
+      : await withServerRpcRetry(
+          () =>
+            rpcClient.multicall({
+              allowFailure: false,
+              contracts: jobIds.map((jobId) => ({
+                address: getEscrowAddress(),
+                abi: escrowAbi as Abi,
+                functionName: "jobs",
+                args: [jobId]
+              }))
+            }) as Promise<OnchainJob[]>
+        );
+  const jobs = jobIds
+    .map((jobId, index) => serializeJob(jobId, onchainJobs[index]))
+    .filter((job) => !isInternalSmokeJob(job))
+    .reverse();
+
+  return {
+    source,
+    blockNumber,
+    nextJobId,
+    jobs,
+    terminalJobs: jobs.filter((job) => ["ACCEPTED", "REJECTED", "REFUNDED"].includes(job.status)).length,
+    latestUpdatedAt: jobs.reduce(
+      (latest, job) => (BigInt(job.updatedAt) > latest ? BigInt(job.updatedAt) : latest),
+      BigInt(0)
+    )
+  };
+}
+
+function compareSnapshots(
+  left: Awaited<ReturnType<typeof loadJobsSnapshot>>,
+  right: Awaited<ReturnType<typeof loadJobsSnapshot>>
+) {
+  if (left.nextJobId !== right.nextJobId) {
+    return left.nextJobId > right.nextJobId ? 1 : -1;
+  }
+  if (left.terminalJobs !== right.terminalJobs) {
+    return left.terminalJobs > right.terminalJobs ? 1 : -1;
+  }
+  if (left.latestUpdatedAt !== right.latestUpdatedAt) {
+    return left.latestUpdatedAt > right.latestUpdatedAt ? 1 : -1;
+  }
+  return left.blockNumber === right.blockNumber ? 0 : left.blockNumber > right.blockNumber ? 1 : -1;
+}
+
+const statusRanks: Record<JobStatus, number> = {
+  FUNDED: 0,
+  SUBMITTED: 1,
+  ACCEPTED: 2,
+  REJECTED: 2,
+  REFUNDED: 2
+};
+
+function preserveMonotonicJobs(
+  currentJobs: ReturnType<typeof serializeJob>[],
+  previousJobs: ReturnType<typeof serializeJob>[]
+) {
+  const previousById = new Map(previousJobs.map((job) => [job.onchainJobId, job]));
+  return currentJobs.map((job) => {
+    const previous = previousById.get(job.onchainJobId);
+    if (!previous) {
+      return job;
+    }
+    if (statusRanks[previous.status] > statusRanks[job.status]) {
+      return previous;
+    }
+    if (
+      statusRanks[previous.status] === statusRanks[job.status] &&
+      BigInt(previous.updatedAt) > BigInt(job.updatedAt)
+    ) {
+      return previous;
+    }
+
+    return job;
+  });
+}
+
 export async function GET(request: Request) {
   const rateLimitResponse = rateLimit(request, { keyPrefix: "network-jobs", limit: 60, windowMs: 60_000 });
   if (rateLimitResponse) {
@@ -125,40 +247,41 @@ export async function GET(request: Request) {
   }
 
   try {
-    const nextJobId = await withServerRpcRetry(
-      () =>
-        publicClient.readContract({
-          address: getEscrowAddress(),
-          abi: escrowAbi,
-          functionName: "nextJobId"
-        }) as Promise<bigint>
-    );
-    const one = BigInt(1);
-    const firstJobId = nextJobId > BigInt(limit) ? nextJobId - BigInt(limit) : one;
-    const jobIds: bigint[] = [];
-    for (let jobId = firstJobId; jobId < nextJobId; jobId += one) {
-      jobIds.push(jobId);
+    const snapshots = (
+      await Promise.allSettled(
+        rpcClients.map(({ client, source }) => loadJobsSnapshot(client, source, limit))
+      )
+    )
+      .filter(
+        (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof loadJobsSnapshot>>> =>
+          result.status === "fulfilled"
+      )
+      .map((result) => result.value);
+    if (snapshots.length === 0) {
+      throw new Error("No Arc RPC source returned a job snapshot.");
     }
 
-    const onchainJobs =
-      jobIds.length === 0
-        ? []
-        : await withServerRpcRetry(
-            () =>
-              publicClient.multicall({
-                allowFailure: false,
-                contracts: jobIds.map((jobId) => ({
-                  address: getEscrowAddress(),
-                  abi: escrowAbi as Abi,
-                  functionName: "jobs",
-                  args: [jobId]
-                }))
-              }) as Promise<OnchainJob[]>
-          );
-    const jobs = jobIds
-      .map((jobId, index) => serializeJob(jobId, onchainJobs[index]))
-      .filter((job) => !isInternalSmokeJob(job))
-      .reverse();
+    const selectedSnapshot = snapshots.sort(compareSnapshots).at(-1)!;
+    const cachedJobs = Array.isArray(cachedJobsResponse?.payload.jobs)
+      ? (cachedJobsResponse.payload.jobs as ReturnType<typeof serializeJob>[])
+      : [];
+    const cachedNextJobId = BigInt(String(cachedJobsResponse?.payload.nextJobId ?? 0));
+    if (cachedJobsResponse && cachedNextJobId > selectedSnapshot.nextJobId) {
+      return NextResponse.json(
+        {
+          ...cachedJobsResponse.payload,
+          stale: true,
+          warning: "Preserved a newer confirmed Arc Testnet snapshot while RPC providers converged."
+        },
+        {
+          headers: {
+            "Cache-Control": "no-store, max-age=0",
+            Warning: '110 - "Response is stale"'
+          }
+        }
+      );
+    }
+    const jobs = preserveMonotonicJobs(selectedSnapshot.jobs, cachedJobs);
     const counts = jobs.reduce<Record<JobStatus, number>>(
       (acc, job) => {
         acc[job.status] += 1;
@@ -169,8 +292,10 @@ export async function GET(request: Request) {
 
     const payload = {
       ok: true,
+      source: selectedSnapshot.source,
+      blockNumber: selectedSnapshot.blockNumber.toString(),
       escrowAddress: getEscrowAddress(),
-      nextJobId: nextJobId.toString(),
+      nextJobId: selectedSnapshot.nextJobId.toString(),
       count: jobs.length,
       counts,
       jobs
