@@ -40,7 +40,7 @@ export function appendSourceUrls(summary, sourceUrls) {
   return [summary.trim(), "", "Sources:", ...missingUrls.map((url, index) => `${index + 1}. ${url}`)].join("\n");
 }
 
-export function assertAgentResultQuality({ taskKind, summary, sourceUrls }) {
+export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimumSources = 3 }) {
   const normalizedSummary = typeof summary === "string" ? summary.trim() : "";
   if (normalizedSummary.length < 240) {
     throw new Error("Generated deliverable is too short to submit.");
@@ -56,8 +56,10 @@ export function assertAgentResultQuality({ taskKind, summary, sourceUrls }) {
     throw new Error("Generated deliverable contains placeholder language.");
   }
 
-  if (taskKind === "market_research" && sourceUrls.length < 3) {
-    throw new Error(`Research deliverable has ${sourceUrls.length} verified source URL(s); at least 3 are required.`);
+  if (taskKind === "market_research" && sourceUrls.length < minimumSources) {
+    throw new Error(
+      `Research deliverable has ${sourceUrls.length} verified source URL(s); at least ${minimumSources} are required.`
+    );
   }
 
   if (taskKind === "contract_review") {

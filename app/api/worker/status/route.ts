@@ -14,6 +14,8 @@ interface WorkerStatus {
   lastHeartbeatAt?: string;
   mode?: string;
   executor?: string;
+  routingMode?: string;
+  routingSubsidyEnabled?: boolean;
   escrowAddress?: string;
   pollIntervalMs?: number;
   maxJobsPerTick?: number;
@@ -23,6 +25,7 @@ interface WorkerStatus {
     pending?: number;
     locked?: number;
     submitted?: number;
+    underfunded?: number;
     skipped?: number;
     failed?: number;
   };
@@ -30,6 +33,7 @@ interface WorkerStatus {
     ticks?: number;
     jobsScanned?: number;
     jobsSubmitted?: number;
+    jobsUnderfunded?: number;
     jobsSkipped?: number;
     errors?: number;
   };
@@ -67,6 +71,7 @@ function sanitizeStatus(status: WorkerStatus) {
     lastHeartbeatAt: status.lastHeartbeatAt,
     mode: status.mode,
     executor: status.executor ? status.executor.split(":")[0] : undefined,
+    routingMode: status.routingMode,
     pollIntervalMs: status.pollIntervalMs,
     managedAgentCount: status.managedAgentCount ?? status.managedAgents?.length ?? 0,
     managedAgents: [],
@@ -76,6 +81,7 @@ function sanitizeStatus(status: WorkerStatus) {
           ticks: status.metrics.ticks,
           jobsScanned: status.metrics.jobsScanned,
           jobsSubmitted: status.metrics.jobsSubmitted,
+          jobsUnderfunded: status.metrics.jobsUnderfunded,
           jobsSkipped: status.metrics.jobsSkipped,
           errors: status.metrics.errors
         }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Check, ExternalLink, RefreshCw, RotateCcw, Send, X } from "lucide-react";
 import { DeliverableSummary } from "@/components/deliverable-summary";
+import { ExecutionPlan, getJobExecutionPlan } from "@/components/execution-plan";
 import { StatusBadge } from "@/components/status-badge";
 import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,24 @@ interface WorkerDeliverable {
   mode?: string;
   model?: string;
   summary: string;
+  executionPlan?: {
+    selectedTier?: string;
+    complexity?: { score?: number };
+    reasoningEffort?: string;
+    maxRuntimeMs?: number;
+  };
+  execution?: {
+    tier?: string;
+    reasoningEffort?: string;
+    attemptsUsed?: number;
+    validationPassesCompleted?: number;
+    durationMs?: number;
+    usage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    };
+  };
 }
 
 const workerPollSeconds = 15;
@@ -242,6 +261,11 @@ export default function JobDetailsPage() {
   const agentOwnerWallet = agent?.ownerWallet;
   const timeLeft = nowMs === null ? "Calculating" : getTimeLeft(job.deadline, nowMs);
   const canUnlockDeliverable = Boolean(job.onchainJobId && ["SUBMITTED", "ACCEPTED", "REJECTED"].includes(job.status));
+  const executionPlan = getJobExecutionPlan({
+    title: job.title,
+    description: job.description,
+    rewardAmount: job.rewardAmount
+  });
 
   function walletMatches(expected?: string) {
     return Boolean(connectedWallet && expected && connectedWallet.toLowerCase() === expected.toLowerCase());
@@ -311,6 +335,8 @@ export default function JobDetailsPage() {
               </dl>
             </CardContent>
           </Card>
+
+          <ExecutionPlan plan={executionPlan} />
 
           {message || error ? (
             <div
@@ -455,6 +481,38 @@ export default function JobDetailsPage() {
                       <p className="text-muted-foreground">Deliverable hash</p>
                       <p className="break-all font-semibold">{workerDeliverable.deliverableHash ?? "Not recorded"}</p>
                     </div>
+                    {workerDeliverable.execution ? (
+                      <>
+                        <div>
+                          <p className="text-muted-foreground">Execution</p>
+                          <p className="font-semibold capitalize">
+                            {workerDeliverable.execution.tier ?? "dynamic"} /{" "}
+                            {workerDeliverable.execution.reasoningEffort ?? "default"} reasoning
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Quality passes</p>
+                          <p className="font-semibold">
+                            {workerDeliverable.execution.attemptsUsed ?? 1} attempt(s),{" "}
+                            {workerDeliverable.execution.validationPassesCompleted ?? 0} validation
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Runtime</p>
+                          <p className="font-semibold">
+                            {workerDeliverable.execution.durationMs
+                              ? `${Math.round(workerDeliverable.execution.durationMs / 1_000)} sec`
+                              : "Not recorded"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Tokens</p>
+                          <p className="font-semibold">
+                            {workerDeliverable.execution.usage?.totalTokens?.toLocaleString() ?? "Not recorded"}
+                          </p>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                   <div className="rounded-md border border-border bg-muted/40">
                     <div className="border-b border-border px-4 py-3">

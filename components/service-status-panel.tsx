@@ -16,6 +16,7 @@ interface WorkerStatusResponse {
     lastHeartbeatAt?: string;
     mode?: string;
     executor?: string;
+    routingMode?: string;
     escrowAddress?: string;
     pollIntervalMs?: number;
     managedAgentCount?: number;
@@ -24,6 +25,7 @@ interface WorkerStatusResponse {
       pending?: number;
       locked?: number;
       submitted?: number;
+      underfunded?: number;
       skipped?: number;
       failed?: number;
     };
@@ -31,6 +33,7 @@ interface WorkerStatusResponse {
       ticks?: number;
       jobsScanned?: number;
       jobsSubmitted?: number;
+      jobsUnderfunded?: number;
       jobsSkipped?: number;
       errors?: number;
     };
@@ -146,7 +149,7 @@ export function ServiceStatusPanel() {
           <StatusTile
             label="Jobs submitted"
             value={metrics?.jobsSubmitted ?? 0}
-            detail={`${metrics?.ticks ?? 0} scans, ${metrics?.errors ?? 0} errors`}
+            detail={`${metrics?.jobsUnderfunded ?? 0} underfunded, ${metrics?.errors ?? 0} errors`}
           />
           <StatusTile
             label="Network jobs"

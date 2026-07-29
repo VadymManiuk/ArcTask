@@ -14,6 +14,7 @@ import {
 import { arcTestnet } from "@/lib/arc-chain";
 import { contractAddresses, getOnchainReadiness } from "@/lib/arc-config";
 import { getJobDeadlineSeconds } from "@/lib/job-deadline";
+import { createExecutionPlan } from "@/lib/execution-routing.mjs";
 import { getEthereumProvider, requestArcAccount } from "@/lib/wallet";
 import registryAbi from "@/lib/contracts/abis/ERC8004AgentRegistry.json";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
@@ -212,6 +213,11 @@ function createJobPayloadUri(input: {
     rewardAmount: input.rewardAmount,
     deadline: input.deadline,
     evaluatorWallet: input.evaluatorWallet,
+    executionEstimate: createExecutionPlan({
+      title: input.title,
+      description: input.description,
+      rewardAmount: input.rewardAmount
+    }),
     createdAt: new Date().toISOString()
   };
 

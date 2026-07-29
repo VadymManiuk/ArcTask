@@ -207,9 +207,14 @@ Useful worker env vars:
 - `ARC_AGENT_LOCK_DIR` - default `.agent-worker/locks`; contains per-job lock files
 - `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
-- `OPENAI_MODEL` - default `gpt-5.6-sol`
-- `OPENAI_TIMEOUT_MS` - default `180000`; web research may require more than one minute
-- `OPENAI_MAX_OUTPUT_TOKENS` - default `3000`; keep enough room for research, review, and source-cited deliverables
+- `OPENAI_MODEL` - fixed-model fallback, default `gpt-5.6-sol`; used when routing is `off` or `shadow`
+- `OPENAI_REASONING_EFFORT` - fixed-model reasoning effort, default `medium`
+- `OPENAI_TIMEOUT_MS` - fixed-model timeout, default `180000`
+- `OPENAI_MAX_OUTPUT_TOKENS` - fixed-model output budget, default `3000`
+- `ARC_AGENT_ROUTING_MODE` - `enforce` by default; `shadow` records the recommendation while using the fixed model, and `off` disables routing
+- `ARC_AGENT_DEMO_SUBSIDY` - defaults to `false`; permits underfunded testnet jobs to run at their required quality tier
+- `ARC_AGENT_MAX_RUNTIME_MS` - hard per-job runtime cap for routed execution, default `900000`
+- `ARC_AGENT_MAX_OUTPUT_TOKENS` - hard per-response output cap for routed execution, default `10000`
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage
@@ -218,10 +223,30 @@ Useful worker env vars:
 - `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
 - `ARCTASK_ADMIN_TOKEN` - optional bearer token for full `/api/worker/status`; unauthenticated responses are sanitized
 
-When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
-`jobURI`. For jobs that require current public research, such as finding upcoming DeFi TGE tokens, also set
+When `OPENAI_API_KEY` is set, the worker scores each job for financial/security risk, evidence requirements, scope,
+artifacts, multi-step work, and external tools. The immutable onchain reward selects the affordable execution tier:
+
+| Tier | Minimum reward | Model | Reasoning | Maximum runtime |
+| --- | ---: | --- | --- | ---: |
+| Starter | 0.01 USDC | `gpt-5.6-luna` | low | 1 minute |
+| Standard | 0.10 USDC | `gpt-5.6-terra` | medium | 2 minutes |
+| Pro | 0.50 USDC | `gpt-5.6-sol` | medium | 4 minutes |
+| Expert | 2 USDC | `gpt-5.6-sol` | high | 7 minutes |
+| Critical | 10 USDC | `gpt-5.6-sol` | xhigh / pro | 15 minutes |
+
+Complexity also establishes a minimum safe tier. If the reward cannot fund that tier, the worker records
+`job_underfunded`, leaves the escrow `FUNDED`, and does not commit a low-quality deliverable. Because the current
+escrow has no top-up method, the client must let the job expire/refund and create a correctly funded replacement.
+`ARC_AGENT_DEMO_SUBSIDY=true` is available only for intentionally subsidized testnet demos.
+
+Higher tiers spend their additional budget on longer output, retries, evaluator/editor passes, deeper source coverage,
+and stronger reasoning rather than idle waiting. The selected plan and token/latency telemetry are stored in the
+private worker report. The create-job and job-detail pages show the same deterministic estimate, while the worker
+always recomputes it from immutable onchain reward and payload values.
+
+For jobs that require current public research, such as finding upcoming DeFi TGE tokens, also set
 `ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Research submissions require at least
-three source URLs. In production, missing keys, timeouts, placeholder language, or insufficient research leave the
+the tier-specific number of source URLs. In production, missing keys, timeouts, placeholder language, or insufficient research leave the
 job funded for a later retry instead of committing a low-quality deliverable hash onchain.
 
 Contract-review jobs automatically include the deployed escrow and registry addresses, repository Solidity sources,

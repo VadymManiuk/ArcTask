@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExecutionPlan, getJobExecutionPlan } from "@/components/execution-plan";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -31,12 +32,21 @@ export default function CreateJobPage() {
   const [agentId, setAgentId] = useState("");
   const [clientWallet, setClientWallet] = useState("");
   const [evaluatorWallet, setEvaluatorWallet] = useState("");
-  const [rewardAmount, setRewardAmount] = useState("100");
+  const [rewardAmount, setRewardAmount] = useState("0.5");
   const [deadline, setDeadline] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [walletFillTarget, setWalletFillTarget] = useState<"" | "client" | "evaluator">("");
   const [created, setCreated] = useState<{ job: Job; tx: TxRecord } | null>(null);
+  const executionPlan = useMemo(
+    () =>
+      getJobExecutionPlan({
+        title,
+        description,
+        rewardAmount: Number(rewardAmount)
+      }),
+    [description, rewardAmount, title]
+  );
 
   useEffect(() => {
     if (!agentId && sortedAgents.length > 0) {
@@ -130,7 +140,7 @@ export default function CreateJobPage() {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Reward, USDC" htmlFor="reward">
-                <Input id="reward" type="number" min="1" step="0.01" value={rewardAmount} onChange={(event) => setRewardAmount(event.target.value)} />
+                <Input id="reward" type="number" min="0.01" step="0.01" value={rewardAmount} onChange={(event) => setRewardAmount(event.target.value)} />
               </Field>
               <Field label="Deadline" htmlFor="deadline">
                 <Input id="deadline" type="date" min={today} value={deadline} onChange={(event) => setDeadline(event.target.value)} />
@@ -191,6 +201,9 @@ export default function CreateJobPage() {
             <PreviewRow label="Status" value="FUNDED" />
             <PreviewRow label="Network" value="Arc Testnet" />
           </dl>
+          <div className="mt-5">
+            <ExecutionPlan plan={executionPlan} compact />
+          </div>
         </div>
       </aside>
       </div>

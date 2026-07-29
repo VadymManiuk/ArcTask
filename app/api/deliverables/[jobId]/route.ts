@@ -55,7 +55,9 @@ interface WorkerDeliverableFile {
     mode?: unknown;
     model?: unknown;
     summary?: unknown;
+    execution?: unknown;
   };
+  executionPlan?: unknown;
 }
 
 interface DeliverableAccessProof {
@@ -111,7 +113,9 @@ function normalizeDeliverablePayload(value: unknown, jobId: string) {
     title: asString(source.title) ?? asString(result?.title) ?? `Job ${jobId} deliverable`,
     mode: asString(source.mode) ?? asString(result?.mode),
     model: asString(source.model) ?? asString(result?.model),
-    summary: asString(source.summary) ?? asString(result?.summary) ?? ""
+    summary: asString(source.summary) ?? asString(result?.summary) ?? "",
+    executionPlan: getRecord(source.executionPlan),
+    execution: getRecord(result?.execution)
   };
 }
 
