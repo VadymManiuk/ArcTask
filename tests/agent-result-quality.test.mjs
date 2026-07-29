@@ -91,7 +91,8 @@ test("quality topics accept clear semantic equivalents instead of brittle headin
   const summary = [
     "Marketplace snapshot and source fields define the cohort inputs.",
     "Formula, numerator, denominator, threshold, and validation query are specified.",
-    "Unavailable history is a material data gap, so the conclusion is bounded to the reference block."
+    "Unavailable history is a material data gap, so the conclusion is bounded to the reference block.",
+    "Settlement exposure is controlled through preflight checks."
   ].join("\n\n");
 
   assert.doesNotThrow(() =>
@@ -106,7 +107,8 @@ test("quality topics accept clear semantic equivalents instead of brittle headin
         "denominator",
         "threshold",
         "validation",
-        "limitation"
+        "limitation",
+        "settlement risk"
       ]
     })
   );

@@ -1024,6 +1024,9 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
       priorGenerationRequests + legacyRecoveryAttempts
     ) - priorGenerationRequests
   );
+  if (remainingAttempts === 0) {
+    throw new UsageBudgetExceededError(priorUsageState);
+  }
 
   for (let attempt = 1; attempt <= remainingAttempts; attempt += 1) {
     const globalAttempt = priorGenerationRequests + attempt;
@@ -1738,6 +1741,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
       }
     } catch (caught) {
       if (caught instanceof InsufficientComputeBudgetError) {
+        attempted -= 1;
         underfunded += 1;
         skipped += 1;
         const latestStatus = readJsonFile(statusPath, createInitialStatus());
@@ -1760,6 +1764,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
       }
 
       if (caught instanceof UsageBudgetExceededError) {
+        attempted -= 1;
         skipped += 1;
         blockedJobs = [
           {

@@ -104,7 +104,13 @@ export function assertAgentResultQuality({
   const normalizedTopics = normalizedSummary.toLowerCase().replace(/[-–—_]/g, " ");
   const topicAliases = {
     "data source": ["data source", "source field", "marketplace snapshot", "evidence source"],
-    limitation: ["limitation", "limited", "unavailable history", "data gap", "constraint"]
+    limitation: ["limitation", "limited", "unavailable history", "data gap", "constraint"],
+    "settlement risk": [
+      "settlement risk",
+      "settlement exposure",
+      "payment execution risk",
+      "transfer risk"
+    ]
   };
   const missingRequiredTopics = requiredTopics.filter((topic) => {
     const normalizedTopic = String(topic).toLowerCase().replace(/[-–—_]/g, " ");
