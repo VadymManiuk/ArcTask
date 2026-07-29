@@ -24,7 +24,7 @@ test("token usage is accumulated by UTC day and by job", () => {
     totalTokens: 1_000,
     costUsd: 0.02,
     requestKind: "generation",
-    policyVersion: 3
+    policyVersion: 4
   }, nowMs);
 
   const state = getUsageBudgetState(ledger, {
@@ -37,7 +37,7 @@ test("token usage is accumulated by UTC day and by job", () => {
   assert.equal(state.job.requests, 2);
   assert.equal(state.job.requestKinds.routing, 1);
   assert.equal(state.job.requestKinds.generation, 1);
-  assert.equal(state.job.policyVersion, 3);
+  assert.equal(state.job.policyVersion, 4);
   assert.equal(state.job.costUsd, 0.03);
   assert.equal(state.jobCostRemainingUsd, 0.02);
 });

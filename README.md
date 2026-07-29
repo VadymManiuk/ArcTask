@@ -223,6 +223,7 @@ Useful worker env vars:
 - `ARC_AGENT_ROUTER_MODEL` - low-cost complexity classifier, default `gpt-5.4-nano`
 - `ARC_AGENT_ROUTER_MAX_COST_USD` - maximum cost reserved for one cached routing decision, default `0.003`
 - `ARC_AGENT_EMERGENCY_MONTHLY_SPEND_LIMIT_USD` - last-resort monthly circuit breaker, default `$100`; this is not a daily execution budget
+- `ARC_AGENT_MAX_JOB_TOTAL_TOKENS` - global safety ceiling applied after the per-tier limit, default `150000`
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for research, protocol-integration, and reliability jobs that require current primary sources
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage

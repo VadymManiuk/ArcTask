@@ -878,7 +878,10 @@ async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeou
     budgetUsd: Math.max(0, budgetState.jobCostRemainingUsd - reservedToolCostUsd)
   });
   const availableOutputTokens = Math.min(availableOutputByTokens, availableOutputByCost);
-  if (availableOutputTokens < 500) {
+  // Never pay for a response that cannot receive the complete output budget.
+  // Reduced caps routinely end as `incomplete/max_output_tokens` and cannot
+  // pass the completion-marker quality gate.
+  if (availableOutputTokens < executionPlan.maxOutputTokens) {
     throw new UsageBudgetExceededError(budgetState);
   }
   const boundedRequestBody = {
@@ -984,7 +987,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
       : taskProfile.kind === "contract_review"
         ? "Use the supplied contract source and ABI as primary evidence. Do not claim that source code, ABI, or deployed addresses are missing."
         : taskProfile.kind === "wallet_or_counterparty_risk"
-          ? "Treat task.evidence as the verified wallet-specific evidence set. Analyze the recent transaction sample instead of replacing it with a generic checklist. Do not interpret an absent explorer scam label as sanctions or AML clearance. Keep the report decision-ready and omit controls unrelated to the observed evidence."
+          ? "Treat task.evidence as the verified wallet-specific evidence set. Analyze the recent transaction sample instead of replacing it with a generic checklist, and quote at least one exact sampled transaction hash when the sample is non-empty. Do not interpret an absent explorer scam label as sanctions or AML clearance. Keep the report decision-ready and omit controls unrelated to the observed evidence."
           : taskProfile.kind === "treasury_payment_review" && evidence?.available
             ? "Use the wallet-specific RPC and Arcscan evidence for transaction and account facts, but do not treat chain activity as proof of vendor identity, invoice validity, delivery, approval, sanctions clearance, or current key control."
             : taskProfile.kind === "data_analysis" || taskProfile.kind === "governance_compliance"
@@ -1015,7 +1018,10 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
       : 0;
   const remainingAttempts = Math.max(
     0,
-    executionPlan.maxAttempts + legacyRecoveryAttempts - priorGenerationRequests
+    Math.max(
+      executionPlan.maxAttempts,
+      priorGenerationRequests + legacyRecoveryAttempts
+    ) - priorGenerationRequests
   );
 
   for (let attempt = 1; attempt <= remainingAttempts; attempt += 1) {
@@ -1908,7 +1914,7 @@ const routingSubsidyEnabled = getBooleanEnv("ARC_AGENT_DEMO_SUBSIDY", false);
 const recoveryJobIds = getJobIdSetEnv("ARC_AGENT_RECOVERY_JOB_IDS");
 const routingMaxRuntimeMs = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_RUNTIME_MS", 900_000);
 const routingMaxOutputTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_OUTPUT_TOKENS", 24_000);
-const routingMaxJobTotalTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_TOTAL_TOKENS", 30_000);
+const routingMaxJobTotalTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_TOTAL_TOKENS", 150_000);
 const routingMaxRequests = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_REQUESTS_PER_JOB", 2);
 const routingAnalysisModel = process.env.ARC_AGENT_ROUTER_MODEL ?? "gpt-5.4-nano";
 const routingAnalysisMaxCostUsd = getPositiveNumberEnv("ARC_AGENT_ROUTER_MAX_COST_USD", 0.003);
