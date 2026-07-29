@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  getNextUtcDayIso,
+  getMonthlyUsage,
+  getNextUtcMonthIso,
   getUsageBudgetState,
   recordTokenUsage
 } from "../lib/usage-budget.mjs";
@@ -12,40 +13,71 @@ test("token usage is accumulated by UTC day and by job", () => {
     jobId: "25",
     inputTokens: 1_000,
     outputTokens: 2_000,
-    totalTokens: 3_000
+    totalTokens: 3_000,
+    costUsd: 0.01,
+    requestKind: "routing"
   }, nowMs);
   ledger = recordTokenUsage(ledger, {
     jobId: "25",
     inputTokens: 500,
     outputTokens: 500,
-    totalTokens: 1_000
+    totalTokens: 1_000,
+    costUsd: 0.02,
+    requestKind: "generation"
   }, nowMs);
 
   const state = getUsageBudgetState(ledger, {
     jobId: "25",
-    dailyTokenBudget: 10_000,
-    jobTokenBudget: 5_000
+    jobTokenBudget: 5_000,
+    jobCostBudgetUsd: 0.05
   }, nowMs);
   assert.equal(state.daily.totalTokens, 4_000);
   assert.equal(state.job.totalTokens, 4_000);
   assert.equal(state.job.requests, 2);
-  assert.equal(state.dailyRemaining, 6_000);
+  assert.equal(state.job.requestKinds.routing, 1);
+  assert.equal(state.job.requestKinds.generation, 1);
+  assert.equal(state.job.costUsd, 0.03);
+  assert.equal(state.jobCostRemainingUsd, 0.02);
 });
 
-test("daily and per-job limits fail closed at their configured ceilings", () => {
+test("per-job token and cost limits fail closed without a daily execution stop", () => {
   const nowMs = Date.parse("2026-07-29T12:00:00.000Z");
   const ledger = recordTokenUsage({}, {
     jobId: "25",
     inputTokens: 2_000,
     outputTokens: 3_000,
-    totalTokens: 5_000
+    totalTokens: 5_000,
+    costUsd: 0.05
   }, nowMs);
   const state = getUsageBudgetState(ledger, {
     jobId: "25",
-    dailyTokenBudget: 5_000,
-    jobTokenBudget: 5_000
+    jobTokenBudget: 5_000,
+    jobCostBudgetUsd: 0.05
   }, nowMs);
-  assert.equal(state.dailyExceeded, true);
   assert.equal(state.jobExceeded, true);
-  assert.equal(getNextUtcDayIso(nowMs), "2026-07-30T00:00:00.000Z");
+  assert.equal(state.jobCostExceeded, true);
+  assert.equal(state.daily.totalTokens, 5_000);
+});
+
+test("monthly usage is telemetry and an optional emergency guard rather than a daily budget", () => {
+  const july29 = Date.parse("2026-07-29T12:00:00.000Z");
+  const july30 = Date.parse("2026-07-30T12:00:00.000Z");
+  let ledger = recordTokenUsage({}, {
+    jobId: "25",
+    inputTokens: 1_000,
+    outputTokens: 1_000,
+    totalTokens: 2_000,
+    costUsd: 0.02
+  }, july29);
+  ledger = recordTokenUsage(ledger, {
+    jobId: "26",
+    inputTokens: 2_000,
+    outputTokens: 2_000,
+    totalTokens: 4_000,
+    costUsd: 0.03
+  }, july30);
+
+  assert.equal(getMonthlyUsage(ledger, july30).costUsd, 0.05);
+  assert.equal(getMonthlyUsage(ledger, july30).totalTokens, 6_000);
+  assert.equal(getNextUtcMonthIso(july30), "2026-08-01T00:00:00.000Z");
 });

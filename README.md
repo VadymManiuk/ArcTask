@@ -218,6 +218,11 @@ Useful worker env vars:
 - `ARC_AGENT_RECOVERY_JOB_IDS` - exact comma-separated job IDs allowed to use their required tier for one-time operator recovery
 - `ARC_AGENT_MAX_RUNTIME_MS` - hard per-job runtime cap for routed execution, default `900000`
 - `ARC_AGENT_MAX_OUTPUT_TOKENS` - hard per-response output cap for routed execution, default `24000`
+- `ARC_AGENT_MAX_JOB_TOTAL_TOKENS` - absolute per-job token ceiling across routing and generation, default `30000`
+- `ARC_AGENT_MAX_REQUESTS_PER_JOB` - maximum generation attempts per job, default `2`
+- `ARC_AGENT_ROUTER_MODEL` - low-cost complexity classifier, default `gpt-5.4-nano`
+- `ARC_AGENT_ROUTER_MAX_COST_USD` - maximum cost reserved for one cached routing decision, default `0.003`
+- `ARC_AGENT_EMERGENCY_MONTHLY_SPEND_LIMIT_USD` - last-resort monthly circuit breaker, default `$100`; this is not a daily execution budget
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for research, protocol-integration, and reliability jobs that require current primary sources
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage
@@ -226,26 +231,34 @@ Useful worker env vars:
 - `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
 - `ARCTASK_ADMIN_TOKEN` - optional bearer token for full `/api/worker/status`; unauthenticated responses are sanitized
 
-When `OPENAI_API_KEY` is set, the worker scores each job for financial/security risk, evidence requirements, scope,
-artifacts, multi-step work, and external tools. The immutable onchain reward selects the affordable execution tier:
+When `OPENAI_API_KEY` is set, a bounded `gpt-5.4-nano` routing call classifies each new job for complexity,
+financial/security risk, evidence requirements, scope, artifacts, and tool needs. The router can recommend parameters,
+but deterministic policy enforces minimum safety tiers, reward coverage, request limits, token ceilings, and a
+per-job USD compute budget. The reward is a maximum affordability ceiling; it no longer forces a simple task onto
+an unnecessarily expensive model:
 
 | Tier | Minimum reward | Model | Reasoning | Maximum runtime |
 | --- | ---: | --- | --- | ---: |
-| Starter | 0.01 USDC | `gpt-5.6-luna` | low | 1 minute |
-| Standard | 0.10 USDC | `gpt-5.6-terra` | medium | 2 minutes |
-| Pro | 0.50 USDC | `gpt-5.6-sol` | medium | 4 minutes |
-| Expert | 2 USDC | `gpt-5.6-sol` | high | 7 minutes |
+| Starter | 0.01 USDC | `gpt-5.4-nano` | low | 1 minute |
+| Standard | 0.10 USDC | `gpt-5.4-mini` | medium | 2 minutes |
+| Pro | 0.50 USDC | `gpt-5.6-luna` | medium | 4 minutes |
+| Expert | 2 USDC | `gpt-5.6-terra` | high | 7 minutes |
 | Critical | 10 USDC | `gpt-5.6-sol` | xhigh / pro | 15 minutes |
 
 Complexity also establishes a minimum safe tier. If the reward cannot fund that tier, the worker records
 `job_underfunded`, leaves the escrow `FUNDED`, and does not commit a low-quality deliverable. Because the current
 escrow has no top-up method, the client must let the job expire/refund and create a correctly funded replacement.
-`ARC_AGENT_DEMO_SUBSIDY=true` is available only for intentionally subsidized testnet demos.
+`ARC_AGENT_DEMO_SUBSIDY=true` is available only for intentionally subsidized testnet demos. There is no daily token
+stop: each job is isolated by its own compute budget (20% for Starter up to 35% for Critical), and estimated token
+plus web-search cost is persisted across worker restarts. The low-cost routing call is capped separately and cached
+per job. A configurable `$100` monthly circuit breaker remains only as protection against a software defect or
+unexpected queue explosion.
 
-Higher tiers spend their additional budget on longer output, retries, evaluator/editor passes, deeper source coverage,
-and stronger reasoning rather than idle waiting. The selected plan and token/latency telemetry are stored in the
+Higher tiers spend their additional budget on longer output, one controlled quality escalation, deeper source coverage,
+and stronger reasoning rather than repeated full rewrites. Starter through Pro use Flex processing for asynchronous
+cost savings; Expert and Critical use standard processing. The selected plan and token/cost/latency telemetry are stored in the
 private worker report. The create-job and job-detail pages show the same deterministic estimate, while the worker
-always recomputes it from immutable onchain reward and payload values.
+always recomputes it from immutable onchain reward and payload values, then applies the cached AI assessment.
 
 For jobs that require current public research, such as finding upcoming DeFi TGE tokens, also set
 `ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Research submissions require at least

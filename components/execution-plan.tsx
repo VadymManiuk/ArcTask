@@ -27,7 +27,9 @@ export function ExecutionPlan({
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Execution plan</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            {plan.routingSource === "ai" ? "AI execution plan" : "Execution estimate"}
+          </p>
           <p className="mt-1 font-semibold text-slate-100">
             {plan.complexity.label} · {plan.complexity.score}/100
           </p>
@@ -54,8 +56,10 @@ export function ExecutionPlan({
         <PlanValue label="Maximum time" value={formatRuntime(plan.maxRuntimeMs)} />
         <PlanValue label="Output budget" value={`${plan.maxOutputTokens.toLocaleString()} tokens`} />
         <PlanValue label="Total token ceiling" value={`${plan.maxTotalTokens.toLocaleString()} tokens`} />
+        <PlanValue label="Compute budget" value={`$${plan.computeBudgetUsd.toFixed(4)}`} />
+        <PlanValue label="Processing" value={plan.serviceTier} />
         <PlanValue label="Attempts" value={String(plan.maxAttempts)} />
-        <PlanValue label="Validation passes" value={String(plan.validationPasses)} />
+        <PlanValue label="Escalation" value={plan.escalationModel?.replace("gpt-", "GPT ") ?? "none"} />
       </dl>
 
       {!compact && plan.complexity.factors.length > 0 ? (

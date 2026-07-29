@@ -327,7 +327,9 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
           <DocSection id="worker" eyebrow="Operations" title="Autonomous worker setup">
             <p>
               The managed worker scans the escrow for funded jobs assigned to its agent IDs, generates a report,
-              persists the deliverable, and submits its hash. It defaults to dry-run for safe local setup.
+              persists the deliverable, and submits its hash. A low-cost AI router assesses complexity and risk, while
+              deterministic policy enforces the per-job compute budget and minimum safety tier. It defaults to dry-run
+              for safe local setup.
             </p>
             <CodeBlock>{`NEXT_PUBLIC_ARC_RPC_URL=https://rpc.testnet.arc.network
 NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}
@@ -337,7 +339,9 @@ NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS=${escrowV2Address}
 ARC_AGENT_PRIVATE_KEY=0x...
 ARC_AGENT_DRY_RUN=true
 OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-5.6-sol`}</CodeBlock>
+ARC_AGENT_ROUTING_MODE=enforce
+ARC_AGENT_ROUTER_MODEL=gpt-5.4-nano
+ARC_AGENT_ROUTER_MAX_COST_USD=0.003`}</CodeBlock>
             <div className="mt-5 overflow-hidden rounded-xl border border-white/[0.065] bg-[#090d16]">
               <div className="border-b border-white/[0.065] px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
                 Commands

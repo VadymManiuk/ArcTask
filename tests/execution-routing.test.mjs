@@ -7,10 +7,11 @@ import {
   listExecutionTiers
 } from "../lib/execution-routing.mjs";
 
-test("reward tiers select progressively stronger GPT-5.6 models and budgets", () => {
-  assert.equal(getRewardTier(0.05).model, "gpt-5.6-luna");
-  assert.equal(getRewardTier(0.1).model, "gpt-5.6-terra");
-  assert.equal(getRewardTier(0.5).model, "gpt-5.6-sol");
+test("reward ceilings expose progressively stronger models and budgets", () => {
+  assert.equal(getRewardTier(0.05).model, "gpt-5.4-nano");
+  assert.equal(getRewardTier(0.1).model, "gpt-5.4-mini");
+  assert.equal(getRewardTier(0.5).model, "gpt-5.6-luna");
+  assert.equal(getRewardTier(2).model, "gpt-5.6-terra");
   assert.equal(getRewardTier(2).reasoningEffort, "high");
   assert.equal(getRewardTier(2).outputVerbosity, "high");
   assert.equal(getRewardTier(10).reasoningMode, "pro");
@@ -46,20 +47,77 @@ test("underfunded complex jobs fail closed unless explicitly subsidized", () => 
   const subsidized = createExecutionPlan(job, { allowSubsidy: true });
 
   assert.equal(underfunded.budgetDecision, "insufficient");
-  assert.equal(underfunded.model, "gpt-5.6-luna");
+  assert.equal(underfunded.model, "gpt-5.4-nano");
   assert.equal(subsidized.budgetDecision, "subsidized");
   assert.equal(subsidized.model, "gpt-5.6-sol");
   assert.ok(subsidized.minimumRecommendedReward >= 2);
 });
 
-test("simple sufficiently funded work uses the paid service tier", () => {
+test("a large reward is only a ceiling and does not force an expensive model", () => {
   const plan = createExecutionPlan({
     title: "Rewrite a short product description",
     description: "Return concise ready-to-use copy.",
-    rewardAmount: 0.5
+    rewardAmount: 10
   });
 
   assert.equal(plan.budgetDecision, "sufficient");
+  assert.equal(plan.selectedTier, "starter");
+  assert.equal(plan.model, "gpt-5.4-nano");
+  assert.equal(plan.serviceTier, "flex");
+  assert.equal(plan.computeBudgetUsd, 2);
+});
+
+test("high-confidence AI assessment selects the smallest safe tier and bounded parameters", () => {
+  const plan = createExecutionPlan(
+    {
+      title: "Prepare an integration report",
+      description: "Document the supplied API behavior and acceptance criteria.",
+      rewardAmount: 2
+    },
+    {
+      minimumTier: "standard",
+      aiAssessment: {
+        score: 54,
+        risk: "medium",
+        recommendedTier: "pro",
+        reasoningEffort: "medium",
+        estimatedOutputTokens: 2_200,
+        maxRequests: 1,
+        confidence: 0.91,
+        reason: "Multi-step integration report"
+      }
+    }
+  );
+
+  assert.equal(plan.routingSource, "ai");
   assert.equal(plan.selectedTier, "pro");
-  assert.equal(plan.model, "gpt-5.6-sol");
+  assert.equal(plan.model, "gpt-5.6-luna");
+  assert.equal(plan.maxOutputTokens, 2_200);
+  assert.equal(plan.maxRequests, 1);
+});
+
+test("AI recommendations cannot bypass risk or deterministic minimum-tier policy", () => {
+  const plan = createExecutionPlan(
+    {
+      title: "Review escrow authorization",
+      description: "Review the supplied contract.",
+      rewardAmount: 10
+    },
+    {
+      minimumTier: "expert",
+      aiAssessment: {
+        score: 10,
+        risk: "low",
+        recommendedTier: "starter",
+        reasoningEffort: "low",
+        estimatedOutputTokens: 500,
+        maxRequests: 1,
+        confidence: 0.99,
+        reason: "Untrusted downgrade"
+      }
+    }
+  );
+
+  assert.equal(plan.selectedTier, "expert");
+  assert.equal(plan.model, "gpt-5.6-terra");
 });

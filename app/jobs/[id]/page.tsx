@@ -53,7 +53,9 @@ interface WorkerDeliverable {
       inputTokens?: number;
       outputTokens?: number;
       totalTokens?: number;
+      costUsd?: number;
     };
+    totalJobCostUsd?: number;
   };
 }
 
@@ -69,6 +71,7 @@ interface BlockedWorkerJob {
   code?: string;
   message?: string;
   usedTokens?: number;
+  usedCostUsd?: number;
   requestCount?: number;
 }
 
@@ -568,8 +571,8 @@ export default function JobDetailsPage() {
                     <>
                       <p className="font-semibold">AI execution is temporarily paused.</p>
                       <p className="mt-2">
-                        The model provider quota is unavailable. The job and escrow are safe; the worker stopped
-                        repeated failed calls and will retry automatically
+                        {providerHealth?.message ?? "The worker paused safely."} The job and escrow are safe; no
+                        repeated API calls will be made. Execution will retry automatically
                         {providerRetryAt ? ` after ${providerRetryAt}` : ""}.
                       </p>
                     </>
@@ -579,7 +582,10 @@ export default function JobDetailsPage() {
                       <p className="mt-2">
                         The worker stopped before creating additional API cost. Used:{" "}
                         {blockedWorkerJob.usedTokens?.toLocaleString() ?? "recorded"} tokens across{" "}
-                        {blockedWorkerJob.requestCount ?? "the allowed"} request(s).
+                        {blockedWorkerJob.requestCount ?? "the allowed"} request(s)
+                        {typeof blockedWorkerJob.usedCostUsd === "number"
+                          ? ` (approximately $${blockedWorkerJob.usedCostUsd.toFixed(4)})`
+                          : ""}.
                       </p>
                     </>
                   ) : (
@@ -644,9 +650,12 @@ export default function JobDetailsPage() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">Tokens</p>
+                          <p className="text-muted-foreground">AI usage</p>
                           <p className="font-semibold">
-                            {workerDeliverable.execution.usage?.totalTokens?.toLocaleString() ?? "Not recorded"}
+                            {workerDeliverable.execution.usage?.totalTokens?.toLocaleString() ?? "Not recorded"} tokens
+                            {typeof workerDeliverable.execution.totalJobCostUsd === "number"
+                              ? ` · $${workerDeliverable.execution.totalJobCostUsd.toFixed(4)}`
+                              : ""}
                           </p>
                         </div>
                       </>

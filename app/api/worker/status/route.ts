@@ -58,13 +58,17 @@ interface WorkerStatus {
     code?: string;
     message?: string;
     usedTokens?: number;
+    usedCostUsd?: number;
     requestCount?: number;
   }>;
   usageBudget?: {
     day?: string;
     usedTokens?: number;
-    dailyTokenBudget?: number;
-    remainingTokens?: number;
+    usedCostUsd?: number;
+    requestCount?: number;
+    month?: string;
+    monthUsedCostUsd?: number;
+    emergencyMonthlySpendLimitUsd?: number;
   };
   lastError?: string | null;
 }
@@ -130,6 +134,7 @@ function sanitizeStatus(status: WorkerStatus) {
       code: job.code,
       message: job.message,
       usedTokens: job.usedTokens,
+      usedCostUsd: job.usedCostUsd,
       requestCount: job.requestCount
     })),
     usageBudget: status.usageBudget,
