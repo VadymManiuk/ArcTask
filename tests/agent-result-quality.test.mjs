@@ -87,6 +87,31 @@ test("placeholder deliverables are rejected before onchain submission", () => {
   );
 });
 
+test("quality topics accept clear semantic equivalents instead of brittle headings", () => {
+  const summary = [
+    "Marketplace snapshot and source fields define the cohort inputs.",
+    "Formula, numerator, denominator, threshold, and validation query are specified.",
+    "Unavailable history is a material data gap, so the conclusion is bounded to the reference block."
+  ].join("\n\n");
+
+  assert.doesNotThrow(() =>
+    assertAgentResultQuality({
+      taskKind: "data_analysis",
+      summary,
+      sourceUrls: [],
+      requiredTopics: [
+        "data source",
+        "formula",
+        "numerator",
+        "denominator",
+        "threshold",
+        "validation",
+        "limitation"
+      ]
+    })
+  );
+});
+
 test("contract reviews require concrete lifecycle and code references", () => {
   const completeReview = [
     "Scope and authorization matrix for ArcTaskEscrow.",

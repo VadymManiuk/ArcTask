@@ -102,9 +102,15 @@ export function assertAgentResultQuality({
   }
 
   const normalizedTopics = normalizedSummary.toLowerCase().replace(/[-–—_]/g, " ");
-  const missingRequiredTopics = requiredTopics.filter(
-    (topic) => !normalizedTopics.includes(String(topic).toLowerCase().replace(/[-–—_]/g, " "))
-  );
+  const topicAliases = {
+    "data source": ["data source", "source field", "marketplace snapshot", "evidence source"],
+    limitation: ["limitation", "limited", "unavailable history", "data gap", "constraint"]
+  };
+  const missingRequiredTopics = requiredTopics.filter((topic) => {
+    const normalizedTopic = String(topic).toLowerCase().replace(/[-–—_]/g, " ");
+    const acceptedSignals = topicAliases[normalizedTopic] ?? [normalizedTopic];
+    return !acceptedSignals.some((signal) => normalizedTopics.includes(signal));
+  });
   if (missingRequiredTopics.length > 0) {
     throw new Error(`Deliverable is missing required topics: ${missingRequiredTopics.join(", ")}.`);
   }

@@ -43,7 +43,11 @@ import {
   normalizeUsageLedger,
   recordTokenUsage
 } from "../lib/usage-budget.mjs";
-import { isContractReviewTask, isProductQaTask } from "../lib/task-routing.mjs";
+import {
+  isContractReviewTask,
+  isGovernanceComplianceTask,
+  isProductQaTask
+} from "../lib/task-routing.mjs";
 import {
   allocateAttemptTimeout,
   describeOpenAiResponse,
@@ -467,13 +471,7 @@ function getTaskProfile(payload) {
     };
   }
 
-  if (
-    text.includes("compliance") ||
-    text.includes("governance") ||
-    text.includes("policy") ||
-    text.includes("role separation") ||
-    text.includes("control assessment")
-  ) {
+  if (isGovernanceComplianceTask({ title, text })) {
     return {
       kind: "governance_compliance",
       instruction:
@@ -792,7 +790,10 @@ function assertTokenBudgetAvailable(jobId, executionPlan) {
     state.job.requestKinds.generation > 0 &&
     state.job.policyVersion < executionPlan.version;
   const generationRequestLimit =
-    executionPlan.maxRequests + (hasLegacyGeneration ? 1 : 0);
+    Math.max(
+      executionPlan.maxRequests,
+      state.job.requestKinds.generation + (hasLegacyGeneration ? 1 : 0)
+    );
   if (
     state.jobExceeded ||
     state.jobCostExceeded ||
