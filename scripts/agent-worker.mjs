@@ -606,7 +606,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       ? await collectWalletRiskEvidence({
           payload,
           publicClient,
-          rpcUrl,
+          rpcUrl: readRpcUrl,
           explorerUrl
         })
       : taskProfile.kind === "data_analysis" || taskProfile.kind === "governance_compliance"
@@ -1338,6 +1338,7 @@ function sleep(ms) {
 loadLocalEnv();
 
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
+const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? "https://testnet.arcscan.app/api/eth-rpc";
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl;
 const escrowAddress = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS", defaultEscrowAddress);
 const registryAddress = optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
@@ -1395,7 +1396,7 @@ const escrowAbi = readAbi("ERC8183Escrow.json");
 const registryAbi = readAbi("ERC8004AgentRegistry.json");
 const publicClient = createPublicClient({
   chain: arcTestnet,
-  transport: http(rpcUrl)
+  transport: http(readRpcUrl)
 });
 const workerAccounts = parsePrivateKeys().map((privateKey) => {
   const account = privateKeyToAccount(privateKey);
@@ -1414,6 +1415,8 @@ const { lockDir, statusPath } = ensureRuntimeDirs();
 console.log(`ArcTask agent worker`);
 console.log(`accounts: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);
 console.log(`escrow: ${escrowAddress}`);
+console.log(`read RPC: ${readRpcUrl}`);
+console.log(`write RPC: ${rpcUrl}`);
 console.log(`mode: ${dryRun ? "dry-run" : "live"}`);
 console.log(
   `executor: ${
