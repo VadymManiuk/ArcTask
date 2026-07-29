@@ -45,6 +45,14 @@ interface WorkerStatus {
     status?: string;
     startedAt?: string;
   } | null;
+  providerHealth?: {
+    status?: string;
+    code?: string;
+    message?: string;
+    retryAt?: string;
+    lastFailureAt?: string;
+    recoveredAt?: string;
+  };
   lastError?: string | null;
 }
 
@@ -94,6 +102,16 @@ function sanitizeStatus(status: WorkerStatus) {
         }
       : undefined,
     recentEvents: [],
+    providerHealth: status.providerHealth
+      ? {
+          status: status.providerHealth.status,
+          code: status.providerHealth.code,
+          message: status.providerHealth.message,
+          retryAt: status.providerHealth.retryAt,
+          lastFailureAt: status.providerHealth.lastFailureAt,
+          recoveredAt: status.providerHealth.recoveredAt
+        }
+      : undefined,
     activeJob: status.activeJob
       ? {
           jobId: status.activeJob.jobId,

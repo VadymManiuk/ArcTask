@@ -23,6 +23,11 @@ import { collectMarketplaceEvidence } from "./agent-marketplace-evidence.mjs";
 import { collectWalletRiskEvidence } from "./agent-wallet-evidence.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 import { createExecutionPlan } from "../lib/execution-routing.mjs";
+import {
+  createQuotaCooldown,
+  isProviderCooldownActive,
+  isProviderQuotaError
+} from "../lib/provider-health.mjs";
 import { isContractReviewTask, isProductQaTask } from "../lib/task-routing.mjs";
 import {
   allocateAttemptTimeout,
@@ -38,7 +43,7 @@ const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
-const statusVersion = 1;
+const statusVersion = 2;
 const defaultMaxJobPayloadChars = 8_000;
 
 class InsufficientComputeBudgetError extends Error {
@@ -298,7 +303,7 @@ function buildExecutionPlan(jobId, job, payload) {
 }
 
 async function buildAgentResult(jobId, job, payload, executionPlan, escrowContext) {
-  if (!openAiApiKey) {
+  if (openAiApiKeys.length === 0) {
     if (allowDeterministicFallback) {
       return buildFallbackAgentResult(jobId, payload, "OPENAI_API_KEY is not configured.");
     }
@@ -574,15 +579,27 @@ function buildPaymentReviewSummary(payload) {
 }
 
 async function requestOpenAiResponse({ requestBody, timeoutMs, onProgress }) {
-  return requestBackgroundResponse({
-    apiKey: openAiApiKey,
-    baseUrl: openAiBaseUrl,
-    requestBody,
-    timeoutMs,
-    httpTimeoutMs: openAiHttpTimeoutMs,
-    pollIntervalMs: openAiPollIntervalMs,
-    onProgress
-  });
+  let lastError;
+  for (const apiKey of openAiApiKeys) {
+    try {
+      return await requestBackgroundResponse({
+        apiKey,
+        baseUrl: openAiBaseUrl,
+        requestBody,
+        timeoutMs,
+        httpTimeoutMs: openAiHttpTimeoutMs,
+        pollIntervalMs: openAiPollIntervalMs,
+        onProgress
+      });
+    } catch (caught) {
+      lastError = caught;
+      if (!isProviderQuotaError(caught)) {
+        throw caught;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("No OpenAI API key is configured.");
 }
 
 function mergeUsage(current, body) {
@@ -1010,14 +1027,14 @@ function createInitialStatus() {
     updatedAt: now,
     lastHeartbeatAt: now,
     mode: dryRun ? "dry-run" : "live",
-    executor: openAiApiKey
+    executor: openAiApiKeys.length > 0
       ? routingMode === "enforce"
         ? "openai:gpt-5.6-dynamic"
         : `openai:${openAiModel}`
       : "deterministic-fallback",
     routingMode,
     routingSubsidyEnabled,
-    webSearchEnabled: Boolean(openAiApiKey && openAiWebSearchEnabled),
+    webSearchEnabled: Boolean(openAiApiKeys.length > 0 && openAiWebSearchEnabled),
     rpcUrl,
     explorerUrl,
     escrowAddress,
@@ -1044,7 +1061,15 @@ function createInitialStatus() {
       errors: 0
     },
     recentEvents: [],
-    activeJob: null
+    activeJob: null,
+    providerHealth: {
+      status: openAiApiKeys.length > 0 ? "ready" : "unconfigured",
+      code: openAiApiKeys.length > 0 ? "ok" : "missing_api_key",
+      message:
+        openAiApiKeys.length > 0
+          ? "Model provider is available."
+          : "AI execution is paused because no model provider key is configured."
+    }
   };
 }
 
@@ -1209,10 +1234,55 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   let scanned = 0;
   let skipped = 0;
   let underfunded = 0;
-  let pending = 0;
   let failed = 0;
+  let attempted = 0;
+  let lastError;
+  let providerPaused = false;
   const statusBeforeTick = readJsonFile(statusPath, createInitialStatus());
 
+  if (openAiApiKeys.length === 0 && !allowDeterministicFallback) {
+    writeStatus({
+      activeJob: null,
+      providerHealth: {
+        status: "paused",
+        code: "missing_api_key",
+        message: "AI execution is paused because no model provider key is configured."
+      },
+      lastError: "Model provider key is not configured.",
+      queue: {
+        ...statusBeforeTick.queue,
+        locked: listActiveLocks(lockDir),
+        submitted: 0,
+        failed: 0
+      }
+    });
+    return;
+  }
+
+  if (isProviderCooldownActive(statusBeforeTick.providerHealth)) {
+    writeStatus({
+      activeJob: null,
+      queue: {
+        ...statusBeforeTick.queue,
+        locked: listActiveLocks(lockDir),
+        submitted: 0,
+        failed: 0
+      }
+    });
+    return;
+  }
+
+  if (statusBeforeTick.providerHealth?.status === "paused") {
+    writeStatus({
+      providerHealth: {
+        ...statusBeforeTick.providerHealth,
+        status: "probing",
+        message: "Checking whether the model provider has recovered."
+      }
+    });
+  }
+
+  const pendingJobs = [];
   for (const escrowContext of escrowContexts) {
     const nextJobId = await withRpcRetry(() =>
       publicClient.readContract({
@@ -1222,18 +1292,24 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
       })
     );
     for (let jobId = escrowContext.firstJobId; jobId < nextJobId; jobId += 1n) {
-    const job = await readJob(jobId, escrowContext);
-    scanned += 1;
-    if (job.status !== fundedStatus) {
-      continue;
-    }
+      const job = await readJob(jobId, escrowContext);
+      scanned += 1;
+      if (job.status !== fundedStatus) {
+        continue;
+      }
 
-    const workerAccount = workerAccounts.find(({ account }) => sameAddress(job.agentOwner, account.address));
-    if (!workerAccount) {
-      continue;
+      const workerAccount = workerAccounts.find(({ account }) => sameAddress(job.agentOwner, account.address));
+      if (workerAccount) {
+        pendingJobs.push({ jobId, job, workerAccount, escrowContext });
+      }
     }
+  }
 
-    pending += 1;
+  for (const { jobId, job, workerAccount, escrowContext } of pendingJobs) {
+    if (attempted >= maxJobsPerTick) {
+      break;
+    }
+    attempted += 1;
     const lock = acquireJobLock(lockDir, jobId, workerAccount.account.address);
     if (!lock) {
       skipped += 1;
@@ -1291,14 +1367,34 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
       }
 
       failed += 1;
-      const message = caught instanceof Error ? caught.message : "unknown submit error";
-      appendStatusEvent({
-        type: "job_failed",
-        jobId: jobId.toString(),
-        worker: workerAccount.account.address,
-        error: message
-      });
-      console.error(`job ${jobId} failed: ${message}`);
+      lastError = caught instanceof Error ? caught.message : "unknown submit error";
+      if (isProviderQuotaError(caught)) {
+        const latestStatus = readJsonFile(statusPath, createInitialStatus());
+        const providerHealth = createQuotaCooldown(latestStatus.providerHealth, Date.now(), {
+          baseCooldownMs: providerQuotaBaseCooldownMs,
+          maxCooldownMs: providerQuotaMaxCooldownMs
+        });
+        appendStatusEvent({
+          type: "provider_paused",
+          code: providerHealth.code,
+          retryAt: providerHealth.retryAt,
+          jobId: jobId.toString()
+        });
+        writeStatus({
+          providerHealth,
+          lastError: "Model provider quota is unavailable; queued jobs are preserved."
+        });
+        console.error(`provider quota unavailable; pausing execution until ${providerHealth.retryAt}`);
+        providerPaused = true;
+      } else {
+        appendStatusEvent({
+          type: "job_failed",
+          jobId: jobId.toString(),
+          worker: workerAccount.account.address,
+          error: lastError
+        });
+        console.error(`job ${jobId} failed: ${lastError}`);
+      }
     } finally {
       try {
         writeStatus({ activeJob: null });
@@ -1306,20 +1402,33 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         lock.release();
       }
     }
-    if (handled >= maxJobsPerTick) {
+    if (handled >= maxJobsPerTick || providerPaused) {
       break;
-    }
     }
   }
 
-  if (handled === 0) {
+  if (pendingJobs.length === 0) {
     console.log(`no funded jobs for managed agents: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);
   }
 
+  const latestStatus = readJsonFile(statusPath, createInitialStatus());
   writeStatus({
-    lastError: failed > 0 ? statusBeforeTick.lastError : undefined,
+    lastError: providerPaused
+      ? latestStatus.lastError
+      : failed > 0
+        ? lastError
+        : undefined,
+    providerHealth: providerPaused
+      ? latestStatus.providerHealth
+      : {
+          status: "ready",
+          code: "ok",
+          message: "Model provider is available.",
+          consecutiveFailures: 0,
+          recoveredAt: new Date().toISOString()
+        },
     queue: {
-      pending,
+      pending: pendingJobs.length,
       locked: listActiveLocks(lockDir),
       submitted: handled,
       underfunded,
@@ -1356,6 +1465,10 @@ const pollIntervalMs = getPositiveIntegerEnv("ARC_AGENT_POLL_INTERVAL_MS", 15_00
 const maxJobsPerTick = getPositiveIntegerEnv("ARC_AGENT_MAX_JOBS_PER_TICK", 5);
 const staleLockMs = getPositiveIntegerEnv("ARC_AGENT_STALE_LOCK_MS", 10 * 60_000);
 const openAiApiKey = process.env.OPENAI_API_KEY;
+const openAiApiKeys = [
+  openAiApiKey,
+  ...(process.env.OPENAI_FALLBACK_API_KEYS ?? "").split(",").map((value) => value.trim())
+].filter((value, index, values) => value && values.indexOf(value) === index);
 const openAiModel = process.env.OPENAI_MODEL ?? "gpt-5.6-sol";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 180_000);
@@ -1372,6 +1485,8 @@ const routingSubsidyEnabled = getBooleanEnv("ARC_AGENT_DEMO_SUBSIDY", false);
 const recoveryJobIds = getJobIdSetEnv("ARC_AGENT_RECOVERY_JOB_IDS");
 const routingMaxRuntimeMs = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_RUNTIME_MS", 900_000);
 const routingMaxOutputTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_OUTPUT_TOKENS", 24_000);
+const providerQuotaBaseCooldownMs = getPositiveIntegerEnv("ARC_AGENT_PROVIDER_QUOTA_COOLDOWN_MS", 5 * 60_000);
+const providerQuotaMaxCooldownMs = getPositiveIntegerEnv("ARC_AGENT_PROVIDER_QUOTA_MAX_COOLDOWN_MS", 60 * 60_000);
 
 const arcTestnet = defineChain({
   id: 5042002,
@@ -1433,7 +1548,7 @@ console.log(`write RPC: ${rpcUrl}`);
 console.log(`mode: ${dryRun ? "dry-run" : "live"}`);
 console.log(
   `executor: ${
-    openAiApiKey
+    openAiApiKeys.length > 0
       ? routingMode === "enforce"
         ? "openai:gpt-5.6-dynamic"
         : `openai:${openAiModel}`

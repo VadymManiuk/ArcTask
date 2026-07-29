@@ -57,6 +57,13 @@ interface WorkerDeliverable {
   };
 }
 
+interface ProviderHealth {
+  status?: string;
+  code?: string;
+  message?: string;
+  retryAt?: string;
+}
+
 const workerPollSeconds = 15;
 
 const statusSteps: Array<{ key: "funded" | "submitted" | "review" | "settled"; label: string }> = [
@@ -166,12 +173,44 @@ export default function JobDetailsPage() {
   const [deliverableLoading, setDeliverableLoading] = useState(false);
   const [deliverableError, setDeliverableError] = useState("");
   const [nowMs, setNowMs] = useState<number | null>(null);
+  const [providerHealth, setProviderHealth] = useState<ProviderHealth | null>(null);
 
   useEffect(() => {
     setNowMs(Date.now());
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (job?.status !== "FUNDED") {
+      setProviderHealth(null);
+      return;
+    }
+
+    let active = true;
+    async function loadProviderHealth() {
+      try {
+        const response = await fetch("/api/worker/status", { cache: "no-store" });
+        const body = (await response.json()) as {
+          status?: { providerHealth?: ProviderHealth };
+        };
+        if (active) {
+          setProviderHealth(body.status?.providerHealth ?? null);
+        }
+      } catch {
+        if (active) {
+          setProviderHealth(null);
+        }
+      }
+    }
+
+    void loadProviderHealth();
+    const timer = window.setInterval(() => void loadProviderHealth(), workerPollSeconds * 1_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [job?.status]);
 
   const loadWorkerDeliverable = useCallback(async () => {
     if (!job?.onchainJobId) {
@@ -275,6 +314,8 @@ export default function JobDetailsPage() {
     description: job.description,
     rewardAmount: job.rewardAmount
   });
+  const providerPaused = providerHealth?.status === "paused";
+  const providerRetryAt = providerHealth?.retryAt ? new Date(providerHealth.retryAt).toLocaleString() : null;
 
   function walletMatches(expected?: string) {
     return Boolean(connectedWallet && expected && connectedWallet.toLowerCase() === expected.toLowerCase());
@@ -378,7 +419,11 @@ export default function JobDetailsPage() {
                 <div className="py-3 sm:px-4 sm:last:pr-0">
                   <p className="text-xs text-muted-foreground">Worker check</p>
                   <p className="mt-1 font-semibold text-foreground">
-                    {job.status === "FUNDED" ? `about every ${workerPollSeconds}s` : "complete"}
+                    {job.status === "FUNDED"
+                      ? providerPaused
+                        ? "paused — automatic retry scheduled"
+                        : `about every ${workerPollSeconds}s`
+                      : "complete"}
                   </p>
                 </div>
               </div>
@@ -494,8 +539,25 @@ export default function JobDetailsPage() {
               {!job.onchainJobId ? (
                 <p className="text-sm text-muted-foreground">This is a local demo job. Onchain worker results are available for Arc Testnet jobs.</p>
               ) : job.status === "FUNDED" ? (
-                <div className="rounded-md border border-cyan-300/25 bg-cyan-300/10 px-4 py-4 text-sm text-cyan-100">
-                  The agent is still working. Refresh status in a few seconds to see when the deliverable hash is submitted.
+                <div
+                  className={`rounded-md border px-4 py-4 text-sm ${
+                    providerPaused
+                      ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
+                      : "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                  }`}
+                >
+                  {providerPaused ? (
+                    <>
+                      <p className="font-semibold">AI execution is temporarily paused.</p>
+                      <p className="mt-2">
+                        The model provider quota is unavailable. The job and escrow are safe; the worker stopped
+                        repeated failed calls and will retry automatically
+                        {providerRetryAt ? ` after ${providerRetryAt}` : ""}.
+                      </p>
+                    </>
+                  ) : (
+                    "The agent is working. Status refreshes automatically when the deliverable hash is submitted."
+                  )}
                 </div>
               ) : deliverableError ? (
                 <div className="rounded-md border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
