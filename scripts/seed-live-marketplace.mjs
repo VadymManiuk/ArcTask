@@ -98,6 +98,13 @@ const agentDefinitions = [
         title: "Compare stablecoin infrastructure on Arc",
         description:
           "Compare the main stablecoin infrastructure patterns relevant to Arc, including settlement, liquidity, integrations, and operational risks."
+      },
+      {
+        key: "arc-rpc-resilience",
+        title: "Assess Arc RPC provider resilience",
+        description:
+          "Research Arc Testnet RPC reliability patterns, verify primary sources, compare provider and fallback options, and deliver an evidence-backed opportunity and operational risk map.",
+        reward: "2"
       }
     ]
   },
@@ -118,6 +125,13 @@ const agentDefinitions = [
         title: "Analyze registry access controls",
         description:
           "Analyze agent registry administration, escrow authorization, metadata ownership, and reputation update boundaries."
+      },
+      {
+        key: "escrow-upgrade-threat-model",
+        title: "Threat-model the escrow upgrade path",
+        description:
+          "Perform a critical Solidity security review of the ArcTask escrow and registry sources, model authorization, settlement, refund, reentrancy, and upgrade risks, and provide concrete findings and invariant tests.",
+        reward: "10"
       }
     ]
   },
@@ -138,6 +152,13 @@ const agentDefinitions = [
         title: "Normalize marketplace activity data",
         description:
           "Create a canonical schema for agent registrations, funded jobs, submissions, settlements, and refunds."
+      },
+      {
+        key: "settlement-anomaly-dashboard",
+        title: "Design a settlement anomaly dashboard",
+        description:
+          "Define an implementation-ready dataset and metric plan for detecting delayed submissions, status regressions, unusual rejection rates, and settlement anomalies across ArcTask jobs.",
+        reward: "0.5"
       }
     ]
   },
@@ -158,6 +179,13 @@ const agentDefinitions = [
         title: "Validate mobile marketplace UX",
         description:
           "Review the agents, jobs, dashboard, and docs routes on small screens and report usability or layout issues."
+      },
+      {
+        key: "evaluator-failure-states",
+        title: "Design evaluator failure-state tests",
+        description:
+          "Create an implementation-ready product QA test plan for stale statuses, unavailable deliverables, wrong wallets, rejected transactions, deadline expiry, duplicate clicks, refresh behavior, and responsive evaluator UI, with expected results and severity.",
+        reward: "0.5"
       }
     ]
   },
@@ -178,6 +206,13 @@ const agentDefinitions = [
         title: "Create evaluator operations runbook",
         description:
           "Document how an evaluator verifies a private deliverable, accepts or rejects work, handles deadlines, and confirms onchain settlement."
+      },
+      {
+        key: "job-creation-quickstart",
+        title: "Write a job creation quickstart",
+        description:
+          "Write concise ready-to-use steps covering wallet connection, agent selection, task and acceptance criteria, reward, evaluator, deadline, transaction confirmation, and job tracking.",
+        reward: "0.01"
       }
     ]
   },
@@ -187,7 +222,15 @@ const agentDefinitions = [
     description:
       "Reviews invoices, payment requests, recipient wallets, approvals, delivery evidence, and settlement readiness.",
     capabilities: ["payment review", "invoice validation", "treasury operations"],
-    jobs: []
+    jobs: [
+      {
+        key: "milestone-payment-review",
+        title: "Review a milestone payment request",
+        description:
+          "Review invoice ARCT-2026-07 from ArcTask Studio for a 750 USDC frontend milestone payable to 0x7B42ED8165710a86684a54E8B02ec0f61Da8C897. Check invoice completeness, recipient ownership evidence, delivery proof, approvals, settlement risks, and exact conditions for payment.",
+        reward: "0.5"
+      }
+    ]
   },
   {
     key: "counterparty-risk",
@@ -195,7 +238,15 @@ const agentDefinitions = [
     description:
       "Assesses wallet and counterparty evidence, ownership signals, operational exposure, and transaction risk.",
     capabilities: ["wallet risk", "counterparty review", "evidence verification"],
-    jobs: []
+    jobs: [
+      {
+        key: "vendor-wallet-risk",
+        title: "Assess a new vendor wallet",
+        description:
+          "Assess vendor wallet 0x7B42ED8165710a86684a54E8B02ec0f61Da8C897 using the supplied onchain job context. Evaluate ownership and transaction-risk evidence, identify missing verification proof, and provide a severity-ranked onboarding recommendation.",
+        reward: "2"
+      }
+    ]
   },
   {
     key: "protocol-integration",
@@ -203,7 +254,15 @@ const agentDefinitions = [
     description:
       "Designs and reviews API, wallet, contract, indexer, and cross-chain integration plans with implementation guidance.",
     capabilities: ["API integration", "wallet integration", "implementation planning"],
-    jobs: []
+    jobs: [
+      {
+        key: "cctp-settlement-integration",
+        title: "Design a CCTP settlement integration",
+        description:
+          "Design an implementation-ready cross-chain CCTP to Arc settlement integration covering APIs, contract boundaries, authentication, idempotency, finality, retries, monitoring, tests, rollout, and operational risks.",
+        reward: "2"
+      }
+    ]
   },
   {
     key: "devops-reliability",
@@ -211,7 +270,15 @@ const agentDefinitions = [
     description:
       "Reviews deployments, monitoring, incident response, RPC reliability, runbooks, and production readiness.",
     capabilities: ["deployment review", "observability", "incident response"],
-    jobs: []
+    jobs: [
+      {
+        key: "rpc-outage-runbook",
+        title: "Create an Arc RPC outage response plan",
+        description:
+          "For an ArcTask stack using Vercel web/API, a PM2 worker on VPS, and the public Arc Testnet RPC, create a concrete outage plan covering detection, provider failover, retry budgets, degraded mode, alerts, rollback, ownership, recovery verification, and readiness gaps.",
+        reward: "2"
+      }
+    ]
   },
   {
     key: "governance-compliance",
@@ -219,7 +286,26 @@ const agentDefinitions = [
     description:
       "Reviews governance processes, role separation, policy controls, audit evidence, and operational compliance gaps.",
     capabilities: ["governance review", "policy analysis", "control assessment"],
-    jobs: []
+    jobs: [
+      {
+        key: "evaluator-role-separation",
+        title: "Review evaluator role separation controls",
+        description:
+          "Review governance and compliance controls for client, evaluator, agent owner, and escrow settlement roles, verify audit evidence requirements, identify conflicts of interest, rank control gaps, and provide remediation steps.",
+        reward: "2"
+      }
+    ]
+  }
+];
+
+const standaloneJobDefinitions = [
+  {
+    key: "public-release-readiness",
+    title: "Prepare a release readiness brief",
+    description:
+      "Turn these ArcTask release notes into a structured readiness brief: dynamic GPT-5.6 routing, five new managed agents, no-store network APIs, six-second job status sync, and monotonic status protection. Include scope, assumptions, risks, validation checks, and next steps.",
+    reward: "0.1",
+    onchainAgentId: process.env.NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID ?? "1"
   }
 ];
 
@@ -232,7 +318,6 @@ const escrowAddress = requiredEnv("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS");
 const account = privateKeyToAccount(normalizePrivateKey(requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY")));
 const registryAbi = readAbi("ERC8004AgentRegistry.json");
 const escrowAbi = readAbi("ERC8183Escrow.json");
-const rewardAmount = parseUnits("0.05", 18);
 const deadline = BigInt(Math.floor(Date.now() / 1_000) + 30 * 24 * 60 * 60);
 
 const arcTestnet = defineChain({
@@ -315,11 +400,14 @@ for (let jobId = 1n; jobId < nextJobId; jobId += 1n) {
 }
 
 const missingAgentCount = agentDefinitions.filter((agent) => !existingAgents.has(agent.key)).length;
-const missingJobCount = agentDefinitions
-  .flatMap((agent) => agent.jobs)
-  .filter((job) => !existingJobs.has(job.key)).length;
+const allJobDefinitions = [...agentDefinitions.flatMap((agent) => agent.jobs), ...standaloneJobDefinitions];
+const missingJobDefinitions = allJobDefinitions.filter((job) => !existingJobs.has(job.key));
+const missingJobCount = missingJobDefinitions.length;
 const balance = await withRpcRetry(() => publicClient.getBalance({ address: account.address }), retryOptions);
-const requiredJobValue = rewardAmount * BigInt(missingJobCount);
+const requiredJobValue = missingJobDefinitions.reduce(
+  (total, job) => total + parseUnits(job.reward ?? "0.05", 18),
+  0n
+);
 
 console.log(`Mode: ${execute ? "execute" : "inspect"}`);
 console.log(`Wallet: ${account.address}`);
@@ -340,6 +428,61 @@ if (balance <= requiredJobValue) {
 const agentIds = new Map(existingAgents);
 const agentTransactions = [];
 const jobTransactions = [];
+
+async function createJobForAgent(agentId, jobDefinition) {
+  const existingJobId = existingJobs.get(jobDefinition.key);
+  if (existingJobId) {
+    console.log(`Reusing ${jobDefinition.title}: job ${existingJobId.toString()}`);
+    return;
+  }
+
+  const jobRewardAmount = parseUnits(jobDefinition.reward ?? "0.05", 18);
+  const jobUri = encodePayload({
+    schema: "arctask.job.v1",
+    seedNamespace,
+    seedKey: jobDefinition.key,
+    title: jobDefinition.title,
+    description: jobDefinition.description,
+    onchainAgentId: agentId.toString(),
+    clientWallet: account.address,
+    evaluatorWallet: account.address,
+    rewardAmount: Number(formatUnits(jobRewardAmount, 18)),
+    createdAt: new Date().toISOString()
+  });
+  const hash = await withRpcRetry(
+    () =>
+      walletClient.writeContract({
+        address: escrowAddress,
+        abi: escrowAbi,
+        functionName: "createJob",
+        args: [agentId, jobRewardAmount, deadline, account.address, jobUri],
+        value: jobRewardAmount
+      }),
+    { maxAttempts: 8, baseDelayMs: 4_000 }
+  );
+  const receipt = await waitForSuccess(publicClient, hash, `Create ${jobDefinition.title}`);
+  const event = parseEventLogs({
+    abi: escrowAbi,
+    logs: receipt.logs,
+    eventName: "JobCreated",
+    strict: true
+  }).find((item) => item.address.toLowerCase() === escrowAddress.toLowerCase());
+  const jobId = event?.args?.jobId;
+  if (typeof jobId !== "bigint") {
+    throw new Error(`JobCreated event missing for ${jobDefinition.title}.`);
+  }
+  existingJobs.set(jobDefinition.key, jobId);
+  jobTransactions.push({
+    title: jobDefinition.title,
+    id: jobId.toString(),
+    reward: formatUnits(jobRewardAmount, 18),
+    hash
+  });
+  console.log(
+    `Created ${jobDefinition.title}: job ${jobId.toString()} (${formatUnits(jobRewardAmount, 18)} USDC)`
+  );
+  await pauseBetweenTransactions();
+}
 
 for (const definition of agentDefinitions) {
   let agentId = agentIds.get(definition.key);
@@ -383,51 +526,12 @@ for (const definition of agentDefinitions) {
   }
 
   for (const jobDefinition of definition.jobs) {
-    const existingJobId = existingJobs.get(jobDefinition.key);
-    if (existingJobId) {
-      console.log(`Reusing ${jobDefinition.title}: job ${existingJobId.toString()}`);
-      continue;
-    }
-
-    const jobUri = encodePayload({
-      schema: "arctask.job.v1",
-      seedNamespace,
-      seedKey: jobDefinition.key,
-      title: jobDefinition.title,
-      description: jobDefinition.description,
-      onchainAgentId: agentId.toString(),
-      clientWallet: account.address,
-      evaluatorWallet: account.address,
-      rewardAmount: Number(formatUnits(rewardAmount, 18)),
-      createdAt: new Date().toISOString()
-    });
-    const hash = await withRpcRetry(
-      () =>
-        walletClient.writeContract({
-          address: escrowAddress,
-          abi: escrowAbi,
-          functionName: "createJob",
-          args: [agentId, rewardAmount, deadline, account.address, jobUri],
-          value: rewardAmount
-        }),
-      { maxAttempts: 8, baseDelayMs: 4_000 }
-    );
-    const receipt = await waitForSuccess(publicClient, hash, `Create ${jobDefinition.title}`);
-    const event = parseEventLogs({
-      abi: escrowAbi,
-      logs: receipt.logs,
-      eventName: "JobCreated",
-      strict: true
-    }).find((item) => item.address.toLowerCase() === escrowAddress.toLowerCase());
-    const jobId = event?.args?.jobId;
-    if (typeof jobId !== "bigint") {
-      throw new Error(`JobCreated event missing for ${jobDefinition.title}.`);
-    }
-    existingJobs.set(jobDefinition.key, jobId);
-    jobTransactions.push({ title: jobDefinition.title, id: jobId.toString(), hash });
-    console.log(`Created ${jobDefinition.title}: job ${jobId.toString()}`);
-    await pauseBetweenTransactions();
+    await createJobForAgent(agentId, jobDefinition);
   }
+}
+
+for (const jobDefinition of standaloneJobDefinitions) {
+  await createJobForAgent(BigInt(jobDefinition.onchainAgentId), jobDefinition);
 }
 
 console.log(`Created agents: ${agentTransactions.length}`);
