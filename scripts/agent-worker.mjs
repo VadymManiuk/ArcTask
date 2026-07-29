@@ -391,7 +391,7 @@ async function buildExecutionPlan(jobId, job, payload) {
     ? {
         ...enforcedPlan,
         maxOutputTokens: Math.min(enforcedPlan.maxOutputTokens, 400),
-        maxTotalTokens: Math.min(enforcedPlan.maxTotalTokens, 2_000),
+        maxTotalTokens: Math.min(enforcedPlan.maxTotalTokens, 4_000),
         maxRequests: 1,
         maxAttempts: 1,
         escalationModel: null
