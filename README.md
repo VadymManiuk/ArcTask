@@ -212,7 +212,7 @@ Useful worker env vars:
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `low`; use `medium` or `high` only when jobs need deeper source coverage
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
-- `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - shared server-to-server token for Vercel-to-VPS deliverable and status fallback
+- `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - recommended shared server-to-server token for Vercel-to-VPS deliverable fallback; when absent, the worker re-verifies the forwarded wallet signature, its timestamp, and the onchain job owner
 - `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
 - `ARCTASK_ADMIN_TOKEN` - optional bearer token for full `/api/worker/status`; unauthenticated responses are sanitized
 

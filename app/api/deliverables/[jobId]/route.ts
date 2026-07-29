@@ -8,6 +8,7 @@ import { getWorkerReportHash } from "@/lib/deliverable-integrity";
 import { createDeliverableNonce, consumeDeliverableNonce } from "@/lib/server-deliverable-nonce";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { isSafeRemoteBaseUrl } from "@/lib/server-remote";
+import { isRetryableRpcError, withServerRpcRetry } from "@/lib/server-rpc-retry";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
 import type { Address } from "@/lib/types";
 
@@ -116,29 +117,37 @@ function normalizeDeliverablePayload(value: unknown, jobId: string) {
 
 async function getOnchainClientWallet(jobId: string) {
   const escrowAddress = (process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress) as Address;
-  const job = (await publicClient.readContract({
-    address: escrowAddress,
-    abi: escrowAbi,
-    functionName: "jobs",
-    args: [BigInt(jobId)]
-  })) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
+  const job = (await withServerRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "jobs",
+      args: [BigInt(jobId)]
+    })
+  )) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
 
   return job[0];
 }
 
 async function getOnchainDeliverableHash(jobId: string) {
   const escrowAddress = (process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress) as Address;
-  const job = (await publicClient.readContract({
-    address: escrowAddress,
-    abi: escrowAbi,
-    functionName: "jobs",
-    args: [BigInt(jobId)]
-  })) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
+  const job = (await withServerRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "jobs",
+      args: [BigInt(jobId)]
+    })
+  )) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
 
   return job[7];
 }
 
-async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: string) {
+async function assertDeliverableAccess(
+  proof: DeliverableAccessProof,
+  jobId: string,
+  options: { consumeNonce?: boolean } = {}
+) {
   const address = proof.address.trim();
   const issuedAt = proof.issuedAt.trim();
   const nonce = proof.nonce.trim();
@@ -148,7 +157,7 @@ async function assertDeliverableAccess(proof: DeliverableAccessProof, jobId: str
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
   }
 
-  if (!consumeDeliverableNonce(jobId, nonce)) {
+  if (options.consumeNonce !== false && !consumeDeliverableNonce(jobId, nonce)) {
     return NextResponse.json({ error: "Deliverable access challenge expired. Sign again." }, { status: 401 });
   }
 
@@ -223,6 +232,7 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        "x-arctask-forwarded-wallet-proof": "1",
         ...(process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN
           ? { "x-arctask-remote-token": process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN }
           : {})
@@ -280,15 +290,32 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
   }
 
   const trustedRemoteRequest = isTrustedRemoteRequest(request);
+  const forwardedWalletProof = request.headers.get("x-arctask-forwarded-wallet-proof") === "1";
   const proof = trustedRemoteRequest ? null : await getProofFromRequest(request);
   if (!trustedRemoteRequest) {
     if (!proof) {
       return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
     }
 
-    const accessError = await assertDeliverableAccess(proof, jobId);
-    if (accessError) {
-      return accessError;
+    try {
+      const accessError = await assertDeliverableAccess(proof, jobId, {
+        // The public deployment already consumed this one-time challenge before
+        // forwarding the signed proof to the worker deployment. The worker still
+        // verifies the signature, timestamp, and onchain client wallet.
+        consumeNonce: !forwardedWalletProof
+      });
+      if (accessError) {
+        return accessError;
+      }
+    } catch (caught) {
+      return NextResponse.json(
+        {
+          error: isRetryableRpcError(caught)
+            ? "Arc Testnet is temporarily unavailable. Try opening the deliverable again."
+            : "Unable to verify deliverable access."
+        },
+        { status: 503 }
+      );
     }
   }
 
@@ -315,6 +342,13 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
             "Worker deliverable was not found on this deployment. It is available only where the agent worker writes .agent-worker/deliverables."
         },
         { status: 404 }
+      );
+    }
+
+    if (isRetryableRpcError(caught)) {
+      return NextResponse.json(
+        { error: "Arc Testnet is temporarily unavailable. Try opening the deliverable again." },
+        { status: 503 }
       );
     }
 
