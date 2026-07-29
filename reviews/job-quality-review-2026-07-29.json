@@ -191,6 +191,15 @@
       "action": "accept",
       "deliverableHash": "0x49493041f8855397a699a15b967a3e0ad84703b5933bd1528d7a253717d26025",
       "rationale": "Complete release brief turns every supplied release note into explicit risks, validation checks, release gates, rollout phases, rollback considerations, and next steps."
+    },
+    {
+      "jobId": "23",
+      "title": "Review evaluator role separation controls",
+      "statusAtReview": "SUBMITTED",
+      "score": 8,
+      "action": "accept",
+      "deliverableHash": "0xbb1c1311c1e0e6ae2d30fc408ce9e3e01ccadfdf1d32d59e32a59ab7252dd141",
+      "rationale": "Thorough role map, confirmed self-review conflict, severity-ranked control gaps, audit-evidence requirements, concrete remediation, acceptance tests, and a clear governance determination."
     }
   ]
 }
