@@ -1,4 +1,5 @@
 const urlPattern = /https?:\/\/[^\s<>"')\]]+/gi;
+export const completionMarker = "ARCTASK_DELIVERABLE_COMPLETE";
 
 function normalizeUrl(value) {
   if (typeof value !== "string") {
@@ -7,7 +8,14 @@ function normalizeUrl(value) {
 
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return null;
+    }
+    if (value.includes("`") || decodeURIComponent(url.pathname).includes("`")) {
+      return null;
+    }
+
+    return url.toString();
   } catch {
     return null;
   }
@@ -32,17 +40,50 @@ export function collectOpenAiSourceUrls(body, outputText = "") {
 }
 
 export function appendSourceUrls(summary, sourceUrls) {
-  const missingUrls = sourceUrls.filter((url) => !summary.includes(url));
+  const trimmedSummary = summary.trim();
+  const hasCompletionMarker = trimmedSummary.endsWith(completionMarker);
+  const summaryWithoutMarker = hasCompletionMarker
+    ? trimmedSummary.slice(0, -completionMarker.length).trim()
+    : trimmedSummary;
+  const missingUrls = sourceUrls.filter((url) => !summaryWithoutMarker.includes(url));
   if (missingUrls.length === 0) {
-    return summary;
+    return trimmedSummary;
   }
 
-  return [summary.trim(), "", "Sources:", ...missingUrls.map((url, index) => `${index + 1}. ${url}`)].join("\n");
+  return [
+    summaryWithoutMarker,
+    "",
+    "Sources:",
+    ...missingUrls.map((url, index) => `${index + 1}. ${url}`),
+    ...(hasCompletionMarker ? ["", completionMarker] : [])
+  ].join("\n");
 }
 
-export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimumSources = 3, evidence }) {
-  const normalizedSummary = typeof summary === "string" ? summary.trim() : "";
-  if (normalizedSummary.length < 240) {
+export function stripCompletionMarker(summary) {
+  return typeof summary === "string"
+    ? summary.replace(new RegExp(`\\s*${completionMarker}\\s*$`), "").trim()
+    : "";
+}
+
+export function assertAgentResultQuality({
+  taskKind,
+  summary,
+  sourceUrls,
+  minimumSources = 3,
+  evidence,
+  minimumLength = 240,
+  requiredTopics = [],
+  requiredEvidenceValues = [],
+  requireCompletionMarker = false,
+  requireSources = false
+}) {
+  const rawSummary = typeof summary === "string" ? summary.trim() : "";
+  if (requireCompletionMarker && !rawSummary.endsWith(completionMarker)) {
+    throw new Error("Generated deliverable is incomplete or truncated.");
+  }
+
+  const normalizedSummary = stripCompletionMarker(rawSummary);
+  if (normalizedSummary.length < minimumLength) {
     throw new Error("Generated deliverable is too short to submit.");
   }
 
@@ -56,7 +97,25 @@ export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimu
     throw new Error("Generated deliverable contains placeholder language.");
   }
 
-  if (taskKind === "market_research" && sourceUrls.length < minimumSources) {
+  if ((normalizedSummary.match(/```/g) ?? []).length % 2 !== 0) {
+    throw new Error("Generated deliverable contains an unfinished code block.");
+  }
+
+  const normalizedTopics = normalizedSummary.toLowerCase().replace(/[-–—_]/g, " ");
+  const missingRequiredTopics = requiredTopics.filter(
+    (topic) => !normalizedTopics.includes(String(topic).toLowerCase().replace(/[-–—_]/g, " "))
+  );
+  if (missingRequiredTopics.length > 0) {
+    throw new Error(`Deliverable is missing required topics: ${missingRequiredTopics.join(", ")}.`);
+  }
+  const missingRequiredEvidence = requiredEvidenceValues
+    .filter((value) => value !== undefined && value !== null && String(value).length > 0)
+    .filter((value) => !normalizedSummary.toLowerCase().includes(String(value).toLowerCase()));
+  if (missingRequiredEvidence.length > 0) {
+    throw new Error(`Deliverable omitted required evidence: ${missingRequiredEvidence.join(", ")}.`);
+  }
+
+  if ((taskKind === "market_research" || requireSources) && sourceUrls.length < minimumSources) {
     throw new Error(
       `Research deliverable has ${sourceUrls.length} verified source URL(s); at least ${minimumSources} are required.`
     );
@@ -82,7 +141,7 @@ export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimu
     }
 
     const normalizedLower = normalizedSummary.toLowerCase();
-    const normalizedTopics = normalizedLower.replace(/[-–—]/g, " ");
+    const normalizedContractTopics = normalizedLower.replace(/[-–—]/g, " ");
     const requiredTopics = [
       "authorization",
       "state transition",
@@ -92,7 +151,7 @@ export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimu
       "recommended test",
       "deployment recommendation"
     ];
-    const missingTopics = requiredTopics.filter((topic) => !normalizedTopics.includes(topic));
+    const missingTopics = requiredTopics.filter((topic) => !normalizedContractTopics.includes(topic));
     if (missingTopics.length > 0) {
       throw new Error(`Contract review is missing required topics: ${missingTopics.join(", ")}.`);
     }

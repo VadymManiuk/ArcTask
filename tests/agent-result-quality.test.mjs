@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   appendSourceUrls,
   assertAgentResultQuality,
-  collectOpenAiSourceUrls
+  collectOpenAiSourceUrls,
+  completionMarker,
+  stripCompletionMarker
 } from "../scripts/agent-result-quality.mjs";
 
 test("OpenAI source annotations are preserved in the deliverable", () => {
@@ -29,6 +31,32 @@ test("OpenAI source annotations are preserved in the deliverable", () => {
     "https://example.com/two"
   ]);
   assert.match(appendSourceUrls("A sufficiently detailed result.", urls), /Sources:/);
+});
+
+test("completion marker survives source appending and is removed before publication", () => {
+  const summary = `Complete evidence-backed result.\n\n${completionMarker}`;
+  const withSources = appendSourceUrls(summary, ["https://example.com/source"]);
+
+  assert.equal(withSources.endsWith(completionMarker), true);
+  assert.match(withSources, /Sources:/);
+  assert.equal(stripCompletionMarker(withSources).includes(completionMarker), false);
+  assert.throws(
+    () =>
+      assertAgentResultQuality({
+        taskKind: "general_task",
+        summary: "A detailed but truncated result. ".repeat(20),
+        sourceUrls: [],
+        requireCompletionMarker: true
+      }),
+    /incomplete or truncated/
+  );
+});
+
+test("malformed markdown-backtick URLs are not accepted as sources", () => {
+  assert.deepEqual(
+    collectOpenAiSourceUrls({}, "Bad https://docs.arc.network/` and good https://docs.arc.network/guide"),
+    ["https://docs.arc.network/guide"]
+  );
 });
 
 test("research deliverables fail closed without enough sources", () => {

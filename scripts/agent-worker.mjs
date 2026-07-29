@@ -14,12 +14,16 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   appendSourceUrls,
   assertAgentResultQuality,
-  collectOpenAiSourceUrls
+  collectOpenAiSourceUrls,
+  completionMarker,
+  stripCompletionMarker
 } from "./agent-result-quality.mjs";
 import { loadTaskArtifacts } from "./agent-task-context.mjs";
+import { collectMarketplaceEvidence } from "./agent-marketplace-evidence.mjs";
 import { collectWalletRiskEvidence } from "./agent-wallet-evidence.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 import { createExecutionPlan } from "../lib/execution-routing.mjs";
+import { isContractReviewTask, isProductQaTask } from "../lib/task-routing.mjs";
 import {
   allocateAttemptTimeout,
   describeOpenAiResponse,
@@ -354,11 +358,24 @@ function looksLikePaymentReview(payload) {
 
 function getTaskProfile(payload) {
   const text = getPayloadText(payload).toLowerCase();
+  const title = normalizeText(payload?.title).toLowerCase();
   if (looksLikePaymentReview(payload)) {
     return {
       kind: "treasury_payment_review",
       instruction:
-        "For treasury payment reviews, check amount reasonableness, invoice completeness, recipient wallet completeness, wallet ownership proof, delivery proof, missing approvals, operational risks, recommendation, required next steps, and confidence score."
+        "For treasury payment reviews, check amount reasonableness, invoice completeness, recipient wallet completeness, wallet ownership proof, delivery proof, missing approvals, operational risks, recommendation, required next steps, and confidence score.",
+      minimumLength: 900,
+      requiredTopics: ["decision", "invoice", "wallet", "delivery", "approval", "settlement risk", "condition"]
+    };
+  }
+
+  if (text.includes("wallet") || text.includes("counterparty")) {
+    return {
+      kind: "wallet_or_counterparty_risk",
+      instruction:
+        "For wallet or counterparty risk tasks, use the verified Arc RPC and Arcscan evidence snapshot. Required sections: Decision, Verified onchain facts, Recent transaction sample, Ownership and role evidence, Severity-ranked findings, Evidence limitations, Required onboarding controls, and Recommendation. Distinguish confirmed facts, risk indicators, and evidence gaps. Do not claim that the network, balance, nonce, bytecode, account type, or transaction history is unavailable when the evidence contains it. Arc Testnet native USDC uses 18 decimals; do not misclassify correct native-USDC formatting as an unresolved ERC-20 decimal issue.",
+      minimumLength: 900,
+      requiredTopics: ["decision", "verified", "transaction", "ownership", "severity", "limitation", "recommendation"]
     };
   }
 
@@ -372,15 +389,53 @@ function getTaskProfile(payload) {
     return {
       kind: "governance_compliance",
       instruction:
-        "For governance and compliance work, define the scope and applicable assumptions, map roles and controls, identify missing evidence and conflicts of interest, rank gaps by impact, and provide concrete remediation and verification steps. Do not present legal conclusions without supplied jurisdiction and policy sources."
+        "For governance and compliance work, define the scope and applicable assumptions, map roles and controls, identify missing evidence and conflicts of interest, rank gaps by impact, and provide concrete remediation and verification steps. Use supplied contract artifacts for implementation-specific role boundaries. Do not present legal conclusions without supplied jurisdiction and policy sources.",
+      minimumLength: 1_000,
+      requiredTopics: ["role", "control", "evidence", "conflict", "severity", "remediation", "verification"]
     };
   }
 
-  if (text.includes("contract") || text.includes("solidity") || text.includes("smart contract") || text.includes("audit")) {
+  if (isContractReviewTask(text)) {
     return {
       kind: "contract_review",
       instruction:
-        "Review the supplied Solidity source and ABI directly. Required sections: Scope, Authorization matrix, State-transition invariants, Settlement and refund invariants, Reentrancy and external-call analysis, Severity-ranked findings, Recommended tests, and Deployment recommendation. Reference concrete functions and distinguish confirmed code findings from trust or deployment assumptions. Never use payment-review headings."
+        "Review the supplied Solidity source and ABI directly. Required sections: Scope, Authorization matrix, State-transition invariants, Settlement and refund invariants, Reentrancy and external-call analysis, Severity-ranked findings, Recommended tests, and Deployment recommendation. Reference concrete functions and distinguish confirmed code findings from trust or deployment assumptions. Never use payment-review headings.",
+      minimumLength: 1_200,
+      requiredTopics: []
+    };
+  }
+
+  if (/\b(schema|dataset|metrics?|analytics|normalize|normalization|performance report|anomaly dashboard)\b/i.test(text)) {
+    const schemaTask = /\b(schema|normalize|normalization)\b/i.test(text);
+    return {
+      kind: "data_analysis",
+      instruction: schemaTask
+        ? "For data schema work, use the supplied marketplace snapshot and define canonical entities, field types, lifecycle enums, keys, idempotency, ordering, validation, migrations, and example records. Reconcile the schema to actual ArcTask statuses and fields."
+        : "For metrics and analytics work, calculate every metric that the supplied marketplace snapshot supports. For each metric define source fields, formula, numerator, denominator, exclusions, cohort/window, null handling, threshold, and validation query. Clearly label metrics that require unavailable event history.",
+      minimumLength: 1_000,
+      requiredTopics: schemaTask
+        ? ["schema", "event", "status", "idempotency", "validation", "migration", "example"]
+        : ["data source", "formula", "numerator", "denominator", "threshold", "validation", "limitation"]
+    };
+  }
+
+  if (isProductQaTask({ title, text })) {
+    return {
+      kind: "product_qa",
+      instruction:
+        "For product QA, use supplied source and onchain evidence. Produce executable test cases with evidence basis, preconditions, steps, expected results, failure severity, and release decision. Do not claim a route, viewport, transaction, or workflow was executed unless runtime evidence proves it.",
+      minimumLength: 900,
+      requiredTopics: ["evidence", "precondition", "steps", "expected result", "severity", "failure", "recommendation"]
+    };
+  }
+
+  if (/\b(runbook|guide|quickstart|release brief|documentation)\b/i.test(text)) {
+    return {
+      kind: "documentation_task",
+      instruction:
+        "For documentation tasks, use the supplied repository configuration and produce ready-to-use copy with prerequisites, numbered steps, exact values where verified, success checks, failure handling, assumptions, and next steps. Never return only a title or meta commentary.",
+      minimumLength: 700,
+      requiredTopics: ["prerequisite", "step", "verify", "failure", "assumption", "next"]
     };
   }
 
@@ -396,7 +451,9 @@ function getTaskProfile(payload) {
     return {
       kind: "devops_reliability",
       instruction:
-        "For DevOps and reliability tasks, review architecture, deployment safety, secrets, monitoring, alerts, rollback, retries, rate limits, incident response, and operational ownership. Produce severity-ranked risks, concrete checks, and a production-readiness decision."
+        "For DevOps and reliability tasks, use the supplied deployed-code artifacts and current primary sources. Separate implemented controls from proposed controls. Produce detection, provider failover, retry budgets, degraded mode, alerts, rollback, ownership, recovery verification, severity-ranked risks, and a production-readiness decision.",
+      minimumLength: 1_100,
+      requiredTopics: ["detection", "failover", "retry", "degraded", "alert", "rollback", "owner", "recovery verification", "readiness"]
     };
   }
 
@@ -411,22 +468,21 @@ function getTaskProfile(payload) {
     return {
       kind: "protocol_integration",
       instruction:
-        "For integration engineering tasks, define systems and data flow, authentication and trust boundaries, interfaces, validation, retries and idempotency, failure handling, testing, rollout, and acceptance criteria. Return implementation-ready steps and clearly flag missing technical inputs."
+        "For integration engineering tasks, verify external protocol behavior from current primary sources, then define systems and data flow, authentication and trust boundaries, interfaces, validation, retries and idempotency, finality, failure handling, monitoring, testing, rollout, and acceptance criteria. Return implementation-ready steps and clearly flag missing technical inputs.",
+      minimumLength: 1_200,
+      requiredTopics: ["data flow", "authentication", "idempotency", "finality", "retry", "monitoring", "test", "rollout", "risk"]
     };
   }
 
   if (
-    text.includes("tge") ||
-    text.includes("token") ||
-    text.includes("market") ||
-    text.includes("research") ||
-    text.includes("find") ||
-    text.includes("sources")
+    /\b(tge|token|market|research|find|sources?|ecosystem|provider options?)\b/i.test(text)
   ) {
     return {
       kind: "market_research",
       instruction:
-        "For research tasks, identify candidates or facts, cite source URLs, separate confirmed facts from unconfirmed signals, summarize risks, and give a concise recommendation. Use web search when available."
+        "For research tasks, identify candidates or facts, cite current primary source URLs, separate confirmed facts from unconfirmed signals, compare the requested options, summarize opportunities and risks, and give a concise recommendation. Use web search when available.",
+      minimumLength: 900,
+      requiredTopics: ["verified", "source", "comparison", "risk", "recommendation"]
     };
   }
 
@@ -434,7 +490,9 @@ function getTaskProfile(payload) {
     return {
       kind: "product_review",
       instruction:
-        "For product or UI reviews, evaluate clarity, workflow, visual hierarchy, missing states, user risks, and give prioritized fixes with a final ship or revise recommendation."
+        "For product or UI reviews, use supplied route source as evidence, evaluate clarity, workflow, visual hierarchy, responsive behavior, missing states, and user risks, then give severity-ranked fixes and a final ship or revise recommendation. Do not claim browser execution without runtime evidence.",
+      minimumLength: 800,
+      requiredTopics: ["evidence", "issue", "impact", "severity", "fix", "recommendation"]
     };
   }
 
@@ -442,22 +500,18 @@ function getTaskProfile(payload) {
     return {
       kind: "documentation_task",
       instruction:
-        "For documentation tasks, produce clear structured content, assumptions, missing inputs, and ready-to-use copy without unnecessary meta commentary."
-    };
-  }
-
-  if (text.includes("wallet") || text.includes("risk") || text.includes("counterparty")) {
-    return {
-      kind: "wallet_or_counterparty_risk",
-      instruction:
-        "For wallet or counterparty risk tasks, use the verified Arc RPC and Arcscan evidence snapshot. Required sections: Decision, Verified onchain facts, Recent transaction sample, Ownership and role evidence, Severity-ranked findings, Evidence limitations, Required onboarding controls, and Recommendation. Distinguish confirmed facts, risk indicators, and evidence gaps. Do not claim that the network, balance, nonce, bytecode, account type, or transaction history is unavailable when the evidence contains it. Arc Testnet native USDC uses 18 decimals; do not misclassify correct native-USDC formatting as an unresolved ERC-20 decimal issue."
+        "For documentation tasks, use the supplied repository configuration and produce ready-to-use copy with prerequisites, numbered steps, exact values where verified, success checks, failure handling, assumptions, and next steps. Never return only a title or meta commentary.",
+      minimumLength: 700,
+      requiredTopics: ["prerequisite", "step", "verify", "failure", "assumption", "next"]
     };
   }
 
   return {
     kind: "general_task",
     instruction:
-      "For general tasks, infer the expected deliverable from the payload, make useful assumptions explicit, provide a concrete result, list missing information, and give next steps."
+      "For general tasks, infer the expected deliverable from the payload, make useful assumptions explicit, provide a concrete result, verify every available input, list genuine evidence limitations, and give next steps.",
+    minimumLength: 700,
+    requiredTopics: ["result", "evidence", "limitation", "recommendation", "next"]
   };
 }
 
@@ -542,25 +596,46 @@ function mergeUsage(current, body) {
 async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
   const startedAt = Date.now();
   const taskProfile = getTaskProfile(payload);
+  const webSearchTaskKinds = new Set(["market_research", "protocol_integration", "devops_reliability"]);
   const tools =
-    openAiWebSearchEnabled && taskProfile.kind === "market_research"
+    openAiWebSearchEnabled && webSearchTaskKinds.has(taskProfile.kind)
       ? [{ type: "web_search", search_context_size: executionPlan.webSearchContext }]
       : undefined;
   const evidence =
-    taskProfile.kind === "wallet_or_counterparty_risk"
+    taskProfile.kind === "wallet_or_counterparty_risk" || taskProfile.kind === "treasury_payment_review"
       ? await collectWalletRiskEvidence({
           payload,
           publicClient,
           rpcUrl,
           explorerUrl
         })
+      : taskProfile.kind === "data_analysis" || taskProfile.kind === "governance_compliance"
+        ? await collectMarketplaceEvidence({
+            publicClient,
+            escrowAddress,
+            registryAddress,
+            escrowAbi,
+            registryAbi
+          })
       : undefined;
+  const evidenceValues =
+    evidence?.kind === "arctask_marketplace_snapshot"
+      ? [evidence.referenceBlock, evidence.network?.chainId]
+      : evidence?.kind === "wallet_risk" && taskProfile.kind === "treasury_payment_review" && evidence.available
+        ? [
+            evidence.subjectWallet,
+            evidence.network?.chainId,
+            evidence.rpcSnapshot?.referenceBlock,
+            evidence.rpcSnapshot?.accountType
+          ]
+        : [];
   const task = {
     jobId: jobId.toString(),
     taskProfile: taskProfile.kind,
     payload,
     artifacts: loadTaskArtifacts({
       taskKind: taskProfile.kind,
+      payload,
       rootDir,
       escrowAddress,
       registryAddress
@@ -576,18 +651,27 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       deadlineIso: new Date(Number(job.deadline) * 1000).toISOString()
     }
   };
+  const targetMaximumChars = Math.min(30_000, Math.max(4_000, executionPlan.maxOutputTokens * 2));
 
   const systemInstructions = [
     "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain payload and verified artifacts.",
     `Task profile: ${taskProfile.kind}. ${taskProfile.instruction}`,
     taskProfile.kind === "market_research"
       ? `Use web search. Cite at least ${executionPlan.minimumSources} primary source URLs, separate verified facts from uncertain signals, and include a concise opportunity and risk comparison.`
+      : tools
+        ? `Use web search to verify external protocol or provider claims and cite at least ${executionPlan.minimumSources} current primary source URLs. Separate source-confirmed behavior from ArcTask implementation assumptions.`
       : taskProfile.kind === "contract_review"
         ? "Use the supplied contract source and ABI as primary evidence. Do not claim that source code, ABI, or deployed addresses are missing."
         : taskProfile.kind === "wallet_or_counterparty_risk"
           ? "Treat task.evidence as the verified wallet-specific evidence set. Analyze the recent transaction sample instead of replacing it with a generic checklist. Do not interpret an absent explorer scam label as sanctions or AML clearance. Keep the report decision-ready and omit controls unrelated to the observed evidence."
+          : taskProfile.kind === "treasury_payment_review" && evidence?.available
+            ? "Use the wallet-specific RPC and Arcscan evidence for transaction and account facts, but do not treat chain activity as proof of vendor identity, invoice validity, delivery, approval, sanctions clearance, or current key control."
+            : taskProfile.kind === "data_analysis" || taskProfile.kind === "governance_compliance"
+              ? "Use task.evidence as the current Arc marketplace snapshot. Cite its reference block, calculate supported values, and distinguish snapshot facts from metrics that require historical events."
         : "Use the supplied payload as primary evidence and clearly identify any input that is genuinely absent.",
-    "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, markdown code fences, generic filler, or an unfinished section."
+    `Keep the complete deliverable under approximately ${targetMaximumChars} characters so the conclusion is never truncated.`,
+    `End the response with the exact standalone line ${completionMarker}. A response without this final marker is incomplete and must not be submitted.`,
+    "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, generic filler, or an unfinished section."
   ].join(" ");
   let summary = "";
   let sourceUrls = [];
@@ -632,6 +716,9 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
         requestBody: {
           model: executionPlan.model,
           reasoning: attemptReasoning,
+          text: {
+            verbosity: executionPlan.outputVerbosity
+          },
           max_output_tokens: executionPlan.maxOutputTokens,
           ...(tools ? { tools } : {}),
           input: [
@@ -669,7 +756,12 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
         summary,
         sourceUrls,
         minimumSources: executionPlan.minimumSources,
-        evidence
+        evidence,
+        minimumLength: taskProfile.minimumLength,
+        requiredTopics: taskProfile.requiredTopics,
+        requiredEvidenceValues: evidenceValues,
+        requireCompletionMarker: true,
+        requireSources: Boolean(tools)
       });
       lastError = undefined;
       break;
@@ -708,6 +800,9 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
           reasoning: {
             effort: lowerReasoningEffort(executionPlan.reasoningEffort)
           },
+          text: {
+            verbosity: executionPlan.outputVerbosity
+          },
           max_output_tokens: executionPlan.maxOutputTokens,
           input: [
             {
@@ -716,7 +811,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
                 {
                   type: "input_text",
                   text:
-                    "Act as a strict evaluator and editor. Check the draft against the original ArcTask, remove unsupported claims, repair omissions, preserve valid source URLs, and return only the complete improved deliverable."
+                    `Act as a strict evaluator and editor. Check the draft against the original ArcTask, remove unsupported claims, repair omissions, preserve valid source URLs, stay within the requested length, and return only the complete improved deliverable. End with the exact standalone line ${completionMarker}.`
                 }
               ]
             },
@@ -754,7 +849,12 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
         summary: revisedSummary,
         sourceUrls: revisedSourceUrls,
         minimumSources: executionPlan.minimumSources,
-        evidence
+        evidence,
+        minimumLength: taskProfile.minimumLength,
+        requiredTopics: taskProfile.requiredTopics,
+        requiredEvidenceValues: evidenceValues,
+        requireCompletionMarker: true,
+        requireSources: Boolean(tools)
       });
       summary = revisedSummary;
       sourceUrls = revisedSourceUrls;
@@ -770,7 +870,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
     mode: "openai",
     model: executionPlan.model,
     title: payload?.title ?? `ArcTask job ${jobId.toString()}`,
-    summary,
+    summary: stripCompletionMarker(summary),
     sourceUrls,
     execution: {
       tier: executionPlan.selectedTier,
@@ -1283,10 +1383,16 @@ const arcTestnet = defineChain({
       url: explorerUrl
     }
   },
+  contracts: {
+    multicall3: {
+      address: "0xcA11bde05977b3631167028862bE2a173976CA11"
+    }
+  },
   testnet: true
 });
 
 const escrowAbi = readAbi("ERC8183Escrow.json");
+const registryAbi = readAbi("ERC8004AgentRegistry.json");
 const publicClient = createPublicClient({
   chain: arcTestnet,
   transport: http(rpcUrl)

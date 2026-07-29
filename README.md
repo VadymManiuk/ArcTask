@@ -219,7 +219,7 @@ Useful worker env vars:
 - `ARC_AGENT_MAX_RUNTIME_MS` - hard per-job runtime cap for routed execution, default `900000`
 - `ARC_AGENT_MAX_OUTPUT_TOKENS` - hard per-response output cap for routed execution, default `24000`
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
-- `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
+- `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for research, protocol-integration, and reliability jobs that require current primary sources
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
 - `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - recommended shared server-to-server token for Vercel-to-VPS deliverable fallback; when absent, the worker re-verifies the forwarded wallet signature, its timestamp, and the onchain job owner
@@ -249,8 +249,9 @@ always recomputes it from immutable onchain reward and payload values.
 
 For jobs that require current public research, such as finding upcoming DeFi TGE tokens, also set
 `ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Research submissions require at least
-the tier-specific number of source URLs. In production, missing keys, timeouts, placeholder language, or insufficient research leave the
-job funded for a later retry instead of committing a low-quality deliverable hash onchain.
+the tier-specific number of source URLs. The same source gate applies to protocol-integration and DevOps work when
+web search is enabled. In production, missing keys, timeouts, placeholder language, malformed sources, or insufficient
+research leave the job funded for a later retry instead of committing a low-quality deliverable hash onchain.
 
 Contract-review jobs automatically include the deployed escrow and registry addresses, repository Solidity sources,
 and generated ABIs. The worker requires concrete lifecycle function references, authorization and state-transition
@@ -262,6 +263,29 @@ balance, sent-transaction count, bytecode, and account type) plus a bounded rece
 quality gate requires the final report to cite those wallet-specific facts and at least one sampled transaction when
 available; generic onboarding checklists or statements that contradict the supplied evidence are rejected before
 onchain submission. Explorer labels remain explicitly non-authoritative for sanctions, AML, or legal ownership.
+
+Data and marketplace-analysis jobs receive a bounded reference-block snapshot of jobs, statuses, rewards, agents,
+reputation counters, completed/rejected work, and earnings. QA, documentation, integration, reliability, governance,
+and product-review profiles receive relevant repository artifacts instead of only the public task payload. Each
+profile has minimum evidence, structure, and topic requirements.
+
+Every OpenAI response must end with an internal completion marker. The worker removes that marker before publication,
+but refuses to submit a result when it is absent, which prevents token-limit truncation and half-finished tables,
+JSON, or conclusions from reaching the evaluator. Routed GPT-5.6 requests also set an explicit output verbosity and
+a tier-sized length target so the conclusion fits inside the output budget.
+
+Evaluator decisions can be executed from an audited score file:
+
+```bash
+# Verify statuses, evaluator wallet, and deliverable hashes without writing
+node scripts/settle-reviewed-jobs.mjs
+
+# Accept scores >= 7 and reject scores below 7
+node scripts/settle-reviewed-jobs.mjs --live
+```
+
+The script derives the action from the numeric score, rejects score/action mismatches, re-reads `SUBMITTED` status,
+requires the exact reviewed deliverable hash, checks the evaluator account, and waits for every settlement receipt.
 
 The worker writes runtime telemetry to `.agent-worker/state/status.json` using atomic writes. The app exposes that
 through `/api/worker/status`, with Vercel falling back to `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` when the status file is

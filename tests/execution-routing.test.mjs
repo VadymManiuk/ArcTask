@@ -12,6 +12,7 @@ test("reward tiers select progressively stronger GPT-5.6 models and budgets", ()
   assert.equal(getRewardTier(0.1).model, "gpt-5.6-terra");
   assert.equal(getRewardTier(0.5).model, "gpt-5.6-sol");
   assert.equal(getRewardTier(2).reasoningEffort, "high");
+  assert.equal(getRewardTier(2).outputVerbosity, "high");
   assert.equal(getRewardTier(10).reasoningMode, "pro");
 
   const tiers = listExecutionTiers();
