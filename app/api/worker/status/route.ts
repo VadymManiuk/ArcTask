@@ -38,7 +38,14 @@ interface WorkerStatus {
     errors?: number;
   };
   recentEvents?: Array<Record<string, unknown>>;
-  lastError?: string;
+  activeJob?: {
+    jobId?: string;
+    phase?: string;
+    attempt?: number;
+    status?: string;
+    startedAt?: string;
+  } | null;
+  lastError?: string | null;
 }
 
 function getStatusPath() {
@@ -86,7 +93,16 @@ function sanitizeStatus(status: WorkerStatus) {
           errors: status.metrics.errors
         }
       : undefined,
-    recentEvents: []
+    recentEvents: [],
+    activeJob: status.activeJob
+      ? {
+          jobId: status.activeJob.jobId,
+          phase: status.activeJob.phase,
+          attempt: status.activeJob.attempt,
+          status: status.activeJob.status,
+          startedAt: status.activeJob.startedAt
+        }
+      : null
   };
 }
 

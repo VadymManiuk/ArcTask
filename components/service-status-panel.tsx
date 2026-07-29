@@ -44,7 +44,14 @@ interface WorkerStatusResponse {
       error?: string;
       createdAt?: string;
     }>;
-    lastError?: string;
+    activeJob?: {
+      jobId?: string;
+      phase?: string;
+      attempt?: number;
+      status?: string;
+      startedAt?: string;
+    } | null;
+    lastError?: string | null;
   };
 }
 
@@ -115,6 +122,7 @@ export function ServiceStatusPanel() {
   }, []);
 
   const metrics = workerStatus?.status?.metrics;
+  const activeJob = workerStatus?.status?.activeJob;
   const managedAgentCount = workerStatus?.status?.managedAgentCount ?? 0;
 
   return (
@@ -138,7 +146,11 @@ export function ServiceStatusPanel() {
           <StatusTile
             label="Worker"
             value={workerStatus?.live ? "Live" : "Offline"}
-            detail={`heartbeat ${formatAge(workerStatus?.ageMs)}`}
+            detail={
+              activeJob?.jobId
+                ? `Job #${activeJob.jobId} · ${activeJob.phase ?? "working"}`
+                : `heartbeat ${formatAge(workerStatus?.ageMs)}`
+            }
             tone={workerStatus?.live ? "good" : "warn"}
           />
           <StatusTile
@@ -149,7 +161,7 @@ export function ServiceStatusPanel() {
           <StatusTile
             label="Jobs submitted"
             value={metrics?.jobsSubmitted ?? 0}
-            detail={`${metrics?.jobsUnderfunded ?? 0} underfunded, ${metrics?.errors ?? 0} errors`}
+            detail={`${metrics?.jobsUnderfunded ?? 0} underfunded, ${metrics?.errors ?? 0} retry attempts`}
           />
           <StatusTile
             label="Network jobs"

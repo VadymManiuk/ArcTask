@@ -210,11 +210,14 @@ Useful worker env vars:
 - `OPENAI_MODEL` - fixed-model fallback, default `gpt-5.6-sol`; used when routing is `off` or `shadow`
 - `OPENAI_REASONING_EFFORT` - fixed-model reasoning effort, default `medium`
 - `OPENAI_TIMEOUT_MS` - fixed-model timeout, default `180000`
+- `OPENAI_HTTP_TIMEOUT_MS` - timeout for individual Responses API create/poll requests, default `30000`
+- `OPENAI_POLL_INTERVAL_MS` - background response polling interval, default `3000`
 - `OPENAI_MAX_OUTPUT_TOKENS` - fixed-model output budget, default `3000`
 - `ARC_AGENT_ROUTING_MODE` - `enforce` by default; `shadow` records the recommendation while using the fixed model, and `off` disables routing
 - `ARC_AGENT_DEMO_SUBSIDY` - defaults to `false`; permits underfunded testnet jobs to run at their required quality tier
+- `ARC_AGENT_RECOVERY_JOB_IDS` - exact comma-separated job IDs allowed to use their required tier for one-time operator recovery
 - `ARC_AGENT_MAX_RUNTIME_MS` - hard per-job runtime cap for routed execution, default `900000`
-- `ARC_AGENT_MAX_OUTPUT_TOKENS` - hard per-response output cap for routed execution, default `10000`
+- `ARC_AGENT_MAX_OUTPUT_TOKENS` - hard per-response output cap for routed execution, default `24000`
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage

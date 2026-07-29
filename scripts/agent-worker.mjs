@@ -19,6 +19,12 @@ import {
 import { loadTaskArtifacts } from "./agent-task-context.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 import { createExecutionPlan } from "../lib/execution-routing.mjs";
+import {
+  allocateAttemptTimeout,
+  describeOpenAiResponse,
+  lowerReasoningEffort,
+  requestBackgroundResponse
+} from "../lib/openai-background.mjs";
 
 const rootDir = process.cwd();
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
@@ -130,6 +136,21 @@ function getRoutingMode() {
   throw new Error("ARC_AGENT_ROUTING_MODE must be off, shadow, or enforce.");
 }
 
+function getJobIdSetEnv(name) {
+  const jobIds = (process.env[name] ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  for (const jobId of jobIds) {
+    if (!/^\d+$/.test(jobId) || BigInt(jobId) <= 0n) {
+      throw new Error(`${name} must contain only positive comma-separated job IDs.`);
+    }
+  }
+
+  return new Set(jobIds.map((jobId) => BigInt(jobId).toString()));
+}
+
 function getReasoningEffort() {
   const value = (process.env.OPENAI_REASONING_EFFORT ?? "medium").toLowerCase();
   if (["low", "medium", "high", "xhigh"].includes(value)) {
@@ -176,7 +197,7 @@ function serializeBigInts(value) {
 
 async function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
   const payload = decodeJobPayloadUri(job.jobURI);
-  const executionPlan = buildExecutionPlan(job, payload);
+  const executionPlan = buildExecutionPlan(jobId, job, payload);
   if (executionPlan.budgetDecision === "insufficient") {
     throw new InsufficientComputeBudgetError(executionPlan);
   }
@@ -212,7 +233,7 @@ async function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
   };
 }
 
-function buildExecutionPlan(job, payload) {
+function buildExecutionPlan(jobId, job, payload) {
   const plan = createExecutionPlan(
     {
       title: payload?.title,
@@ -220,7 +241,7 @@ function buildExecutionPlan(job, payload) {
       rewardAmount: Number(formatUnits(job.rewardAmount, 18))
     },
     {
-      allowSubsidy: routingSubsidyEnabled
+      allowSubsidy: routingSubsidyEnabled || recoveryJobIds.has(jobId.toString())
     }
   );
 
@@ -496,31 +517,16 @@ function buildPaymentReviewSummary(payload) {
   ].join("\n");
 }
 
-async function requestOpenAiResponse({ requestBody, timeoutMs }) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(`${openAiBaseUrl}/responses`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${openAiApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const message = body?.error?.message ?? `OpenAI request failed with HTTP ${response.status}`;
-      throw new Error(message);
-    }
-
-    return body;
-  } finally {
-    clearTimeout(timeout);
-  }
+async function requestOpenAiResponse({ requestBody, timeoutMs, onProgress }) {
+  return requestBackgroundResponse({
+    apiKey: openAiApiKey,
+    baseUrl: openAiBaseUrl,
+    requestBody,
+    timeoutMs,
+    httpTimeoutMs: openAiHttpTimeoutMs,
+    pollIntervalMs: openAiPollIntervalMs,
+    onProgress
+  });
 }
 
 function mergeUsage(current, body) {
@@ -570,14 +576,11 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
         : "Use the supplied payload as primary evidence and clearly identify any input that is genuinely absent.",
     "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, markdown code fences, generic filler, or an unfinished section."
   ].join(" ");
-  const reasoning = {
-    effort: executionPlan.reasoningEffort,
-    ...(executionPlan.reasoningMode ? { mode: executionPlan.reasoningMode } : {})
-  };
   let summary = "";
   let sourceUrls = [];
   let attemptsUsed = 0;
   let validationPassesCompleted = 0;
+  const validationWarnings = [];
   let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let lastError;
 
@@ -589,11 +592,33 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
     }
 
     try {
+      const attemptsLeft = executionPlan.maxAttempts - attempt + 1;
+      const attemptTimeoutMs = allocateAttemptTimeout({
+        remainingMs,
+        requestTimeoutMs: executionPlan.requestTimeoutMs,
+        attemptsLeft
+      });
+      const attemptReasoning = {
+        effort: lowerReasoningEffort(executionPlan.reasoningEffort, attempt - 1),
+        ...(attempt === 1 && executionPlan.reasoningMode ? { mode: executionPlan.reasoningMode } : {})
+      };
       const body = await requestOpenAiResponse({
-        timeoutMs: Math.min(executionPlan.requestTimeoutMs, remainingMs),
+        timeoutMs: attemptTimeoutMs,
+        onProgress: ({ id, status, elapsedMs }) =>
+          writeStatus({
+            activeJob: {
+              jobId: jobId.toString(),
+              phase: "generation",
+              attempt,
+              status,
+              responseId: id,
+              elapsedMs,
+              startedAt: new Date(startedAt).toISOString()
+            }
+          }),
         requestBody: {
           model: executionPlan.model,
-          reasoning,
+          reasoning: attemptReasoning,
           max_output_tokens: executionPlan.maxOutputTokens,
           ...(tools ? { tools } : {}),
           input: [
@@ -621,7 +646,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       usage = mergeUsage(usage, body);
       const output = extractOpenAiText(body);
       if (!output) {
-        throw new Error("OpenAI response did not include output text.");
+        throw new Error(`${describeOpenAiResponse(body)} No deliverable text was returned.`);
       }
 
       sourceUrls = uniq([...sourceUrls, ...collectOpenAiSourceUrls(body, output)]);
@@ -649,61 +674,80 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       break;
     }
 
-    const body = await requestOpenAiResponse({
-      timeoutMs: Math.min(executionPlan.requestTimeoutMs, remainingMs),
-      requestBody: {
-        model: executionPlan.model,
-        reasoning,
-        max_output_tokens: executionPlan.maxOutputTokens,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text:
-                  "Act as a strict evaluator and editor. Check the draft against the original ArcTask, remove unsupported claims, repair omissions, preserve valid source URLs, and return only the complete improved deliverable."
-              }
-            ]
+    try {
+      const body = await requestOpenAiResponse({
+        timeoutMs: Math.min(executionPlan.requestTimeoutMs, remainingMs),
+        onProgress: ({ id, status, elapsedMs }) =>
+          writeStatus({
+            activeJob: {
+              jobId: jobId.toString(),
+              phase: "validation",
+              attempt: pass,
+              status,
+              responseId: id,
+              elapsedMs,
+              startedAt: new Date(startedAt).toISOString()
+            }
+          }),
+        requestBody: {
+          model: executionPlan.model,
+          reasoning: {
+            effort: lowerReasoningEffort(executionPlan.reasoningEffort)
           },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: JSON.stringify(
-                  {
-                    task,
-                    taskProfile: taskProfile.kind,
-                    requiredMinimumSources: executionPlan.minimumSources,
-                    draft: summary
-                  },
-                  null,
-                  2
-                )
-              }
-            ]
-          }
-        ]
+          max_output_tokens: executionPlan.maxOutputTokens,
+          input: [
+            {
+              role: "system",
+              content: [
+                {
+                  type: "input_text",
+                  text:
+                    "Act as a strict evaluator and editor. Check the draft against the original ArcTask, remove unsupported claims, repair omissions, preserve valid source URLs, and return only the complete improved deliverable."
+                }
+              ]
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: JSON.stringify(
+                    {
+                      task,
+                      taskProfile: taskProfile.kind,
+                      requiredMinimumSources: executionPlan.minimumSources,
+                      draft: summary
+                    },
+                    null,
+                    2
+                  )
+                }
+              ]
+            }
+          ]
+        }
+      });
+      usage = mergeUsage(usage, body);
+      const revisedOutput = extractOpenAiText(body);
+      if (!revisedOutput) {
+        throw new Error(`${describeOpenAiResponse(body)} Validation returned no deliverable text.`);
       }
-    });
-    usage = mergeUsage(usage, body);
-    const revisedOutput = extractOpenAiText(body);
-    if (!revisedOutput) {
-      throw new Error(`Validation pass ${pass} returned no deliverable text.`);
-    }
 
-    const revisedSourceUrls = uniq([...sourceUrls, ...collectOpenAiSourceUrls(body, revisedOutput)]);
-    const revisedSummary = appendSourceUrls(revisedOutput, revisedSourceUrls);
-    assertAgentResultQuality({
-      taskKind: taskProfile.kind,
-      summary: revisedSummary,
-      sourceUrls: revisedSourceUrls,
-      minimumSources: executionPlan.minimumSources
-    });
-    summary = revisedSummary;
-    sourceUrls = revisedSourceUrls;
-    validationPassesCompleted = pass;
+      const revisedSourceUrls = uniq([...sourceUrls, ...collectOpenAiSourceUrls(body, revisedOutput)]);
+      const revisedSummary = appendSourceUrls(revisedOutput, revisedSourceUrls);
+      assertAgentResultQuality({
+        taskKind: taskProfile.kind,
+        summary: revisedSummary,
+        sourceUrls: revisedSourceUrls,
+        minimumSources: executionPlan.minimumSources
+      });
+      summary = revisedSummary;
+      sourceUrls = revisedSourceUrls;
+      validationPassesCompleted = pass;
+    } catch (caught) {
+      validationWarnings.push(caught instanceof Error ? caught.message : "Validation pass failed.");
+      break;
+    }
   }
 
   return {
@@ -720,7 +764,8 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       attemptsUsed,
       validationPassesCompleted,
       durationMs: Date.now() - startedAt,
-      usage
+      usage,
+      validationWarnings
     }
   };
 }
@@ -882,7 +927,8 @@ function createInitialStatus() {
       jobsSkipped: 0,
       errors: 0
     },
-    recentEvents: []
+    recentEvents: [],
+    activeJob: null
   };
 }
 
@@ -1137,7 +1183,11 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
       });
       console.error(`job ${jobId} failed: ${message}`);
     } finally {
-      lock.release();
+      try {
+        writeStatus({ activeJob: null });
+      } finally {
+        lock.release();
+      }
     }
   }
 
@@ -1185,6 +1235,8 @@ const openAiApiKey = process.env.OPENAI_API_KEY;
 const openAiModel = process.env.OPENAI_MODEL ?? "gpt-5.6-sol";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 180_000);
+const openAiHttpTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_HTTP_TIMEOUT_MS", 30_000);
+const openAiPollIntervalMs = getOptionalPositiveIntegerEnv("OPENAI_POLL_INTERVAL_MS", 3_000);
 const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 3_000);
 const openAiReasoningEffort = getReasoningEffort();
 const openAiWebSearchEnabled = getBooleanEnv("ARC_AGENT_ENABLE_WEB_SEARCH", false);
@@ -1193,8 +1245,9 @@ const allowDeterministicFallback = getBooleanEnv("ARC_AGENT_ALLOW_DETERMINISTIC_
 const maxJobPayloadChars = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_PAYLOAD_CHARS", defaultMaxJobPayloadChars);
 const routingMode = getRoutingMode();
 const routingSubsidyEnabled = getBooleanEnv("ARC_AGENT_DEMO_SUBSIDY", false);
+const recoveryJobIds = getJobIdSetEnv("ARC_AGENT_RECOVERY_JOB_IDS");
 const routingMaxRuntimeMs = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_RUNTIME_MS", 900_000);
-const routingMaxOutputTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_OUTPUT_TOKENS", 10_000);
+const routingMaxOutputTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_OUTPUT_TOKENS", 24_000);
 
 const arcTestnet = defineChain({
   id: 5042002,
@@ -1251,6 +1304,9 @@ console.log(
   }`
 );
 console.log(`routing: ${routingMode}${routingSubsidyEnabled ? " (demo subsidy enabled)" : ""}`);
+if (recoveryJobIds.size > 0) {
+  console.log(`recovery jobs: ${[...recoveryJobIds].join(", ")}`);
+}
 console.log(`status: ${path.relative(rootDir, statusPath)}`);
 
 if (
