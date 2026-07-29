@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
-import { isNetworkSnapshotRegressive } from "@/lib/network-snapshot";
+import { isNetworkSnapshotRegressive, mergeOnchainJobStatus } from "@/lib/network-snapshot";
 import { getState, hydrateNetworkState, subscribeToState } from "@/lib/store";
 import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, Job, JobStatus } from "@/lib/types";
@@ -52,6 +52,7 @@ interface NetworkJobsResponse {
 const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const networkRequestTimeoutMs = 20_000;
 const networkRequestAttempts = 3;
+const backgroundRefreshMs = 6_000;
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -148,8 +149,8 @@ function createNetworkState(
       evaluatorWallet: job.evaluatorWallet,
       rewardAmount: Number(formatUnits(BigInt(job.rewardAmount), ARC_TESTNET.nativeCurrency.decimals)),
       deadline: deadlineToDateInput(job.deadline),
-      status: job.status,
-      deliverableHash: job.deliverableHash === zeroHash ? undefined : job.deliverableHash,
+      status: mergeOnchainJobStatus(localJob?.status, job.status),
+      deliverableHash: job.deliverableHash === zeroHash ? localJob?.deliverableHash : job.deliverableHash,
       createdAt: unixSecondsToIso(job.createdAt),
       updatedAt: unixSecondsToIso(job.updatedAt),
       txHistory: localJob?.txHistory ?? []
@@ -170,46 +171,78 @@ export function useArcTaskState() {
     setState(localState);
     const unsubscribe = subscribeToState(() => setState(getState()));
     let active = true;
+    let inFlight = false;
+    let refreshTimer: number | undefined;
+
+    function scheduleRefresh() {
+      window.clearTimeout(refreshTimer);
+      if (active) {
+        refreshTimer = window.setTimeout(() => void syncNetworkState(false), backgroundRefreshMs);
+      }
+    }
+
+    async function syncNetworkState(showInitialLoading: boolean) {
+      if (!active || inFlight) {
+        return;
+      }
+
+      inFlight = true;
+      window.clearTimeout(refreshTimer);
+      if (showInitialLoading && getState().jobs.length === 0) {
+        setIsLoading(true);
+      }
+      setSyncError("");
+      try {
+        const { agentsBody, jobsBody } = await fetchNetworkResponses();
+        if (!active) {
+          return;
+        }
+
+        const currentState = getState();
+        if (
+          isNetworkSnapshotRegressive({
+            currentAgentIds: currentState.agents.map((agent) => agent.onchainAgentId),
+            currentJobIds: currentState.jobs.map((job) => job.onchainJobId),
+            incomingNextAgentId: agentsBody.nextAgentId,
+            incomingNextJobId: jobsBody.nextJobId
+          })
+        ) {
+          throw new Error("Arc Testnet returned an older snapshot. Keeping the last confirmed data.");
+        }
+
+        hydrateNetworkState(createNetworkState(agentsBody, jobsBody, currentState));
+      } catch (caught) {
+        if (active) {
+          setSyncError(caught instanceof Error ? caught.message : "Arc Testnet data is temporarily unavailable.");
+        }
+      } finally {
+        inFlight = false;
+        if (active) {
+          setIsLoading(false);
+          scheduleRefresh();
+        }
+      }
+    }
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        void syncNetworkState(false);
+      }
+    }
 
     if (getArcMode() === "onchain") {
-      setIsLoading(true);
-      setSyncError("");
-      void fetchNetworkResponses()
-        .then(({ agentsBody, jobsBody }) => {
-          if (!active) {
-            return;
-          }
-
-          const currentState = getState();
-          if (
-            isNetworkSnapshotRegressive({
-              currentAgentIds: currentState.agents.map((agent) => agent.onchainAgentId),
-              currentJobIds: currentState.jobs.map((job) => job.onchainJobId),
-              incomingNextAgentId: agentsBody.nextAgentId,
-              incomingNextJobId: jobsBody.nextJobId
-            })
-          ) {
-            throw new Error("Arc Testnet returned an older snapshot. Keeping the last confirmed data.");
-          }
-
-          hydrateNetworkState(createNetworkState(agentsBody, jobsBody, currentState));
-        })
-        .catch((caught) => {
-          if (active) {
-            setSyncError(caught instanceof Error ? caught.message : "Arc Testnet data is temporarily unavailable.");
-          }
-        })
-        .finally(() => {
-          if (active) {
-            setIsLoading(false);
-          }
-        });
+      void syncNetworkState(true);
+      window.addEventListener("focus", refreshWhenVisible);
+      document.addEventListener("visibilitychange", refreshWhenVisible);
     } else {
       setIsLoading(false);
     }
 
     return () => {
       active = false;
+      window.clearTimeout(refreshTimer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
       unsubscribe();
     };
   }, [reloadKey]);

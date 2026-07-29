@@ -1,3 +1,15 @@
+import type { JobStatus } from "@/lib/types";
+
+const jobStatusProgress: Record<JobStatus, number> = {
+  FUNDED: 0,
+  SUBMITTED: 1,
+  ACCEPTED: 2,
+  REJECTED: 2,
+  REFUNDED: 2
+};
+
+const terminalJobStatuses = new Set<JobStatus>(["ACCEPTED", "REJECTED", "REFUNDED"]);
+
 function getMaximumOnchainId(values: Array<string | undefined>) {
   return values.reduce<bigint | null>((maximum, value) => {
     if (!value || !/^\d+$/.test(value)) {
@@ -32,4 +44,16 @@ export function isNetworkSnapshotRegressive(input: {
     isSequenceRegressive(input.currentAgentIds, input.incomingNextAgentId) ||
     isSequenceRegressive(input.currentJobIds, input.incomingNextJobId)
   );
+}
+
+export function mergeOnchainJobStatus(currentStatus: JobStatus | undefined, incomingStatus: JobStatus) {
+  if (!currentStatus) {
+    return incomingStatus;
+  }
+
+  if (terminalJobStatuses.has(currentStatus)) {
+    return currentStatus;
+  }
+
+  return jobStatusProgress[incomingStatus] >= jobStatusProgress[currentStatus] ? incomingStatus : currentStatus;
 }

@@ -12,7 +12,7 @@ export const maxDuration = 30;
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
-const freshCacheMs = 15_000;
+const freshCacheMs = 2_000;
 const staleCacheMs = 15 * 60_000;
 const cachedJobsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
 

@@ -8,7 +8,7 @@ import { waitForTransactionReceiptWithRetry, withRpcRetry } from "../scripts/arc
 import { createDeliverableNonce, consumeDeliverableNonce } from "../lib/server-deliverable-nonce.ts";
 import { isRetryableRpcError, withServerRpcRetry } from "../lib/server-rpc-retry.ts";
 import { getAuthorizedAccount } from "../lib/wallet-account.ts";
-import { isNetworkSnapshotRegressive } from "../lib/network-snapshot.ts";
+import { isNetworkSnapshotRegressive, mergeOnchainJobStatus } from "../lib/network-snapshot.ts";
 
 function readAbi(fileName) {
   return JSON.parse(fs.readFileSync(new URL(`../lib/contracts/abis/${fileName}`, import.meta.url), "utf8"));
@@ -168,4 +168,12 @@ test("older successful network snapshots cannot erase newer onchain state", () =
     }),
     false
   );
+});
+
+test("stale job snapshots cannot roll submitted or terminal statuses backward", () => {
+  assert.equal(mergeOnchainJobStatus("SUBMITTED", "FUNDED"), "SUBMITTED");
+  assert.equal(mergeOnchainJobStatus("ACCEPTED", "SUBMITTED"), "ACCEPTED");
+  assert.equal(mergeOnchainJobStatus("REJECTED", "FUNDED"), "REJECTED");
+  assert.equal(mergeOnchainJobStatus("FUNDED", "SUBMITTED"), "SUBMITTED");
+  assert.equal(mergeOnchainJobStatus("SUBMITTED", "ACCEPTED"), "ACCEPTED");
 });
