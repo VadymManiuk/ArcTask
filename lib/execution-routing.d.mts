@@ -44,6 +44,7 @@ export interface ExecutionTier {
   reasoningMode: "pro" | null;
   maxRuntimeMs: number;
   requestTimeoutMs: number;
+  minimumOutputTokens: number;
   maxOutputTokens: number;
   maxTotalTokens: number;
   maxRequests: number;
@@ -55,7 +56,7 @@ export interface ExecutionTier {
 }
 
 export interface ExecutionPlan {
-  version: 2;
+  version: 3;
   complexity: ComplexityAssessment;
   routingSource: "ai" | "deterministic";
   aiAssessment: AiRoutingAssessment | null;

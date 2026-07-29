@@ -92,8 +92,9 @@ test("high-confidence AI assessment selects the smallest safe tier and bounded p
   assert.equal(plan.routingSource, "ai");
   assert.equal(plan.selectedTier, "pro");
   assert.equal(plan.model, "gpt-5.6-luna");
-  assert.equal(plan.maxOutputTokens, 2_500);
+  assert.equal(plan.maxOutputTokens, 6_000);
   assert.equal(plan.maxRequests, 2);
+  assert.equal(plan.escalationModel, null);
 });
 
 test("AI tier choice is not inflated by a borderline score when confidence is high", () => {
@@ -120,7 +121,7 @@ test("AI tier choice is not inflated by a borderline score when confidence is hi
 
   assert.equal(plan.selectedTier, "pro");
   assert.equal(plan.budgetDecision, "sufficient");
-  assert.equal(plan.maxOutputTokens, 2_500);
+  assert.equal(plan.maxOutputTokens, 6_000);
   assert.equal(plan.maxRequests, 2);
 });
 
@@ -148,5 +149,5 @@ test("AI recommendations cannot bypass risk or deterministic minimum-tier policy
 
   assert.equal(plan.selectedTier, "expert");
   assert.equal(plan.model, "gpt-5.6-terra");
-  assert.equal(plan.maxOutputTokens, 4_000);
+  assert.equal(plan.maxOutputTokens, 9_000);
 });

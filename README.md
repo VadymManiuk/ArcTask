@@ -254,8 +254,8 @@ plus web-search cost is persisted across worker restarts. The low-cost routing c
 per job. A configurable `$100` monthly circuit breaker remains only as protection against a software defect or
 unexpected queue explosion.
 
-Higher tiers spend their additional budget on longer output, one controlled quality escalation, deeper source coverage,
-and stronger reasoning rather than repeated full rewrites. Starter through Pro use Flex processing for asynchronous
+Higher tiers spend their additional budget on longer output, one controlled lower-reasoning quality retry, deeper source
+coverage, and stronger initial reasoning rather than repeated expensive model upgrades. Starter through Pro use Flex processing for asynchronous
 cost savings; Expert and Critical use standard processing. The selected plan and token/cost/latency telemetry are stored in the
 private worker report. The create-job and job-detail pages show the same deterministic estimate, while the worker
 always recomputes it from immutable onchain reward and payload values, then applies the cached AI assessment.

@@ -59,7 +59,10 @@ export function ExecutionPlan({
         <PlanValue label="Compute budget" value={`$${plan.computeBudgetUsd.toFixed(4)}`} />
         <PlanValue label="Processing" value={plan.serviceTier} />
         <PlanValue label="Attempts" value={String(plan.maxAttempts)} />
-        <PlanValue label="Escalation" value={plan.escalationModel?.replace("gpt-", "GPT ") ?? "none"} />
+        <PlanValue
+          label="Quality recovery"
+          value={plan.maxAttempts > 1 ? "1 lower-reasoning retry" : "none"}
+        />
       </dl>
 
       {!compact && plan.complexity.factors.length > 0 ? (

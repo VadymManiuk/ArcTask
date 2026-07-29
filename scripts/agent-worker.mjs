@@ -788,10 +788,15 @@ function assertTokenBudgetAvailable(jobId, executionPlan) {
     executionPlan.maxTotalTokens,
     executionPlan.computeBudgetUsd
   );
+  const hasLegacyGeneration =
+    state.job.requestKinds.generation > 0 &&
+    state.job.policyVersion < executionPlan.version;
+  const generationRequestLimit =
+    executionPlan.maxRequests + (hasLegacyGeneration ? 1 : 0);
   if (
     state.jobExceeded ||
     state.jobCostExceeded ||
-    state.job.requestKinds.generation >= executionPlan.maxRequests
+    state.job.requestKinds.generation >= generationRequestLimit
   ) {
     throw new UsageBudgetExceededError(state);
   }
@@ -803,7 +808,7 @@ function getOpenAiToolCostUsd(body) {
   return Number((webSearchCalls * webSearchCallCostUsd).toFixed(8));
 }
 
-function recordOpenAiUsage(jobId, body, { model, requestKind }) {
+function recordOpenAiUsage(jobId, body, { model, requestKind, policyVersion = 0 }) {
   const usage = body?.usage ?? {};
   const inputTokens = Number(usage.input_tokens ?? 0);
   const outputTokens = Number(usage.output_tokens ?? 0);
@@ -816,7 +821,8 @@ function recordOpenAiUsage(jobId, body, { model, requestKind }) {
       totalTokens: Number(usage.total_tokens ?? inputTokens + outputTokens),
       costUsd: Number((estimateUsageCostUsd(model, usage) + getOpenAiToolCostUsd(body)).toFixed(8)),
       requestKind,
-      model
+      model,
+      policyVersion
     }
   );
   atomicWriteJson(usagePath, ledger);
@@ -848,10 +854,22 @@ async function requestProviderResponse({ requestBody, timeoutMs, onProgress }) {
 
 async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeoutMs, onProgress }) {
   const budgetState = assertTokenBudgetAvailable(jobId, executionPlan);
-  const estimatedInputTokens = Math.ceil(JSON.stringify(requestBody.input ?? "").length / 3);
+  const hasWebSearch = (requestBody.tools ?? []).some((tool) => tool?.type === "web_search");
+  const webSearchInputReserve = hasWebSearch
+    ? {
+        low: 8_000,
+        medium: 25_000,
+        high: 50_000
+      }[executionPlan.webSearchContext] ?? 25_000
+    : 0;
+  // Tool results are added by the provider after the request is sent, so the
+  // serialized prompt alone materially underestimates research input usage.
+  const estimatedInputTokens =
+    Math.ceil(JSON.stringify(requestBody.input ?? "").length / 3) +
+    webSearchInputReserve;
   const requestedModel = requestBody.model ?? executionPlan.model;
   const availableOutputByTokens = budgetState.jobRemaining - estimatedInputTokens;
-  const reservedToolCostUsd = (requestBody.tools ?? []).some((tool) => tool?.type === "web_search")
+  const reservedToolCostUsd = hasWebSearch
     ? webSearchCallCostUsd
     : 0;
   const availableOutputByCost = getMaxAffordableOutputTokens({
@@ -877,7 +895,8 @@ async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeou
   });
   recordOpenAiUsage(jobId, body, {
     model: requestedModel,
-    requestKind: "generation"
+    requestKind: "generation",
+    policyVersion: executionPlan.version
   });
   return body;
 }
@@ -983,27 +1002,45 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
   let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0 };
   let modelUsed = executionPlan.model;
   let lastError;
+  const priorUsageState = getPersistedUsageState(
+    jobId,
+    executionPlan.maxTotalTokens,
+    executionPlan.computeBudgetUsd
+  );
+  const priorGenerationRequests = priorUsageState.job.requestKinds.generation;
+  const legacyRecoveryAttempts =
+    priorGenerationRequests > 0 &&
+    priorUsageState.job.policyVersion < executionPlan.version
+      ? 1
+      : 0;
+  const remainingAttempts = Math.max(
+    0,
+    executionPlan.maxAttempts + legacyRecoveryAttempts - priorGenerationRequests
+  );
 
-  for (let attempt = 1; attempt <= executionPlan.maxAttempts; attempt += 1) {
-    attemptsUsed = attempt;
+  for (let attempt = 1; attempt <= remainingAttempts; attempt += 1) {
+    const globalAttempt = priorGenerationRequests + attempt;
+    attemptsUsed = globalAttempt;
     const remainingMs = executionPlan.maxRuntimeMs - (Date.now() - startedAt);
     if (remainingMs <= 1_000) {
       throw new Error(`Execution exceeded the ${executionPlan.maxRuntimeMs}ms runtime budget.`);
     }
 
     try {
-      const attemptsLeft = executionPlan.maxAttempts - attempt + 1;
+      const attemptsLeft = remainingAttempts - attempt + 1;
       const attemptTimeoutMs = allocateAttemptTimeout({
         remainingMs,
         requestTimeoutMs: executionPlan.requestTimeoutMs,
         attemptsLeft
       });
       const attemptReasoning = {
-        effort: lowerReasoningEffort(executionPlan.reasoningEffort, attempt - 1),
-        ...(attempt === 1 && executionPlan.reasoningMode ? { mode: executionPlan.reasoningMode } : {})
+        effort: lowerReasoningEffort(executionPlan.reasoningEffort, globalAttempt - 1),
+        ...(globalAttempt === 1 && executionPlan.reasoningMode
+          ? { mode: executionPlan.reasoningMode }
+          : {})
       };
       const attemptModel =
-        attempt > 1 && executionPlan.escalationModel
+        globalAttempt > 1 && executionPlan.escalationModel
           ? executionPlan.escalationModel
           : executionPlan.model;
       const body = await requestOpenAiResponse({
@@ -1015,7 +1052,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
             activeJob: {
               jobId: jobId.toString(),
               phase: "generation",
-              attempt,
+              attempt: globalAttempt,
               status,
               responseId: id,
               elapsedMs,
@@ -1043,7 +1080,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
                   type: "input_text",
                   text: [
                     JSON.stringify(task, null, 2),
-                    attempt > 1
+                    globalAttempt > 1
                       ? `\nPrevious attempt failed validation: ${lastError?.message ?? "unknown quality failure"}. Produce a corrected complete deliverable.`
                       : ""
                   ].join("")
