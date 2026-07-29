@@ -11,6 +11,9 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
+const freshCacheMs = 15_000;
+const staleCacheMs = 15 * 60_000;
+const cachedAgentsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
 
 const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,
@@ -111,6 +114,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const limitValue = Number(searchParams.get("limit") ?? 100);
   const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 100;
+  const cachedAgentsResponse = cachedAgentsResponses.get(limit);
+  const now = Date.now();
+  if (cachedAgentsResponse && now - cachedAgentsResponse.createdAt < freshCacheMs) {
+    return NextResponse.json(cachedAgentsResponse.payload, {
+      headers: {
+        "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300"
+      }
+    });
+  }
 
   try {
     const nextAgentId = await withServerRpcRetry(
@@ -162,24 +174,44 @@ export async function GET(request: Request) {
       capabilities: agent.capabilities
     }));
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       registryAddress: getRegistryAddress(),
       nextAgentId: nextAgentId.toString(),
       count: agents.length,
       agents
-    }, {
+    };
+    cachedAgentsResponses.set(limit, { createdAt: Date.now(), payload });
+
+    return NextResponse.json(payload, {
       headers: {
-        "Cache-Control": "no-store, max-age=0"
+        "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300"
       }
     });
   } catch {
+    if (cachedAgentsResponse && Date.now() - cachedAgentsResponse.createdAt < staleCacheMs) {
+      return NextResponse.json(
+        {
+          ...cachedAgentsResponse.payload,
+          stale: true,
+          warning: "Showing the last confirmed Arc Testnet snapshot."
+        },
+        {
+          headers: {
+            "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300",
+            Warning: '110 - "Response is stale"'
+          }
+        }
+      );
+    }
+
     return NextResponse.json(
       { ok: false, error: "Unable to read Arc Testnet agents" },
       {
-        status: 500,
+        status: 503,
         headers: {
-          "Cache-Control": "no-store, max-age=0"
+          "Cache-Control": "no-store, max-age=0",
+          "Retry-After": "3"
         }
       }
     );

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const filters: Array<"ALL" | JobStatus> = ["ALL", "FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 
 export default function JobsPage() {
-  const { agents, jobs } = useArcTaskState();
+  const { agents, jobs, isLoading, syncError, refresh } = useArcTaskState();
   const [filter, setFilter] = useState<(typeof filters)[number]>("ALL");
   const [query, setQuery] = useState("");
 
@@ -73,12 +73,32 @@ export default function JobsPage() {
           <span>{filteredJobs.length} jobs</span>
         </div>
         <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 xl:grid-cols-3">
+          {isLoading && jobs.length === 0
+            ? [0, 1, 2].map((item) => (
+                <div
+                  key={item}
+                  className="h-44 animate-pulse rounded-xl border border-white/[0.075] bg-[#090d16]"
+                />
+              ))
+            : null}
           {filteredJobs.map((job) => (
             <JobCard key={job.id} job={job} agent={agents.find((agent) => agent.id === job.agentId)} />
           ))}
         </div>
       </div>
-      {filteredJobs.length === 0 ? (
+      {syncError ? (
+        <div className="mt-3 flex flex-col items-start justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.07] p-4 text-sm text-amber-100 sm:flex-row sm:items-center">
+          <span>
+            {jobs.length > 0
+              ? "Showing the last confirmed data. Live refresh is temporarily unavailable."
+              : "Arc Testnet data is temporarily unavailable."}
+          </span>
+          <Button type="button" variant="outline" onClick={refresh} disabled={isLoading}>
+            {isLoading ? "Retrying…" : "Retry"}
+          </Button>
+        </div>
+      ) : null}
+      {!isLoading && !syncError && filteredJobs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/[0.1] bg-[#090d16] p-8 text-sm text-slate-500">
           No jobs match this status yet.
         </div>

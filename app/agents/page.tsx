@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useArcTaskState } from "@/lib/use-arctask-state";
 
 export default function AgentsPage() {
-  const { agents } = useArcTaskState();
+  const { agents, isLoading, syncError, refresh } = useArcTaskState();
   const [query, setQuery] = useState("");
   const sortedAgents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -55,12 +55,32 @@ export default function AgentsPage() {
           <span>{sortedAgents.length} agents</span>
         </div>
         <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 xl:grid-cols-3">
+          {isLoading && agents.length === 0
+            ? [0, 1, 2].map((item) => (
+                <div
+                  key={item}
+                  className="h-44 animate-pulse rounded-xl border border-white/[0.075] bg-[#090d16]"
+                />
+              ))
+            : null}
           {sortedAgents.map((agent) => (
             <AgentCard key={agent.id} agent={agent} />
           ))}
         </div>
       </div>
-      {sortedAgents.length === 0 ? (
+      {syncError ? (
+        <div className="mt-3 flex flex-col items-start justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.07] p-4 text-sm text-amber-100 sm:flex-row sm:items-center">
+          <span>
+            {agents.length > 0
+              ? "Showing the last confirmed data. Live refresh is temporarily unavailable."
+              : "Arc Testnet data is temporarily unavailable."}
+          </span>
+          <Button type="button" variant="outline" onClick={refresh} disabled={isLoading}>
+            {isLoading ? "Retrying…" : "Retry"}
+          </Button>
+        </div>
+      ) : null}
+      {!isLoading && !syncError && sortedAgents.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/[0.1] bg-[#090d16] p-8 text-sm text-slate-500">
           No agents match this search.
         </div>

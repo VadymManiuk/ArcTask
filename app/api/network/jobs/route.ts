@@ -12,6 +12,9 @@ export const maxDuration = 30;
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
+const freshCacheMs = 15_000;
+const staleCacheMs = 15 * 60_000;
+const cachedJobsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
 
 const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,
@@ -111,6 +114,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const limitValue = Number(searchParams.get("limit") ?? 50);
   const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 50;
+  const cachedJobsResponse = cachedJobsResponses.get(limit);
+  const now = Date.now();
+  if (cachedJobsResponse && now - cachedJobsResponse.createdAt < freshCacheMs) {
+    return NextResponse.json(cachedJobsResponse.payload, {
+      headers: {
+        "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300"
+      }
+    });
+  }
 
   try {
     const nextJobId = await withServerRpcRetry(
@@ -155,25 +167,45 @@ export async function GET(request: Request) {
       { FUNDED: 0, SUBMITTED: 0, ACCEPTED: 0, REJECTED: 0, REFUNDED: 0 }
     );
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       escrowAddress: getEscrowAddress(),
       nextJobId: nextJobId.toString(),
       count: jobs.length,
       counts,
       jobs
-    }, {
+    };
+    cachedJobsResponses.set(limit, { createdAt: Date.now(), payload });
+
+    return NextResponse.json(payload, {
       headers: {
-        "Cache-Control": "no-store, max-age=0"
+        "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300"
       }
     });
   } catch {
+    if (cachedJobsResponse && Date.now() - cachedJobsResponse.createdAt < staleCacheMs) {
+      return NextResponse.json(
+        {
+          ...cachedJobsResponse.payload,
+          stale: true,
+          warning: "Showing the last confirmed Arc Testnet snapshot."
+        },
+        {
+          headers: {
+            "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300",
+            Warning: '110 - "Response is stale"'
+          }
+        }
+      );
+    }
+
     return NextResponse.json(
       { ok: false, error: "Unable to read Arc Testnet jobs" },
       {
-        status: 500,
+        status: 503,
         headers: {
-          "Cache-Control": "no-store, max-age=0"
+          "Cache-Control": "no-store, max-age=0",
+          "Retry-After": "3"
         }
       }
     );
