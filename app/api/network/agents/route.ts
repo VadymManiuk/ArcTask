@@ -168,8 +168,20 @@ export async function GET(request: Request) {
       nextAgentId: nextAgentId.toString(),
       count: agents.length,
       agents
+    }, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0"
+      }
     });
   } catch {
-    return NextResponse.json({ ok: false, error: "Unable to read Arc Testnet agents" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Unable to read Arc Testnet agents" },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store, max-age=0"
+        }
+      }
+    );
   }
 }
