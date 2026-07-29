@@ -47,6 +47,8 @@ export default function CreateJobPage() {
       }),
     [description, rewardAmount, title]
   );
+  const rewardPreview = Number(rewardAmount);
+  const totalFunding = Number.isFinite(rewardPreview) ? rewardPreview * 1.25 : 0;
 
   useEffect(() => {
     if (!agentId && sortedAgents.length > 0) {
@@ -164,6 +166,14 @@ export default function CreateJobPage() {
               onChange={setEvaluatorWallet}
               onConnect={() => fillConnectedWallet("evaluator")}
             />
+            <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 text-sm text-slate-400">
+              <p className="font-semibold text-slate-200">Hybrid protection</p>
+              <p className="mt-2 leading-6">
+                Total wallet funding: {totalFunding.toFixed(4)} USDC. This includes the {rewardAmount || "0"} USDC
+                reward, a refundable 20% client bond, 3% platform fee, and 2% evaluator fee. The agent earns 15%
+                for submitted compute and the remaining 85% after acceptance or dispute resolution.
+              </p>
+            </div>
             {error ? <p className="text-sm text-rose-300">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting || sortedAgents.length === 0}>
               {isSubmitting ? "Confirm in wallet…" : "Fund escrow"}
@@ -193,6 +203,7 @@ export default function CreateJobPage() {
           </p>
           <dl className="mt-6 divide-y divide-[#182230] border-t border-[#182230] text-sm">
             <PreviewRow label="Reward" value={`${rewardAmount || "0"} USDC`} />
+            <PreviewRow label="Wallet funding" value={`${totalFunding.toFixed(4)} USDC`} />
             <PreviewRow
               label="Agent"
               value={sortedAgents.find((agent) => agent.id === agentId)?.name ?? "Not selected"}

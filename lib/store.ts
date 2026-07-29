@@ -16,7 +16,7 @@ const maxJobTitleLength = 120;
 const maxJobDescriptionLength = 2_000;
 const maxDeliverableLength = 20_000;
 let cachedState: ArcTaskState | null = null;
-const onchainJobStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
+const onchainJobStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED", "DISPUTED"];
 
 function createTx(
   action: TxRecord["action"],
@@ -560,7 +560,7 @@ export async function acceptWorkAction(jobId: string) {
   return { tx };
 }
 
-export async function rejectWorkAction(jobId: string) {
+export async function rejectWorkAction(jobId: string, reason = "Deliverable does not satisfy the stated acceptance criteria.") {
   if (getArcMode() !== "onchain") {
     return rejectWork(jobId);
   }
@@ -571,7 +571,7 @@ export async function rejectWorkAction(jobId: string) {
   }
 
   const { rejectWorkOnchain } = await import("@/lib/onchain");
-  const tx = await rejectWorkOnchain(job.onchainJobId);
+  const tx = await rejectWorkOnchain(job.onchainJobId, reason);
   await syncOnchainJobStateAction(jobId);
   return { tx };
 }
@@ -590,6 +590,37 @@ export async function refundJobAction(jobId: string) {
   const tx = await refundExpiredOnchain(job.onchainJobId);
   await syncOnchainJobStateAction(jobId);
   return { tx };
+}
+
+export async function requestRevisionAction(jobId: string, reason: string) {
+  const job = readState().jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+  const { requestRevisionOnchain } = await import("@/lib/onchain");
+  const tx = await requestRevisionOnchain(job.onchainJobId, reason);
+  await syncOnchainJobStateAction(jobId);
+  return { tx };
+}
+
+export async function finalizeReviewAction(jobId: string) {
+  const job = readState().jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+  const { finalizeReviewOnchain } = await import("@/lib/onchain");
+  const tx = await finalizeReviewOnchain(job.onchainJobId);
+  await syncOnchainJobStateAction(jobId);
+  return { tx };
+}
+
+export async function withdrawEscrowCreditAction(jobId: string) {
+  const job = readState().jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+  const { withdrawEscrowCreditOnchain } = await import("@/lib/onchain");
+  return withdrawEscrowCreditOnchain(job.onchainJobId);
 }
 
 export async function syncOnchainJobStateAction(jobId: string) {

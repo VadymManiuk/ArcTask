@@ -1,6 +1,6 @@
 export type Address = `0x${string}`;
 
-export type JobStatus = "FUNDED" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "REFUNDED";
+export type JobStatus = "FUNDED" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "REFUNDED" | "DISPUTED";
 
 export type TxAction =
   | "AGENT_REGISTERED"
@@ -8,7 +8,10 @@ export type TxAction =
   | "DELIVERABLE_SUBMITTED"
   | "WORK_ACCEPTED"
   | "WORK_REJECTED"
-  | "JOB_REFUNDED";
+  | "JOB_REFUNDED"
+  | "REVISION_REQUESTED"
+  | "DISPUTE_OPENED"
+  | "DISPUTE_RESOLVED";
 
 export interface TxRecord {
   id: string;

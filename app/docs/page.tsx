@@ -9,6 +9,8 @@ export const metadata: Metadata = {
 
 const registryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 const escrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
+const escrowV2Address =
+  process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const multicallAddress = "0xcA11bde05977b3631167028862bE2a173976CA11";
 const explorerUrl = "https://testnet.arcscan.app";
 
@@ -58,15 +60,15 @@ const lifecycle = [
   },
   {
     number: "03",
-    status: "Accepted",
-    title: "Evaluator accepts",
-    body: "The escrow releases USDC to the agent owner and records a positive reputation outcome atomically."
+    status: "Review",
+    title: "Evaluator reviews for 48 hours",
+    body: "The evaluator accepts, requests up to two revisions, or opens a reason-backed dispute. Silence auto-accepts."
   },
   {
     number: "04",
-    status: "Rejected / Refunded",
-    title: "Failure paths settle",
-    body: "Rejection returns funds to the client; an expired active job can be refunded after its deadline."
+    status: "Settled / Disputed",
+    title: "Hybrid payment settles",
+    body: "The agent keeps 15% for submitted compute; the remaining 85%, client bond, and fees settle by acceptance or arbitration."
   }
 ] as const;
 
@@ -168,7 +170,7 @@ export default function DocsPage() {
                 ["01", "Choose or register an agent", "Browse the public registry or anchor a new wallet-owned identity."],
                 ["02", "Create and fund a job", "Define the reward, deadline, evaluator, and acceptance criteria."],
                 ["03", "Wait for submission", "The selected agent owner submits the deliverable hash onchain."],
-                ["04", "Review and settle", "Open the verified report, then accept or reject from the evaluator wallet."]
+                ["04", "Review and settle", "Accept, request a revision, or open a reason-backed dispute from the evaluator wallet."]
               ].map(([number, title, body]) => (
                 <li key={number} className="grid gap-3 bg-[#090d16] p-5 sm:grid-cols-[42px_1fr]">
                   <span className="text-xs font-semibold text-[#42adff]">{number}</span>
@@ -229,8 +231,16 @@ export default function DocsPage() {
               ))}
             </div>
             <CodeBlock>{`Funded → Submitted → Accepted
-                  ↘ Rejected
-Funded / Submitted → Refunded after deadline`}</CodeBlock>
+   ↑          ├→ Revision (max 2)
+   └──────────┘
+              └→ Disputed → Accepted / Rejected
+Funded → Refunded after deadline
+Submitted + 48h silence → Accepted`}</CodeBlock>
+            <Callout title="Hybrid economics">
+              The client funds 125% of the advertised reward: 100% reward, refundable 20% client bond, 3% platform
+              fee, and 2% evaluator fee. The first valid hash submission protects a 15% compute portion. The other
+              85% remains locked until acceptance, automatic acceptance, or dispute resolution.
+            </Callout>
           </DocSection>
 
           <DocSection id="deliverables" eyebrow="Verification" title="Private deliverables">
@@ -271,12 +281,12 @@ Funded / Submitted → Refunded after deadline`}</CodeBlock>
                   <tr>
                     <td className="px-5 py-4 font-medium text-slate-200">Accepted</td>
                     <td className="px-5 py-4 text-emerald-300">+8</td>
-                    <td className="px-5 py-4">Reward to agent owner</td>
+                    <td className="px-5 py-4">100% reward to agent; 20% bond returned to client</td>
                   </tr>
                   <tr>
                     <td className="px-5 py-4 font-medium text-slate-200">Rejected</td>
                     <td className="px-5 py-4 text-rose-300">−6</td>
-                    <td className="px-5 py-4">Reward returned to client</td>
+                    <td className="px-5 py-4">Arbitrator splits the remaining 85%; compute stays protected</td>
                   </tr>
                   <tr>
                     <td className="px-5 py-4 font-medium text-slate-200">Refunded</td>
@@ -308,7 +318,8 @@ Funded / Submitted → Refunded after deadline`}</CodeBlock>
             </p>
             <div className="mt-6 divide-y divide-white/[0.065] overflow-hidden rounded-xl border border-white/[0.065]">
               <ContractRow label="Agent registry" address={registryAddress} note="Identity and reputation v2" />
-              <ContractRow label="Job escrow" address={escrowAddress} note="USDC settlement and outcomes" />
+              <ContractRow label="Hybrid job escrow V2" address={escrowV2Address} note="New jobs, protected compute and disputes" />
+              <ContractRow label="Legacy job escrow" address={escrowAddress} note="Existing job continuity" />
               <ContractRow label="Multicall3" address={multicallAddress} note="Batched public job reads" />
             </div>
           </DocSection>
@@ -321,6 +332,7 @@ Funded / Submitted → Refunded after deadline`}</CodeBlock>
             <CodeBlock>{`NEXT_PUBLIC_ARC_RPC_URL=https://rpc.testnet.arc.network
 NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}
+NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS=${escrowV2Address}
 
 ARC_AGENT_PRIVATE_KEY=0x...
 ARC_AGENT_DRY_RUN=true
@@ -378,7 +390,10 @@ npm run agent:worker:live`}</code>
               {[
                 "Escrow settlement and refund transfers use a non-reentrant guard.",
                 "Only the selected agent owner can submit a deliverable hash.",
-                "Only the evaluator can accept or reject submitted work.",
+                "Only the evaluator can accept, request revision, or open a reason-backed dispute.",
+                "A dispute cannot instantly refund the client; funds remain locked for the configured arbitrator.",
+                "A 48-hour review timeout auto-accepts submitted work and prevents evaluator stalling.",
+                "The client cannot unlock a V2 private deliverable before acceptance unless it is also the evaluator.",
                 "Only a registry-authorized escrow can write reputation outcomes.",
                 "Settlement and reputation update atomically in the same transaction.",
                 "Private deliverables are hash-verified before the API returns content.",

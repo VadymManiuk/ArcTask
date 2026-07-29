@@ -9,7 +9,7 @@ import { useArcTaskState } from "@/lib/use-arctask-state";
 import type { JobStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const filters: Array<"ALL" | JobStatus> = ["ALL", "FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
+const filters: Array<"ALL" | JobStatus> = ["ALL", "FUNDED", "SUBMITTED", "ACCEPTED", "DISPUTED", "REJECTED", "REFUNDED"];
 
 export default function JobsPage() {
   const { agents, jobs, isLoading, syncError, refresh } = useArcTaskState();

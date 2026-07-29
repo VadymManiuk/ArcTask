@@ -12,12 +12,13 @@ import {
   stringToHex
 } from "viem";
 import { arcTestnet } from "@/lib/arc-chain";
-import { contractAddresses, getOnchainReadiness } from "@/lib/arc-config";
+import { contractAddresses, escrowV2InitialJobId, getOnchainReadiness } from "@/lib/arc-config";
 import { getJobDeadlineSeconds } from "@/lib/job-deadline";
 import { createExecutionPlan } from "@/lib/execution-routing.mjs";
 import { getEthereumProvider, requestArcAccount } from "@/lib/wallet";
 import registryAbi from "@/lib/contracts/abis/ERC8004AgentRegistry.json";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
+import escrowV2Abi from "@/lib/contracts/abis/ERC8183EscrowV2.json";
 import type { Address, OnchainJobEventTx, TxAction } from "@/lib/types";
 
 const publicClient = createPublicClient({
@@ -145,7 +146,7 @@ function getEventSummary(eventName: OnchainEventName, args: Record<string, unkno
   return undefined;
 }
 
-function getContractAddress(name: "erc8004Registry" | "erc8183Escrow") {
+function getContractAddress(name: "erc8004Registry" | "erc8183Escrow" | "erc8183EscrowV2") {
   const readiness = getOnchainReadiness();
   if (readiness.mode !== "onchain") {
     throw new Error("Onchain mode is not enabled.");
@@ -161,6 +162,16 @@ function getContractAddress(name: "erc8004Registry" | "erc8183Escrow") {
   }
 
   return address as Address;
+}
+
+function getEscrowContext(onchainJobId?: string) {
+  const isV2 = onchainJobId !== undefined && BigInt(onchainJobId) >= escrowV2InitialJobId;
+  const address = getContractAddress(isV2 ? "erc8183EscrowV2" : "erc8183Escrow");
+  return {
+    address,
+    abi: isV2 ? escrowV2Abi : escrowAbi,
+    isV2
+  };
 }
 
 async function getConnectedWalletClient() {
@@ -184,10 +195,10 @@ function assertConnectedWallet(account: Address, expected: Address, role: string
   }
 }
 
-async function readOnchainJob(escrowAddress: Address, onchainJobId: string) {
+async function readOnchainJob(escrowAddress: Address, abi: typeof escrowAbi | typeof escrowV2Abi, onchainJobId: string) {
   return (await publicClient.readContract({
     address: escrowAddress,
-    abi: escrowAbi,
+    abi,
     functionName: "jobs",
     args: [BigInt(onchainJobId)]
   })) as OnchainJob;
@@ -225,8 +236,8 @@ function createJobPayloadUri(input: {
 }
 
 export async function getJobSnapshotOnchain(onchainJobId: string) {
-  const escrowAddress = getContractAddress("erc8183Escrow");
-  const job = await readOnchainJob(escrowAddress, onchainJobId);
+  const escrow = getEscrowContext(onchainJobId);
+  const job = await readOnchainJob(escrow.address, escrow.abi, onchainJobId);
 
   return {
     clientWallet: job[0],
@@ -261,14 +272,14 @@ export async function getAgentReputationOnchain(onchainAgentId: string) {
 }
 
 export async function getJobTxHistoryOnchain(onchainJobId: string): Promise<OnchainJobEventTx[]> {
-  const escrowAddress = getContractAddress("erc8183Escrow");
+  const escrow = getEscrowContext(onchainJobId);
   const jobId = BigInt(onchainJobId);
   const txs: OnchainJobEventTx[] = [];
 
   for (const config of jobEventConfigs) {
     const events = await publicClient.getContractEvents({
-      address: escrowAddress,
-      abi: escrowAbi,
+      address: escrow.address,
+      abi: escrow.abi,
       eventName: config.eventName,
       args: { jobId },
       fromBlock: BigInt(0),
@@ -347,18 +358,24 @@ export async function createJobOnchain(input: {
   deadline: string;
   evaluatorWallet: Address;
 }) {
-  const escrowAddress = getContractAddress("erc8183Escrow");
+  const escrowAddress = getContractAddress("erc8183EscrowV2");
   const { account, walletClient } = await getConnectedWalletClient();
   assertConnectedWallet(account, input.clientWallet, "client wallet");
   const rewardValue = parseUnits(input.rewardAmount.toString(), arcTestnet.nativeCurrency.decimals);
   const deadlineSeconds = getJobDeadlineSeconds(input.deadline);
   const jobPayloadUri = createJobPayloadUri(input);
+  const fundingQuote = (await publicClient.readContract({
+    address: escrowAddress,
+    abi: escrowV2Abi,
+    functionName: "quoteFunding",
+    args: [rewardValue]
+  })) as readonly [bigint, bigint, bigint, bigint, bigint];
   const txHash = await walletClient.writeContract({
     address: escrowAddress,
-    abi: escrowAbi,
+    abi: escrowV2Abi,
     functionName: "createJob",
     args: [BigInt(input.onchainAgentId), rewardValue, deadlineSeconds, input.evaluatorWallet, jobPayloadUri],
-    value: rewardValue
+    value: fundingQuote[0]
   });
 
   const receipt = await waitForHash(txHash);
@@ -386,14 +403,14 @@ export async function submitDeliverableOnchain(input: {
   onchainJobId: string;
   deliverableContent: string;
 }) {
-  const escrowAddress = getContractAddress("erc8183Escrow");
+  const escrow = getEscrowContext(input.onchainJobId);
   const { account, walletClient } = await getConnectedWalletClient();
-  const job = await readOnchainJob(escrowAddress, input.onchainJobId);
+  const job = await readOnchainJob(escrow.address, escrow.abi, input.onchainJobId);
   assertConnectedWallet(account, job[2], "agent owner wallet");
   const deliverableHash = keccak256(stringToHex(input.deliverableContent));
   const txHash = await walletClient.writeContract({
-    address: escrowAddress,
-    abi: escrowAbi,
+    address: escrow.address,
+    abi: escrow.abi,
     functionName: "submitDeliverable",
     args: [BigInt(input.onchainJobId), deliverableHash]
   });
@@ -411,18 +428,90 @@ export async function acceptWorkOnchain(onchainJobId: string) {
   return settleJobOnchain("acceptWork", onchainJobId);
 }
 
-export async function rejectWorkOnchain(onchainJobId: string) {
-  return settleJobOnchain("rejectWork", onchainJobId);
+export async function rejectWorkOnchain(onchainJobId: string, reason: string) {
+  const escrow = getEscrowContext(onchainJobId);
+  if (!escrow.isV2) {
+    return settleJobOnchain("rejectWork", onchainJobId);
+  }
+
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error("A concrete dispute reason is required.");
+  }
+  const { account, walletClient } = await getConnectedWalletClient();
+  const job = await readOnchainJob(escrow.address, escrow.abi, onchainJobId);
+  assertConnectedWallet(account, job[3], "evaluator wallet");
+  const txHash = await walletClient.writeContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "openDispute",
+    args: [BigInt(onchainJobId), keccak256(stringToHex(normalizedReason))]
+  });
+  const receipt = await waitForHash(txHash);
+  return { txHash, blockNumber: Number(receipt.blockNumber), gasUsed: receipt.gasUsed.toString() };
 }
 
 export async function refundExpiredOnchain(onchainJobId: string) {
   return settleJobOnchain("refundExpired", onchainJobId);
 }
 
-async function settleJobOnchain(functionName: "acceptWork" | "rejectWork" | "refundExpired", onchainJobId: string) {
-  const escrowAddress = getContractAddress("erc8183Escrow");
+export async function requestRevisionOnchain(onchainJobId: string, reason: string) {
+  const escrow = getEscrowContext(onchainJobId);
+  if (!escrow.isV2) {
+    throw new Error("Revision requests are available only for hybrid escrow jobs.");
+  }
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error("Explain what the agent must revise.");
+  }
   const { account, walletClient } = await getConnectedWalletClient();
-  const job = await readOnchainJob(escrowAddress, onchainJobId);
+  const job = await readOnchainJob(escrow.address, escrow.abi, onchainJobId);
+  assertConnectedWallet(account, job[3], "evaluator wallet");
+  const txHash = await walletClient.writeContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "requestRevision",
+    args: [BigInt(onchainJobId), normalizedReason]
+  });
+  const receipt = await waitForHash(txHash);
+  return { txHash, blockNumber: Number(receipt.blockNumber), gasUsed: receipt.gasUsed.toString() };
+}
+
+export async function finalizeReviewOnchain(onchainJobId: string) {
+  const escrow = getEscrowContext(onchainJobId);
+  if (!escrow.isV2) {
+    throw new Error("Automatic review finalization is available only for hybrid escrow jobs.");
+  }
+  const { walletClient } = await getConnectedWalletClient();
+  const txHash = await walletClient.writeContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "finalizeReview",
+    args: [BigInt(onchainJobId)]
+  });
+  const receipt = await waitForHash(txHash);
+  return { txHash, blockNumber: Number(receipt.blockNumber), gasUsed: receipt.gasUsed.toString() };
+}
+
+export async function withdrawEscrowCreditOnchain(onchainJobId: string) {
+  const escrow = getEscrowContext(onchainJobId);
+  if (!escrow.isV2) {
+    throw new Error("Pull-payment withdrawals are available only for hybrid escrow jobs.");
+  }
+  const { walletClient } = await getConnectedWalletClient();
+  const txHash = await walletClient.writeContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "withdraw"
+  });
+  const receipt = await waitForHash(txHash);
+  return { txHash, blockNumber: Number(receipt.blockNumber), gasUsed: receipt.gasUsed.toString() };
+}
+
+async function settleJobOnchain(functionName: "acceptWork" | "rejectWork" | "refundExpired", onchainJobId: string) {
+  const escrow = getEscrowContext(onchainJobId);
+  const { account, walletClient } = await getConnectedWalletClient();
+  const job = await readOnchainJob(escrow.address, escrow.abi, onchainJobId);
   if (functionName === "acceptWork" || functionName === "rejectWork") {
     assertConnectedWallet(account, job[3], "evaluator wallet");
   } else {
@@ -430,8 +519,8 @@ async function settleJobOnchain(functionName: "acceptWork" | "rejectWork" | "ref
   }
 
   const txHash = await walletClient.writeContract({
-    address: escrowAddress,
-    abi: escrowAbi,
+    address: escrow.address,
+    abi: escrow.abi,
     functionName,
     args: [BigInt(onchainJobId)]
   });

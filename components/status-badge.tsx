@@ -6,7 +6,8 @@ const styles: Record<JobStatus, string> = {
   SUBMITTED: "border-amber-300/25 bg-amber-300/10 text-amber-100",
   ACCEPTED: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
   REJECTED: "border-rose-300/25 bg-rose-300/10 text-rose-100",
-  REFUNDED: "border-slate-300/20 bg-slate-300/10 text-slate-200"
+  REFUNDED: "border-slate-300/20 bg-slate-300/10 text-slate-200",
+  DISPUTED: "border-amber-300/25 bg-amber-300/10 text-amber-100"
 };
 
 export function StatusBadge({ status, className }: { status: JobStatus; className?: string }) {

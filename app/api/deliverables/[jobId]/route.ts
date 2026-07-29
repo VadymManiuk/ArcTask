@@ -10,12 +10,15 @@ import { rateLimit } from "@/lib/server-rate-limit";
 import { isSafeRemoteBaseUrl } from "@/lib/server-remote";
 import { isRetryableRpcError, withServerRpcRetry } from "@/lib/server-rpc-retry";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
+import escrowV2Abi from "@/lib/contracts/abis/ERC8183EscrowV2.json";
 import type { Address } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
+const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const v2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
 
 const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,
@@ -119,32 +122,43 @@ function normalizeDeliverablePayload(value: unknown, jobId: string) {
   };
 }
 
-async function getOnchainClientWallet(jobId: string) {
-  const escrowAddress = (process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress) as Address;
+function getEscrowContext(jobId: string) {
+  const isV2 = BigInt(jobId) >= v2InitialJobId;
+  const address = (
+    isV2
+      ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address
+      : process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress
+  ) as Address | undefined;
+  if (!address || !isAddress(address)) {
+    throw new Error("Escrow contract is not configured.");
+  }
+  return { address, abi: isV2 ? escrowV2Abi : escrowAbi, isV2 };
+}
+
+async function getOnchainJob(jobId: string) {
+  const escrow = getEscrowContext(jobId);
   const job = (await withServerRpcRetry(() =>
     publicClient.readContract({
-      address: escrowAddress,
-      abi: escrowAbi,
+      address: escrow.address,
+      abi: escrow.abi,
       functionName: "jobs",
       args: [BigInt(jobId)]
     })
   )) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
 
-  return job[0];
+  return {
+    client: job[0],
+    agentOwner: job[2],
+    evaluator: job[3],
+    deliverableHash: job[7],
+    status: job[8],
+    isV2: escrow.isV2,
+    escrow
+  };
 }
 
 async function getOnchainDeliverableHash(jobId: string) {
-  const escrowAddress = (process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress) as Address;
-  const job = (await withServerRpcRetry(() =>
-    publicClient.readContract({
-      address: escrowAddress,
-      abi: escrowAbi,
-      functionName: "jobs",
-      args: [BigInt(jobId)]
-    })
-  )) as readonly [Address, bigint, Address, Address, bigint, number, string, `0x${string}`, number, bigint, bigint];
-
-  return job[7];
+  return (await getOnchainJob(jobId)).deliverableHash;
 }
 
 async function assertDeliverableAccess(
@@ -186,9 +200,21 @@ async function assertDeliverableAccess(
     return NextResponse.json({ error: "Invalid deliverable access signature." }, { status: 401 });
   }
 
-  const clientWallet = await getOnchainClientWallet(jobId);
-  if (!sameAddress(address, clientWallet)) {
-    return NextResponse.json({ error: "Only the wallet that created this job can view the deliverable." }, { status: 403 });
+  const job = await getOnchainJob(jobId);
+  const isEvaluator = sameAddress(address, job.evaluator);
+  const isAgentOwner = sameAddress(address, job.agentOwner);
+  const isClient = sameAddress(address, job.client);
+  const clientMayRead = !job.isV2 || job.status === 2 || isEvaluator;
+  const agentMayRead = job.isV2 && (job.status === 3 || job.status === 5);
+  if (!isEvaluator && !(isClient && clientMayRead) && !(isAgentOwner && agentMayRead)) {
+    return NextResponse.json(
+      {
+        error: job.isV2
+          ? "The evaluator can review the private result. The client receives access after acceptance; disputed work stays protected."
+          : "Only the client or evaluator wallet can view this deliverable."
+      },
+      { status: 403 }
+    );
   }
 
   return null;

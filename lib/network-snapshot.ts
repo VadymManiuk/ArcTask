@@ -3,6 +3,7 @@ import type { JobStatus } from "@/lib/types";
 const jobStatusProgress: Record<JobStatus, number> = {
   FUNDED: 0,
   SUBMITTED: 1,
+  DISPUTED: 2,
   ACCEPTED: 2,
   REJECTED: 2,
   REFUNDED: 2

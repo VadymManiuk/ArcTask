@@ -34,6 +34,7 @@ import {
 const rootDir = process.cwd();
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
+const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
@@ -200,14 +201,14 @@ function serializeBigInts(value) {
   );
 }
 
-async function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
+async function buildDeliverable(jobId, job, accountAddress, explorerUrl, escrowContext) {
   const payload = decodeJobPayloadUri(job.jobURI);
   const executionPlan = buildExecutionPlan(jobId, job, payload);
   if (executionPlan.budgetDecision === "insufficient") {
     throw new InsufficientComputeBudgetError(executionPlan);
   }
 
-  const result = await buildAgentResult(jobId, job, payload, executionPlan);
+  const result = await buildAgentResult(jobId, job, payload, executionPlan, escrowContext);
   const report = {
     kind: "ArcTask autonomous agent deliverable",
     version: 1,
@@ -225,7 +226,7 @@ async function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
       deadlineIso: new Date(Number(job.deadline) * 1000).toISOString(),
       jobURI: job.jobURI,
       payload,
-      explorer: `${explorerUrl}/address/${escrowAddress}`
+      explorer: `${explorerUrl}/address/${escrowContext.address}`
     },
     executionPlan,
     result
@@ -296,7 +297,7 @@ function buildExecutionPlan(jobId, job, payload) {
   };
 }
 
-async function buildAgentResult(jobId, job, payload, executionPlan) {
+async function buildAgentResult(jobId, job, payload, executionPlan, escrowContext) {
   if (!openAiApiKey) {
     if (allowDeterministicFallback) {
       return buildFallbackAgentResult(jobId, payload, "OPENAI_API_KEY is not configured.");
@@ -306,7 +307,7 @@ async function buildAgentResult(jobId, job, payload, executionPlan) {
   }
 
   try {
-    return await runOpenAiExecutor(jobId, job, payload, executionPlan);
+    return await runOpenAiExecutor(jobId, job, payload, executionPlan, escrowContext);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : "OpenAI executor failed.";
     if (allowDeterministicFallback) {
@@ -593,7 +594,7 @@ function mergeUsage(current, body) {
   };
 }
 
-async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
+async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowContext) {
   const startedAt = Date.now();
   const taskProfile = getTaskProfile(payload);
   const webSearchTaskKinds = new Set(["market_research", "protocol_integration", "devops_reliability"]);
@@ -612,9 +613,9 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       : taskProfile.kind === "data_analysis" || taskProfile.kind === "governance_compliance"
         ? await collectMarketplaceEvidence({
             publicClient,
-            escrowAddress,
+            escrowAddress: escrowContext.address,
             registryAddress,
-            escrowAbi,
+            escrowAbi: escrowContext.abi,
             registryAbi
           })
       : undefined;
@@ -637,7 +638,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       taskKind: taskProfile.kind,
       payload,
       rootDir,
-      escrowAddress,
+      escrowAddress: escrowContext.address,
       registryAddress
     }),
     evidence,
@@ -1146,11 +1147,11 @@ function writeDeliverable(outputDir, jobId, deliverable, txHash) {
   return filePath;
 }
 
-async function readJob(jobId) {
+async function readJob(jobId, escrowContext) {
   const result = await withRpcRetry(() =>
     publicClient.readContract({
-      address: escrowAddress,
-      abi: escrowAbi,
+      address: escrowContext.address,
+      abi: escrowContext.abi,
       functionName: "jobs",
       args: [jobId]
     })
@@ -1171,14 +1172,14 @@ async function readJob(jobId) {
   };
 }
 
-async function submitJob(jobId, job, outputDir, dryRun, workerAccount) {
+async function submitJob(jobId, job, outputDir, dryRun, workerAccount, escrowContext) {
   const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
   if (job.deadline <= nowSeconds) {
     console.log(`skip job ${jobId}: deadline expired`);
     return false;
   }
 
-  const deliverable = await buildDeliverable(jobId, job, workerAccount.account.address, explorerUrl);
+  const deliverable = await buildDeliverable(jobId, job, workerAccount.account.address, explorerUrl, escrowContext);
   if (dryRun) {
     const filePath = writeDeliverable(outputDir, jobId, deliverable);
     console.log(`dry-run job ${jobId}: would submit ${deliverable.hash}`);
@@ -1187,8 +1188,8 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount) {
   }
 
   const txHash = await workerAccount.walletClient.writeContract({
-    address: escrowAddress,
-    abi: escrowAbi,
+    address: escrowContext.address,
+    abi: escrowContext.abi,
     functionName: "submitDeliverable",
     args: [jobId, deliverable.hash]
   });
@@ -1204,13 +1205,6 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount) {
 }
 
 async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
-  const nextJobId = await withRpcRetry(() =>
-    publicClient.readContract({
-      address: escrowAddress,
-      abi: escrowAbi,
-      functionName: "nextJobId"
-    })
-  );
   let handled = 0;
   let scanned = 0;
   let skipped = 0;
@@ -1219,8 +1213,16 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   let failed = 0;
   const statusBeforeTick = readJsonFile(statusPath, createInitialStatus());
 
-  for (let jobId = 1n; jobId < nextJobId; jobId += 1n) {
-    const job = await readJob(jobId);
+  for (const escrowContext of escrowContexts) {
+    const nextJobId = await withRpcRetry(() =>
+      publicClient.readContract({
+        address: escrowContext.address,
+        abi: escrowContext.abi,
+        functionName: "nextJobId"
+      })
+    );
+    for (let jobId = escrowContext.firstJobId; jobId < nextJobId; jobId += 1n) {
+    const job = await readJob(jobId, escrowContext);
     scanned += 1;
     if (job.status !== fundedStatus) {
       continue;
@@ -1244,7 +1246,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         jobId: jobId.toString(),
         worker: workerAccount.account.address
       });
-      const submitted = await submitJob(jobId, job, outputDir, dryRun, workerAccount);
+      const submitted = await submitJob(jobId, job, outputDir, dryRun, workerAccount, escrowContext);
       if (!submitted) {
         skipped += 1;
         appendStatusEvent({
@@ -1304,6 +1306,10 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         lock.release();
       }
     }
+    if (handled >= maxJobsPerTick) {
+      break;
+    }
+    }
   }
 
   if (handled === 0) {
@@ -1341,6 +1347,8 @@ const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
 const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? "https://testnet.arcscan.app/api/eth-rpc";
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl;
 const escrowAddress = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS", defaultEscrowAddress);
+const escrowV2Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS", defaultEscrowV2Address);
+const escrowV2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
 const registryAddress = optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
 const dryRun = getBooleanEnv("ARC_AGENT_DRY_RUN", true);
 const once = getBooleanEnv("ARC_AGENT_ONCE", false);
@@ -1393,7 +1401,12 @@ const arcTestnet = defineChain({
 });
 
 const escrowAbi = readAbi("ERC8183Escrow.json");
+const escrowV2Abi = readAbi("ERC8183EscrowV2.json");
 const registryAbi = readAbi("ERC8004AgentRegistry.json");
+const escrowContexts = [
+  { address: escrowAddress, abi: escrowAbi, firstJobId: 1n, version: "v1" },
+  { address: escrowV2Address, abi: escrowV2Abi, firstJobId: escrowV2InitialJobId, version: "v2" }
+];
 const publicClient = createPublicClient({
   chain: arcTestnet,
   transport: http(readRpcUrl)
@@ -1414,7 +1427,7 @@ const { lockDir, statusPath } = ensureRuntimeDirs();
 
 console.log(`ArcTask agent worker`);
 console.log(`accounts: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);
-console.log(`escrow: ${escrowAddress}`);
+console.log(`escrows: ${escrowContexts.map((context) => `${context.version}:${context.address}`).join(", ")}`);
 console.log(`read RPC: ${readRpcUrl}`);
 console.log(`write RPC: ${rpcUrl}`);
 console.log(`mode: ${dryRun ? "dry-run" : "live"}`);

@@ -13,10 +13,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   acceptWorkAction,
+  finalizeReviewAction,
   refundJobAction,
   rejectWorkAction,
+  requestRevisionAction,
   submitDeliverableAction,
-  syncOnchainJobStateAction
+  syncOnchainJobStateAction,
+  withdrawEscrowCreditAction
 } from "@/lib/store";
 import { getJobDeadlineMs } from "@/lib/job-deadline";
 import { useArcTaskState } from "@/lib/use-arctask-state";
@@ -104,14 +107,16 @@ function getStepState(status: JobStatus, step: (typeof statusSteps)[number]["key
     SUBMITTED: ["funded", "submitted"],
     ACCEPTED: ["funded", "submitted", "review", "settled"],
     REJECTED: ["funded", "submitted", "review"],
-    REFUNDED: ["funded", "settled"]
+    REFUNDED: ["funded", "settled"],
+    DISPUTED: ["funded", "submitted", "review"]
   };
   const activeByStatus: Record<JobStatus, string> = {
     FUNDED: "submitted",
     SUBMITTED: "review",
     ACCEPTED: "settled",
     REJECTED: "settled",
-    REFUNDED: "settled"
+    REFUNDED: "settled",
+    DISPUTED: "settled"
   };
 
   if (completedByStatus[status].includes(step)) {
@@ -126,13 +131,15 @@ function getStatusText(status: JobStatus) {
     case "FUNDED":
       return "The job is funded. The autonomous worker scans Arc Testnet and should pick it up shortly.";
     case "SUBMITTED":
-      return "The agent submitted a deliverable hash. Unlock the private result, then accept or reject the work.";
+      return "The agent submitted a deliverable hash. Review it within 48 hours: accept, request a revision, or open a dispute.";
     case "ACCEPTED":
       return "The evaluator accepted the work. Escrow is settled and reputation is updated.";
     case "REJECTED":
-      return "The evaluator rejected the work. Escrow was returned according to the rejection flow.";
+      return "The dispute was resolved for the client. The agent still keeps the protected compute portion.";
     case "REFUNDED":
       return "The job was refunded to the client.";
+    case "DISPUTED":
+      return "Payment is locked while the arbitrator reviews the evaluator’s reason and the submitted evidence.";
   }
 }
 
@@ -150,6 +157,7 @@ export default function JobDetailsPage() {
   const job = jobs.find((item) => item.id === params.id);
   const agent = job ? agents.find((item) => item.id === job.agentId) : undefined;
   const [deliverable, setDeliverable] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busyAction, setBusyAction] = useState<string>("");
@@ -257,10 +265,11 @@ export default function JobDetailsPage() {
 
   const canSubmit = job.status === "FUNDED";
   const canSettle = job.status === "SUBMITTED";
-  const canRefund = job.status === "FUNDED" || job.status === "SUBMITTED";
+  const isHybridEscrow = Boolean(job.onchainJobId && BigInt(job.onchainJobId) >= BigInt(1_000_000));
+  const canRefund = job.status === "FUNDED" || (!isHybridEscrow && job.status === "SUBMITTED");
   const agentOwnerWallet = agent?.ownerWallet;
   const timeLeft = nowMs === null ? "Calculating" : getTimeLeft(job.deadline, nowMs);
-  const canUnlockDeliverable = Boolean(job.onchainJobId && ["SUBMITTED", "ACCEPTED", "REJECTED"].includes(job.status));
+  const canUnlockDeliverable = Boolean(job.onchainJobId && ["SUBMITTED", "ACCEPTED", "REJECTED", "DISPUTED"].includes(job.status));
   const executionPlan = getJobExecutionPlan({
     title: job.title,
     description: job.description,
@@ -398,6 +407,14 @@ export default function JobDetailsPage() {
               </div>
 
               <p className="text-sm leading-6 text-muted-foreground">{getStatusText(job.status)}</p>
+              {canSettle && isHybridEscrow ? (
+                <Textarea
+                  maxLength={1200}
+                  value={reviewReason}
+                  onChange={(event) => setReviewReason(event.target.value)}
+                  placeholder="Required for revision or dispute: describe the unmet acceptance criteria and evidence."
+                />
+              ) : null}
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
@@ -414,11 +431,43 @@ export default function JobDetailsPage() {
                       <Check className="h-4 w-4" aria-hidden="true" />
                       {busyAction === "accept" ? "Settling..." : "Accept work"}
                     </Button>
-                    <Button variant="outline" disabled={Boolean(busyAction)} onClick={() => handleAction("reject", () => rejectWorkAction(jobId), "Work rejected and reputation updated.")}>
+                    {isHybridEscrow ? (
+                      <Button
+                        variant="outline"
+                        disabled={Boolean(busyAction) || !reviewReason.trim()}
+                        onClick={() => handleAction("revision", () => requestRevisionAction(jobId, reviewReason), "Revision requested. The remaining escrow stays locked.")}
+                      >
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                        {busyAction === "revision" ? "Requesting..." : "Request revision"}
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="outline"
+                      disabled={Boolean(busyAction) || (isHybridEscrow && !reviewReason.trim())}
+                      onClick={() => handleAction("reject", () => rejectWorkAction(jobId, reviewReason), isHybridEscrow ? "Dispute opened. Funds remain locked for arbitration." : "Work rejected and reputation updated.")}
+                    >
                       <X className="h-4 w-4" aria-hidden="true" />
-                      {busyAction === "reject" ? "Rejecting..." : "Reject"}
+                      {busyAction === "reject" ? "Submitting..." : isHybridEscrow ? "Open dispute" : "Reject"}
                     </Button>
+                    {isHybridEscrow ? (
+                      <Button
+                        variant="outline"
+                        disabled={Boolean(busyAction)}
+                        onClick={() => handleAction("finalize", () => finalizeReviewAction(jobId), "The expired review window was finalized and escrow settled.")}
+                      >
+                        {busyAction === "finalize" ? "Finalizing..." : "Auto-settle after 48h"}
+                      </Button>
+                    ) : null}
                   </>
+                ) : null}
+                {isHybridEscrow ? (
+                  <Button
+                    variant="outline"
+                    disabled={Boolean(busyAction)}
+                    onClick={() => handleAction("withdraw", () => withdrawEscrowCreditAction(jobId), "Available escrow credit withdrawn to the connected wallet.")}
+                  >
+                    {busyAction === "withdraw" ? "Withdrawing..." : "Withdraw available USDC"}
+                  </Button>
                 ) : null}
               </div>
             </CardContent>
@@ -608,14 +657,36 @@ export default function JobDetailsPage() {
 
                   <div className="space-y-3">
                     <p className="font-semibold text-slate-200">Manual settlement</p>
+                    {canSettle && isHybridEscrow ? (
+                      <Textarea
+                        maxLength={1200}
+                        value={reviewReason}
+                        onChange={(event) => setReviewReason(event.target.value)}
+                        placeholder="Reason required for revision or dispute"
+                      />
+                    ) : null}
                     <div className="flex flex-wrap gap-3">
                       <Button disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("accept", () => acceptWorkAction(jobId), "Work accepted and escrow settled.")}>
                         <Check className="h-4 w-4" aria-hidden="true" />
                         {busyAction === "accept" ? "Settling..." : "Accept"}
                       </Button>
-                      <Button variant="danger" disabled={!canSettle || Boolean(busyAction)} onClick={() => handleAction("reject", () => rejectWorkAction(jobId), "Work rejected and reputation updated.")}>
+                      {isHybridEscrow ? (
+                        <Button
+                          variant="outline"
+                          disabled={!canSettle || Boolean(busyAction) || !reviewReason.trim()}
+                          onClick={() => handleAction("revision", () => requestRevisionAction(jobId, reviewReason), "Revision requested.")}
+                        >
+                          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                          Request revision
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="danger"
+                        disabled={!canSettle || Boolean(busyAction) || (isHybridEscrow && !reviewReason.trim())}
+                        onClick={() => handleAction("reject", () => rejectWorkAction(jobId, reviewReason), isHybridEscrow ? "Dispute opened." : "Work rejected and reputation updated.")}
+                      >
                         <X className="h-4 w-4" aria-hidden="true" />
-                        {busyAction === "reject" ? "Rejecting..." : "Reject"}
+                        {busyAction === "reject" ? "Submitting..." : isHybridEscrow ? "Open dispute" : "Reject"}
                       </Button>
                       <Button variant="outline" disabled={!canRefund || Boolean(busyAction)} onClick={() => handleAction("refund", () => refundJobAction(jobId), "Escrow refunded to client.")}>
                         <RotateCcw className="h-4 w-4" aria-hidden="true" />
