@@ -119,7 +119,7 @@ export async function GET(request: Request) {
   if (cachedAgentsResponse && now - cachedAgentsResponse.createdAt < freshCacheMs) {
     return NextResponse.json(cachedAgentsResponse.payload, {
       headers: {
-        "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300"
+        "Cache-Control": "no-store, max-age=0"
       }
     });
   }
@@ -185,7 +185,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(payload, {
       headers: {
-        "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300"
+        "Cache-Control": "no-store, max-age=0"
       }
     });
   } catch {
@@ -198,7 +198,7 @@ export async function GET(request: Request) {
         },
         {
           headers: {
-            "Cache-Control": "public, max-age=5, s-maxage=15, stale-while-revalidate=300",
+            "Cache-Control": "no-store, max-age=0",
             Warning: '110 - "Response is stale"'
           }
         }

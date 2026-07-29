@@ -8,6 +8,7 @@ import { waitForTransactionReceiptWithRetry, withRpcRetry } from "../scripts/arc
 import { createDeliverableNonce, consumeDeliverableNonce } from "../lib/server-deliverable-nonce.ts";
 import { isRetryableRpcError, withServerRpcRetry } from "../lib/server-rpc-retry.ts";
 import { getAuthorizedAccount } from "../lib/wallet-account.ts";
+import { isNetworkSnapshotRegressive } from "../lib/network-snapshot.ts";
 
 function readAbi(fileName) {
   return JSON.parse(fs.readFileSync(new URL(`../lib/contracts/abis/${fileName}`, import.meta.url), "utf8"));
@@ -146,4 +147,25 @@ test("wallet restoration accepts authorized accounts without requesting a new co
   );
   assert.equal(getAuthorizedAccount([]), null);
   assert.equal(getAuthorizedAccount("not-an-array"), null);
+});
+
+test("older successful network snapshots cannot erase newer onchain state", () => {
+  assert.equal(
+    isNetworkSnapshotRegressive({
+      currentAgentIds: ["8"],
+      currentJobIds: ["12", "13"],
+      incomingNextAgentId: "9",
+      incomingNextJobId: "4"
+    }),
+    true
+  );
+  assert.equal(
+    isNetworkSnapshotRegressive({
+      currentAgentIds: ["8"],
+      currentJobIds: ["12", "13"],
+      incomingNextAgentId: "9",
+      incomingNextJobId: "14"
+    }),
+    false
+  );
 });

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
+import { isNetworkSnapshotRegressive } from "@/lib/network-snapshot";
 import { getState, hydrateNetworkState, subscribeToState } from "@/lib/store";
 import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, Job, JobStatus } from "@/lib/types";
@@ -38,11 +39,13 @@ interface NetworkJob {
 
 interface NetworkAgentsResponse {
   ok: boolean;
+  nextAgentId?: string;
   agents?: NetworkAgent[];
 }
 
 interface NetworkJobsResponse {
   ok: boolean;
+  nextJobId?: string;
   jobs?: NetworkJob[];
 }
 
@@ -63,8 +66,8 @@ async function fetchNetworkResponses() {
 
     try {
       const [agentsResponse, jobsResponse] = await Promise.all([
-        fetch("/api/network/agents?limit=100", { signal: controller.signal }),
-        fetch("/api/network/jobs?limit=100", { signal: controller.signal })
+        fetch("/api/network/agents?limit=100", { signal: controller.signal, cache: "no-store" }),
+        fetch("/api/network/jobs?limit=100", { signal: controller.signal, cache: "no-store" })
       ]);
       const [agentsBody, jobsBody] = (await Promise.all([
         agentsResponse.json(),
@@ -177,7 +180,19 @@ export function useArcTaskState() {
             return;
           }
 
-          hydrateNetworkState(createNetworkState(agentsBody, jobsBody, getState()));
+          const currentState = getState();
+          if (
+            isNetworkSnapshotRegressive({
+              currentAgentIds: currentState.agents.map((agent) => agent.onchainAgentId),
+              currentJobIds: currentState.jobs.map((job) => job.onchainJobId),
+              incomingNextAgentId: agentsBody.nextAgentId,
+              incomingNextJobId: jobsBody.nextJobId
+            })
+          ) {
+            throw new Error("Arc Testnet returned an older snapshot. Keeping the last confirmed data.");
+          }
+
+          hydrateNetworkState(createNetworkState(agentsBody, jobsBody, currentState));
         })
         .catch((caught) => {
           if (active) {
