@@ -11,6 +11,11 @@ import {
   stringToHex
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import {
+  appendSourceUrls,
+  assertAgentResultQuality,
+  collectOpenAiSourceUrls
+} from "./agent-result-quality.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
@@ -96,7 +101,7 @@ function getOptionalPositiveIntegerEnv(name, defaultValue) {
 }
 
 function getOpenAiSearchContext() {
-  const value = (process.env.ARC_AGENT_WEB_SEARCH_CONTEXT ?? "low").toLowerCase();
+  const value = (process.env.ARC_AGENT_WEB_SEARCH_CONTEXT ?? "medium").toLowerCase();
   if (["low", "medium", "high"].includes(value)) {
     return value;
   }
@@ -173,17 +178,25 @@ async function buildDeliverable(jobId, job, accountAddress, explorerUrl) {
 
 async function buildAgentResult(jobId, job, payload) {
   if (!openAiApiKey) {
-    return buildFallbackAgentResult(jobId, payload, "OPENAI_API_KEY is not configured.");
+    if (allowDeterministicFallback) {
+      return buildFallbackAgentResult(jobId, payload, "OPENAI_API_KEY is not configured.");
+    }
+
+    throw new Error("OPENAI_API_KEY is required because deterministic fallback submissions are disabled.");
   }
 
   try {
     return await runOpenAiExecutor(jobId, job, payload);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : "OpenAI executor failed.";
-    return {
-      ...buildFallbackAgentResult(jobId, payload, message),
-      aiError: message
-    };
+    if (allowDeterministicFallback) {
+      return {
+        ...buildFallbackAgentResult(jobId, payload, message),
+        aiError: message
+      };
+    }
+
+    throw new Error(`Deliverable generation failed; job will remain funded: ${message}`, { cause: caught });
   }
 }
 
@@ -426,13 +439,21 @@ async function runOpenAiExecutor(jobId, job, payload) {
     if (!output) {
       throw new Error("OpenAI response did not include output text.");
     }
+    const sourceUrls = collectOpenAiSourceUrls(body, output);
+    const summary = appendSourceUrls(output, sourceUrls);
+    assertAgentResultQuality({
+      taskKind: taskProfile.kind,
+      summary,
+      sourceUrls
+    });
 
     return {
       status: "completed",
       mode: "openai",
       model: openAiModel,
       title: payload?.title ?? `ArcTask job ${jobId.toString()}`,
-      summary: output
+      summary,
+      sourceUrls
     };
   } finally {
     clearTimeout(timeout);
@@ -865,10 +886,11 @@ const staleLockMs = getPositiveIntegerEnv("ARC_AGENT_STALE_LOCK_MS", 10 * 60_000
 const openAiApiKey = process.env.OPENAI_API_KEY;
 const openAiModel = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 60_000);
-const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 1_800);
+const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 180_000);
+const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 3_000);
 const openAiWebSearchEnabled = getBooleanEnv("ARC_AGENT_ENABLE_WEB_SEARCH", false);
 const openAiWebSearchContext = getOpenAiSearchContext();
+const allowDeterministicFallback = getBooleanEnv("ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK", dryRun);
 const maxJobPayloadChars = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_PAYLOAD_CHARS", defaultMaxJobPayloadChars);
 
 const arcTestnet = defineChain({

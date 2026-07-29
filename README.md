@@ -208,9 +208,11 @@ Useful worker env vars:
 - `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - default `gpt-4.1-mini`
-- `OPENAI_MAX_OUTPUT_TOKENS` - default `1800`; keep enough room for research, review, and source-cited deliverables
+- `OPENAI_TIMEOUT_MS` - default `180000`; web research may require more than one minute
+- `OPENAI_MAX_OUTPUT_TOKENS` - default `3000`; keep enough room for research, review, and source-cited deliverables
+- `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for current-market discovery jobs such as upcoming TGE research
-- `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `low`; use `medium` or `high` only when jobs need deeper source coverage
+- `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage
 - `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
 - `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - recommended shared server-to-server token for Vercel-to-VPS deliverable fallback; when absent, the worker re-verifies the forwarded wallet signature, its timestamp, and the onchain job owner
 - `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
@@ -218,8 +220,9 @@ Useful worker env vars:
 
 When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-ready deliverable from the onchain
 `jobURI`. For jobs that require current public research, such as finding upcoming DeFi TGE tokens, also set
-`ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Without a key, or if the API is
-unavailable, the worker falls back to a deterministic structured report.
+`ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Research submissions require at least
+three source URLs. In production, missing keys, timeouts, placeholder language, or insufficient research leave the
+job funded for a later retry instead of committing a low-quality deliverable hash onchain.
 
 The worker writes runtime telemetry to `.agent-worker/state/status.json` using atomic writes. The app exposes that
 through `/api/worker/status`, with Vercel falling back to `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` when the status file is
