@@ -6,6 +6,7 @@ VPS_USER="${ARCTASK_VPS_USER:-root}"
 VPS_KEY="${ARCTASK_VPS_KEY:-/Users/admin/Documents/New project/.codex-ssh/polymarket_vps}"
 REMOTE_DIR="${ARCTASK_REMOTE_DIR:-/root/ArcTask}"
 PM2_NAME="${ARCTASK_PM2_NAME:-arctask-worker}"
+WEB_PM2_NAME="${ARCTASK_WEB_PM2_NAME:-arctask-web}"
 REPO_URL="${ARCTASK_REPO_URL:-https://github.com/VadymManiuk/ArcTask.git}"
 ENV_FILE="${ARCTASK_ENV_FILE:-.env.local}"
 COPY_ENV="${ARCTASK_COPY_ENV:-false}"
@@ -53,7 +54,7 @@ else
   git clone '$REPO_URL' '$REMOTE_DIR'
   cd '$REMOTE_DIR'
 fi
-npm ci --omit=dev
+npm ci
 "
 
 if [[ "$COPY_ENV" == "true" ]]; then
@@ -67,6 +68,10 @@ fi
 cd '$REMOTE_DIR'
 test -f .env.local || (echo 'Missing .env.local on VPS. Re-run with ARCTASK_COPY_ENV=true or create it manually.' >&2; exit 1)
 chmod 600 .env.local
+npm run build
+if pm2 describe '$WEB_PM2_NAME' >/dev/null 2>&1; then
+  pm2 restart '$WEB_PM2_NAME' --update-env
+fi
 pm2 delete '$PM2_NAME' >/dev/null 2>&1 || true
 pm2 start npm --name '$PM2_NAME' -- run agent:worker:live
 pm2 save
