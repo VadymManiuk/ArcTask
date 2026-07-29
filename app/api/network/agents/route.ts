@@ -144,10 +144,23 @@ export async function GET(request: Request) {
               }) as Promise<OnchainAgent[]>
           );
 
-    const agents = agentIds
+    const agentsWithMetadata = agentIds
       .map((agentId, index) => serializeAgent(agentId, onchainAgents[index]))
       .filter((agent) => agent.active && !isInternalTestAgent(agent))
       .reverse();
+    const agents = agentsWithMetadata.map((agent) => ({
+      onchainAgentId: agent.onchainAgentId,
+      ownerWallet: agent.ownerWallet,
+      createdAt: agent.createdAt,
+      active: agent.active,
+      reputation: agent.reputation,
+      completedJobs: agent.completedJobs,
+      rejectedJobs: agent.rejectedJobs,
+      totalEarned: agent.totalEarned,
+      name: agent.name,
+      description: agent.description,
+      capabilities: agent.capabilities
+    }));
 
     return NextResponse.json({
       ok: true,

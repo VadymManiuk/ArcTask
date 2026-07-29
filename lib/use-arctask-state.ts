@@ -11,7 +11,6 @@ import type { Address, Agent, ArcTaskState, Job, JobStatus } from "@/lib/types";
 interface NetworkAgent {
   onchainAgentId: string;
   ownerWallet: Address;
-  metadataURI: string;
   createdAt: string;
   reputation: number;
   completedJobs: number;
@@ -80,7 +79,7 @@ function createNetworkState(
       description: agent.description,
       capabilities: agent.capabilities,
       ownerWallet: agent.ownerWallet,
-      metadataUri: agent.metadataURI,
+      metadataUri: "",
       reputation: agent.reputation,
       completedJobs: agent.completedJobs,
       rejectedJobs: agent.rejectedJobs,
