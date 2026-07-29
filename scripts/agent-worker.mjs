@@ -1121,7 +1121,17 @@ function acquireJobLock(lockDir, jobId, workerAddress) {
 
   try {
     const stat = fs.statSync(lockPath);
-    if (now - stat.mtimeMs > staleLockMs) {
+    const existingLock = readJsonFile(lockPath, {});
+    let ownerIsDead = false;
+    if (Number.isInteger(existingLock.pid) && existingLock.pid > 0) {
+      try {
+        process.kill(existingLock.pid, 0);
+      } catch (caught) {
+        ownerIsDead = caught?.code === "ESRCH";
+      }
+    }
+
+    if (ownerIsDead || now - stat.mtimeMs > staleLockMs) {
       fs.unlinkSync(lockPath);
     }
   } catch (caught) {
