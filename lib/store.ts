@@ -3,11 +3,11 @@
 import { keccak256, stringToHex } from "viem";
 import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
-import { managedArcTaskAgent, seedState } from "@/lib/mock-data";
+import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
 import { assertMaxLength, isPastDateInputValue, normalizeAddress } from "@/lib/utils";
 
-const STORAGE_KEY = "arctask.mock.v1";
+const STORAGE_KEY = "arctask.state.v2";
 const maxAgentNameLength = 80;
 const maxAgentDescriptionLength = 1_000;
 const maxCapabilityLength = 60;
@@ -106,34 +106,6 @@ function getFreshSeedState() {
   return cloneState(seedState);
 }
 
-function applyStateMigrations(state: ArcTaskState) {
-  const managedSeed = cloneState({ agents: [managedArcTaskAgent], jobs: [] }).agents[0];
-  const managedIndex = state.agents.findIndex(
-    (agent) => agent.id === managedArcTaskAgent.id || agent.onchainAgentId === managedArcTaskAgent.onchainAgentId
-  );
-
-  if (managedIndex >= 0) {
-    return {
-      ...state,
-      agents: state.agents.map((agent, index) =>
-        index === managedIndex
-          ? {
-              ...managedSeed,
-              onchainAgentId: agent.onchainAgentId ?? managedSeed.onchainAgentId,
-              ownerWallet: agent.ownerWallet || managedSeed.ownerWallet,
-              txHistory: agent.txHistory.length > 0 ? agent.txHistory : managedSeed.txHistory
-            }
-          : agent
-      )
-    };
-  }
-
-  return {
-    ...state,
-    agents: [managedSeed, ...state.agents]
-  };
-}
-
 function readState(): ArcTaskState {
   if (typeof window === "undefined") {
     return getFreshSeedState();
@@ -153,13 +125,8 @@ function readState(): ArcTaskState {
       throw new Error("Invalid ArcTask local state.");
     }
 
-    const migrated = applyStateMigrations(parsed);
-    if (migrated !== parsed) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-    }
-
-    cachedState = migrated;
-    return migrated;
+    cachedState = parsed;
+    return parsed;
   } catch {
     const freshState = getFreshSeedState();
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
@@ -172,6 +139,10 @@ function writeState(state: ArcTaskState) {
   cachedState = state;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   window.dispatchEvent(new Event("arctask:state"));
+}
+
+export function hydrateNetworkState(state: ArcTaskState) {
+  writeState(cloneState(state));
 }
 
 export function getState() {

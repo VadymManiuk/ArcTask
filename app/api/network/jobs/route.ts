@@ -98,6 +98,10 @@ function serializeJob(jobId: bigint, job: OnchainJob) {
   };
 }
 
+function isInternalSmokeJob(job: ReturnType<typeof serializeJob>) {
+  return /\bsmoke\b/i.test(`${job.title} ${job.description}`);
+}
+
 export async function GET(request: Request) {
   const rateLimitResponse = rateLimit(request, { keyPrefix: "network-jobs", limit: 60, windowMs: 60_000 });
   if (rateLimitResponse) {
@@ -139,7 +143,10 @@ export async function GET(request: Request) {
                 }))
               }) as Promise<OnchainJob[]>
           );
-    const jobs = jobIds.map((jobId, index) => serializeJob(jobId, onchainJobs[index])).reverse();
+    const jobs = jobIds
+      .map((jobId, index) => serializeJob(jobId, onchainJobs[index]))
+      .filter((job) => !isInternalSmokeJob(job))
+      .reverse();
     const counts = jobs.reduce<Record<JobStatus, number>>(
       (acc, job) => {
         acc[job.status] += 1;

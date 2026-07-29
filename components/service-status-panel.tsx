@@ -150,7 +150,7 @@ export function ServiceStatusPanel() {
           />
           <StatusTile
             label="Network jobs"
-            value={networkJobs?.nextJobId ? Math.max(Number(networkJobs.nextJobId) - 1, 0) : "unknown"}
+            value={networkJobs?.count ?? "unknown"}
             detail={`${networkJobs?.count ?? 0} indexed in latest view`}
           />
         </div>
