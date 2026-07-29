@@ -7,6 +7,7 @@ import { getJobDeadlineMs, getJobDeadlineSeconds } from "../lib/job-deadline.ts"
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "../scripts/arc-rpc.mjs";
 import { createDeliverableNonce, consumeDeliverableNonce } from "../lib/server-deliverable-nonce.ts";
 import { isRetryableRpcError, withServerRpcRetry } from "../lib/server-rpc-retry.ts";
+import { getAuthorizedAccount } from "../lib/wallet-account.ts";
 
 function readAbi(fileName) {
   return JSON.parse(fs.readFileSync(new URL(`../lib/contracts/abis/${fileName}`, import.meta.url), "utf8"));
@@ -136,4 +137,13 @@ test("server RPC retry handles nested transient causes without retrying permanen
   assert.equal(value, "ok");
   assert.equal(attempts, 2);
   assert.equal(isRetryableRpcError(new Error("execution reverted")), false);
+});
+
+test("wallet restoration accepts authorized accounts without requesting a new connection", () => {
+  assert.equal(
+    getAuthorizedAccount(["0x7B42ED8165710a86684a54E8B02ec0f61Da8C897"]),
+    "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897"
+  );
+  assert.equal(getAuthorizedAccount([]), null);
+  assert.equal(getAuthorizedAccount("not-an-array"), null);
 });

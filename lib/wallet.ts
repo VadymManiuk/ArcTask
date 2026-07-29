@@ -4,9 +4,14 @@ import { ARC_TESTNET } from "@/lib/arc";
 import { getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import { normalizeAddress } from "@/lib/utils";
 import type { Address } from "@/lib/types";
+import { getAuthorizedAccount } from "@/lib/wallet-account";
+
+export { getAuthorizedAccount } from "@/lib/wallet-account";
 
 export type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: "accountsChanged" | "disconnect", listener: (...args: unknown[]) => void) => void;
+  removeListener?: (event: "accountsChanged" | "disconnect", listener: (...args: unknown[]) => void) => void;
 };
 
 type WalletError = {
@@ -64,12 +69,20 @@ function isUnrecognizedChainError(caught: unknown) {
 }
 
 export function getEthereumProvider() {
-  const ethereum = (window as Window & { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = getOptionalEthereumProvider();
   if (!ethereum) {
     throw new Error("Wallet not found.");
   }
 
   return ethereum;
+}
+
+export function getOptionalEthereumProvider() {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  return (window as Window & { ethereum?: EthereumProvider }).ethereum;
 }
 
 async function requestSwitchToArcTestnet(ethereum: EthereumProvider, chainId: string) {
@@ -117,6 +130,14 @@ export function getFirstAccount(accounts: string[]) {
   }
 
   return normalizeAddress(account);
+}
+
+export async function restoreAuthorizedAccount(ethereum = getOptionalEthereumProvider()): Promise<Address | null> {
+  if (!ethereum) {
+    return null;
+  }
+
+  return getAuthorizedAccount(await ethereum.request({ method: "eth_accounts" }));
 }
 
 export async function requestArcAccount(): Promise<Address> {
