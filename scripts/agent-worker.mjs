@@ -340,11 +340,56 @@ function getTaskProfile(payload) {
     };
   }
 
+  if (
+    text.includes("compliance") ||
+    text.includes("governance") ||
+    text.includes("policy") ||
+    text.includes("role separation") ||
+    text.includes("control assessment")
+  ) {
+    return {
+      kind: "governance_compliance",
+      instruction:
+        "For governance and compliance work, define the scope and applicable assumptions, map roles and controls, identify missing evidence and conflicts of interest, rank gaps by impact, and provide concrete remediation and verification steps. Do not present legal conclusions without supplied jurisdiction and policy sources."
+    };
+  }
+
   if (text.includes("contract") || text.includes("solidity") || text.includes("smart contract") || text.includes("audit")) {
     return {
       kind: "contract_review",
       instruction:
         "Review the supplied Solidity source and ABI directly. Required sections: Scope, Authorization matrix, State-transition invariants, Settlement and refund invariants, Reentrancy and external-call analysis, Severity-ranked findings, Recommended tests, and Deployment recommendation. Reference concrete functions and distinguish confirmed code findings from trust or deployment assumptions. Never use payment-review headings."
+    };
+  }
+
+  if (
+    text.includes("devops") ||
+    text.includes("deployment") ||
+    text.includes("incident") ||
+    text.includes("monitoring") ||
+    text.includes("observability") ||
+    text.includes("rpc reliability") ||
+    text.includes("production readiness")
+  ) {
+    return {
+      kind: "devops_reliability",
+      instruction:
+        "For DevOps and reliability tasks, review architecture, deployment safety, secrets, monitoring, alerts, rollback, retries, rate limits, incident response, and operational ownership. Produce severity-ranked risks, concrete checks, and a production-readiness decision."
+    };
+  }
+
+  if (
+    text.includes("integration") ||
+    text.includes("api") ||
+    text.includes("indexer") ||
+    text.includes("sdk") ||
+    text.includes("webhook") ||
+    text.includes("cross-chain")
+  ) {
+    return {
+      kind: "protocol_integration",
+      instruction:
+        "For integration engineering tasks, define systems and data flow, authentication and trust boundaries, interfaces, validation, retries and idempotency, failure handling, testing, rollout, and acceptance criteria. Return implementation-ready steps and clearly flag missing technical inputs."
     };
   }
 

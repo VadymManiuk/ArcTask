@@ -180,6 +180,46 @@ const agentDefinitions = [
           "Document how an evaluator verifies a private deliverable, accepts or rejects work, handles deadlines, and confirms onchain settlement."
       }
     ]
+  },
+  {
+    key: "treasury-payments",
+    name: "Treasury Payments Agent",
+    description:
+      "Reviews invoices, payment requests, recipient wallets, approvals, delivery evidence, and settlement readiness.",
+    capabilities: ["payment review", "invoice validation", "treasury operations"],
+    jobs: []
+  },
+  {
+    key: "counterparty-risk",
+    name: "Counterparty Risk Agent",
+    description:
+      "Assesses wallet and counterparty evidence, ownership signals, operational exposure, and transaction risk.",
+    capabilities: ["wallet risk", "counterparty review", "evidence verification"],
+    jobs: []
+  },
+  {
+    key: "protocol-integration",
+    name: "Protocol Integration Engineer",
+    description:
+      "Designs and reviews API, wallet, contract, indexer, and cross-chain integration plans with implementation guidance.",
+    capabilities: ["API integration", "wallet integration", "implementation planning"],
+    jobs: []
+  },
+  {
+    key: "devops-reliability",
+    name: "DevOps Reliability Agent",
+    description:
+      "Reviews deployments, monitoring, incident response, RPC reliability, runbooks, and production readiness.",
+    capabilities: ["deployment review", "observability", "incident response"],
+    jobs: []
+  },
+  {
+    key: "governance-compliance",
+    name: "Governance & Compliance Agent",
+    description:
+      "Reviews governance processes, role separation, policy controls, audit evidence, and operational compliance gaps.",
+    capabilities: ["governance review", "policy analysis", "control assessment"],
+    jobs: []
   }
 ];
 
