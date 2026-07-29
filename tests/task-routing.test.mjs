@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   isContractReviewTask,
   isGovernanceComplianceTask,
-  isProductQaTask
+  isProductQaTask,
+  isStrictFormatTask
 } from "../lib/task-routing.mjs";
 
 test("CCTP contract boundaries route as integration rather than contract review", () => {
@@ -52,5 +53,18 @@ test("technical retry policies do not route as governance work", () => {
       text: "Map roles, conflicts of interest, evidence retention, and exception handling."
     }),
     true
+  );
+});
+
+test("exact-format tasks are detected without forcing a long report", () => {
+  assert.equal(
+    isStrictFormatTask(
+      "Return exactly five concise bullets in lifecycle order, followed by one sentence."
+    ),
+    true
+  );
+  assert.equal(
+    isStrictFormatTask("Return a concise lifecycle report with evidence and recommendations."),
+    false
   );
 });

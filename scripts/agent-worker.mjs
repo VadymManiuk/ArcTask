@@ -46,7 +46,8 @@ import {
 import {
   isContractReviewTask,
   isGovernanceComplianceTask,
-  isProductQaTask
+  isProductQaTask,
+  isStrictFormatTask
 } from "../lib/task-routing.mjs";
 import {
   allocateAttemptTimeout,
@@ -376,7 +377,7 @@ async function buildExecutionPlan(jobId, job, payload) {
     };
   }
 
-  return {
+  const enforcedPlan = {
     ...plan,
     maxRuntimeMs: Math.min(plan.maxRuntimeMs, routingMaxRuntimeMs),
     requestTimeoutMs: Math.min(plan.requestTimeoutMs, routingMaxRuntimeMs),
@@ -386,6 +387,16 @@ async function buildExecutionPlan(jobId, job, payload) {
     maxAttempts: Math.min(plan.maxAttempts, routingMaxRequests),
     routingWarning
   };
+  return taskProfile.kind === "strict_format"
+    ? {
+        ...enforcedPlan,
+        maxOutputTokens: Math.min(enforcedPlan.maxOutputTokens, 400),
+        maxTotalTokens: Math.min(enforcedPlan.maxTotalTokens, 2_000),
+        maxRequests: 1,
+        maxAttempts: 1,
+        escalationModel: null
+      }
+    : enforcedPlan;
 }
 
 async function buildAgentResult(jobId, job, payload, executionPlan, escrowContext) {
@@ -589,6 +600,16 @@ function getTaskProfile(payload) {
         "For documentation tasks, use the supplied repository configuration and produce ready-to-use copy with prerequisites, numbered steps, exact values where verified, success checks, failure handling, assumptions, and next steps. Never return only a title or meta commentary.",
       minimumLength: 700,
       requiredTopics: ["prerequisite", "step", "verify", "failure", "assumption", "next"]
+    };
+  }
+
+  if (isStrictFormatTask(text)) {
+    return {
+      kind: "strict_format",
+      instruction:
+        "Follow the requested output shape and item count exactly. Do not add headings, caveats, sections, or commentary that the payload did not request.",
+      minimumLength: 60,
+      requiredTopics: []
     };
   }
 

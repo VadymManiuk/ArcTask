@@ -56,7 +56,7 @@ export interface ExecutionTier {
 }
 
 export interface ExecutionPlan {
-  version: 6;
+  version: 7;
   complexity: ComplexityAssessment;
   routingSource: "ai" | "deterministic";
   aiAssessment: AiRoutingAssessment | null;
