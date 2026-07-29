@@ -58,3 +58,37 @@ test("placeholder deliverables are rejected before onchain submission", () => {
     /placeholder/
   );
 });
+
+test("contract reviews require concrete lifecycle and code references", () => {
+  const completeReview = [
+    "Scope and authorization matrix for ArcTaskEscrow.",
+    "createJob validates funding and stores the client, evaluator, and agent owner.",
+    "submitDeliverable is authorized only for the snapshotted agent owner.",
+    "State transition analysis covers Funded, Submitted, Accepted, Rejected, and Refunded.",
+    "acceptWork controls settlement and calls the registry before _sendNativeUsdc.",
+    "rejectWork records a rejected outcome and returns value to the client.",
+    "refundExpired is client-only after the deadline and covers both active states.",
+    "Reentrancy analysis confirms nonReentrant protects acceptWork, rejectWork, and refundExpired.",
+    "_sendNativeUsdc performs the external call after the status update.",
+    "Findings distinguish authorization concentration, settlement liveness, refund behavior, and reentrancy.",
+    "Recommended tests cover every caller, deadline boundary, state transition, failed transfer, and registry callback.",
+    "Deployment recommendation: add the invariant tests and separate production roles before mainnet."
+  ].join("\n\n");
+
+  assert.doesNotThrow(() =>
+    assertAgentResultQuality({
+      taskKind: "contract_review",
+      summary: completeReview.repeat(2),
+      sourceUrls: []
+    })
+  );
+  assert.throws(
+    () =>
+      assertAgentResultQuality({
+        taskKind: "contract_review",
+        summary: "A generic contract review without concrete evidence. ".repeat(30),
+        sourceUrls: []
+      }),
+    /code references/
+  );
+});

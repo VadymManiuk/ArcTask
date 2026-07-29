@@ -16,6 +16,7 @@ import {
   assertAgentResultQuality,
   collectOpenAiSourceUrls
 } from "./agent-result-quality.mjs";
+import { loadTaskArtifacts } from "./agent-task-context.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
@@ -250,7 +251,7 @@ function getTaskProfile(payload) {
     return {
       kind: "contract_review",
       instruction:
-        "For contract reviews, produce severity-ranked findings, affected lifecycle, exploit or failure scenario, impact, concrete fix, and deployment recommendation. Do not overstate findings if source code is incomplete."
+        "Review the supplied Solidity source and ABI directly. Required sections: Scope, Authorization matrix, State-transition invariants, Settlement and refund invariants, Reentrancy and external-call analysis, Severity-ranked findings, Recommended tests, and Deployment recommendation. Reference concrete functions and distinguish confirmed code findings from trust or deployment assumptions. Never use payment-review headings."
     };
   }
 
@@ -360,12 +361,21 @@ function buildPaymentReviewSummary(payload) {
 async function runOpenAiExecutor(jobId, job, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openAiTimeoutMs);
-  const tools = openAiWebSearchEnabled ? [{ type: "web_search", search_context_size: openAiWebSearchContext }] : undefined;
   const taskProfile = getTaskProfile(payload);
+  const tools =
+    openAiWebSearchEnabled && taskProfile.kind === "market_research"
+      ? [{ type: "web_search", search_context_size: openAiWebSearchContext }]
+      : undefined;
   const task = {
     jobId: jobId.toString(),
     taskProfile: taskProfile.kind,
     payload,
+    artifacts: loadTaskArtifacts({
+      taskKind: taskProfile.kind,
+      rootDir,
+      escrowAddress,
+      registryAddress
+    }),
     onchain: {
       agentId: job.agentId.toString(),
       client: job.client,
@@ -378,6 +388,16 @@ async function runOpenAiExecutor(jobId, job, payload) {
   };
 
   try {
+    const systemInstructions = [
+      "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain payload and verified artifacts.",
+      `Task profile: ${taskProfile.kind}. ${taskProfile.instruction}`,
+      taskProfile.kind === "market_research"
+        ? "Use web search. Cite source URLs, separate verified facts from uncertain signals, and include a concise opportunity and risk comparison."
+        : taskProfile.kind === "contract_review"
+          ? "Use the supplied contract source and ABI as primary evidence. Do not claim that source code, ABI, or deployed addresses are missing."
+          : "Use the supplied payload as primary evidence and clearly identify any input that is genuinely absent.",
+      "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, markdown code fences, generic filler, or an unfinished section."
+    ].join(" ");
     const requestBody = {
       model: openAiModel,
       max_output_tokens: openAiMaxOutputTokens,
@@ -388,22 +408,7 @@ async function runOpenAiExecutor(jobId, job, payload) {
           content: [
             {
               type: "input_text",
-              text: openAiWebSearchEnabled
-                ? [
-                    "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain job payload.",
-                    `Task profile: ${taskProfile.kind}. ${taskProfile.instruction}`,
-                    "When the task requires current market discovery, upcoming TGE/listing research, or fresh project data, use web search and cite source URLs in the deliverable.",
-                    "Clearly separate verified facts, uncertain signals, assumptions, and risks. Do not invent token names, dates, funding data, or claims not supported by the payload or web sources.",
-                    "Think through the decision before answering, but only show the final concise result.",
-                    "Return a concise evaluator-ready deliverable in plain language. Prefer short sections named Payment summary, Completeness check, Risk notes, Recommendation, Confidence score, and Next steps when reviewing payments. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review."
-                  ].join(" ")
-                : [
-                    "You are an autonomous ArcTask AI agent. Complete the requested task using only the supplied job payload.",
-                    `Task profile: ${taskProfile.kind}. ${taskProfile.instruction}`,
-                    "If the task requires current market discovery, upcoming TGE/listing research, or fresh offchain data, state that web search is disabled and list the exact missing inputs needed to complete it.",
-                    "Think through the decision before answering, but only show the final concise result.",
-                    "Return a concise evaluator-ready deliverable in plain language with concrete output, assumptions, and verification notes. Prefer short sections named Payment summary, Completeness check, Risk notes, Recommendation, Confidence score, and Next steps when reviewing payments. Avoid markdown code fences, raw heading markers, and long audit templates unless the job explicitly asks for source-code review. Do not claim offchain actions that were not performed."
-                  ].join(" ")
+              text: systemInstructions
             }
           ]
         },
@@ -877,14 +882,14 @@ loadLocalEnv();
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl;
 const escrowAddress = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS", defaultEscrowAddress);
-optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
+const registryAddress = optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
 const dryRun = getBooleanEnv("ARC_AGENT_DRY_RUN", true);
 const once = getBooleanEnv("ARC_AGENT_ONCE", false);
 const pollIntervalMs = getPositiveIntegerEnv("ARC_AGENT_POLL_INTERVAL_MS", 15_000);
 const maxJobsPerTick = getPositiveIntegerEnv("ARC_AGENT_MAX_JOBS_PER_TICK", 5);
 const staleLockMs = getPositiveIntegerEnv("ARC_AGENT_STALE_LOCK_MS", 10 * 60_000);
 const openAiApiKey = process.env.OPENAI_API_KEY;
-const openAiModel = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
+const openAiModel = process.env.OPENAI_MODEL ?? "gpt-5.6-sol";
 const openAiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const openAiTimeoutMs = getOptionalPositiveIntegerEnv("OPENAI_TIMEOUT_MS", 180_000);
 const openAiMaxOutputTokens = getOptionalPositiveIntegerEnv("OPENAI_MAX_OUTPUT_TOKENS", 3_000);

@@ -207,7 +207,7 @@ Useful worker env vars:
 - `ARC_AGENT_LOCK_DIR` - default `.agent-worker/locks`; contains per-job lock files
 - `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
-- `OPENAI_MODEL` - default `gpt-4.1-mini`
+- `OPENAI_MODEL` - default `gpt-5.6-sol`
 - `OPENAI_TIMEOUT_MS` - default `180000`; web research may require more than one minute
 - `OPENAI_MAX_OUTPUT_TOKENS` - default `3000`; keep enough room for research, review, and source-cited deliverables
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
@@ -223,6 +223,11 @@ When `OPENAI_API_KEY` is set, the worker asks OpenAI to produce an evaluator-rea
 `ARC_AGENT_ENABLE_WEB_SEARCH=true` so the worker can search and cite sources. Research submissions require at least
 three source URLs. In production, missing keys, timeouts, placeholder language, or insufficient research leave the
 job funded for a later retry instead of committing a low-quality deliverable hash onchain.
+
+Contract-review jobs automatically include the deployed escrow and registry addresses, repository Solidity sources,
+and generated ABIs. The worker requires concrete lifecycle function references, authorization and state-transition
+analysis, settlement/refund invariants, reentrancy analysis, recommended tests, and a deployment recommendation
+before it can submit the deliverable hash.
 
 The worker writes runtime telemetry to `.agent-worker/state/status.json` using atomic writes. The app exposes that
 through `/api/worker/status`, with Vercel falling back to `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` when the status file is

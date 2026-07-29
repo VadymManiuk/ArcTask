@@ -59,4 +59,53 @@ export function assertAgentResultQuality({ taskKind, summary, sourceUrls }) {
   if (taskKind === "market_research" && sourceUrls.length < 3) {
     throw new Error(`Research deliverable has ${sourceUrls.length} verified source URL(s); at least 3 are required.`);
   }
+
+  if (taskKind === "contract_review") {
+    if (normalizedSummary.length < 1_200) {
+      throw new Error("Contract review is too short to contain a complete invariant analysis.");
+    }
+
+    const requiredCodeReferences = [
+      "createJob",
+      "submitDeliverable",
+      "acceptWork",
+      "rejectWork",
+      "refundExpired",
+      "_sendNativeUsdc",
+      "nonReentrant"
+    ];
+    const missingCodeReferences = requiredCodeReferences.filter((name) => !normalizedSummary.includes(name));
+    if (missingCodeReferences.length > 0) {
+      throw new Error(`Contract review is missing code references: ${missingCodeReferences.join(", ")}.`);
+    }
+
+    const normalizedLower = normalizedSummary.toLowerCase();
+    const normalizedTopics = normalizedLower.replace(/[-–—]/g, " ");
+    const requiredTopics = [
+      "authorization",
+      "state transition",
+      "settlement",
+      "refund",
+      "reentrancy",
+      "recommended test",
+      "deployment recommendation"
+    ];
+    const missingTopics = requiredTopics.filter((topic) => !normalizedTopics.includes(topic));
+    if (missingTopics.length > 0) {
+      throw new Error(`Contract review is missing required topics: ${missingTopics.join(", ")}.`);
+    }
+
+    const missingSourceSignals = [
+      "no escrow contract address or source code was supplied",
+      "cannot confirm whether the actual escrow contract",
+      "review is limited to the supplied job payload"
+    ];
+    if (missingSourceSignals.some((signal) => normalizedLower.includes(signal))) {
+      throw new Error("Contract review incorrectly claims that repository source artifacts are unavailable.");
+    }
+
+    if (/[:;,]\s*$/.test(normalizedSummary)) {
+      throw new Error("Contract review appears to end with an unfinished section or sentence.");
+    }
+  }
 }

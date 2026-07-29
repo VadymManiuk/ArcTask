@@ -325,7 +325,7 @@ NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}
 ARC_AGENT_PRIVATE_KEY=0x...
 ARC_AGENT_DRY_RUN=true
 OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-4.1-mini`}</CodeBlock>
+OPENAI_MODEL=gpt-5.6-sol`}</CodeBlock>
             <div className="mt-5 overflow-hidden rounded-xl border border-white/[0.065] bg-[#090d16]">
               <div className="border-b border-white/[0.065] px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
                 Commands
