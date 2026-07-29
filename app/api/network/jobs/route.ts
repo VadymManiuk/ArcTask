@@ -200,6 +200,7 @@ async function loadJobsSnapshot(
     source,
     blockNumber,
     nextJobId: v2Address ? v2.nextJobId : legacy.nextJobId,
+    legacyNextJobId: legacy.nextJobId,
     jobs,
     terminalJobs: jobs.filter((job) => ["ACCEPTED", "REJECTED", "REFUNDED"].includes(job.status)).length,
     latestUpdatedAt: jobs.reduce(
@@ -215,6 +216,9 @@ function compareSnapshots(
 ) {
   if (left.nextJobId !== right.nextJobId) {
     return left.nextJobId > right.nextJobId ? 1 : -1;
+  }
+  if (left.legacyNextJobId !== right.legacyNextJobId) {
+    return left.legacyNextJobId > right.legacyNextJobId ? 1 : -1;
   }
   if (left.terminalJobs !== right.terminalJobs) {
     return left.terminalJobs > right.terminalJobs ? 1 : -1;
@@ -297,7 +301,12 @@ export async function GET(request: Request) {
       ? (cachedJobsResponse.payload.jobs as ReturnType<typeof serializeJob>[])
       : [];
     const cachedNextJobId = BigInt(String(cachedJobsResponse?.payload.nextJobId ?? 0));
-    if (cachedJobsResponse && cachedNextJobId > selectedSnapshot.nextJobId) {
+    const cachedLegacyNextJobId = BigInt(String(cachedJobsResponse?.payload.legacyNextJobId ?? 0));
+    if (
+      cachedJobsResponse &&
+      (cachedNextJobId > selectedSnapshot.nextJobId ||
+        cachedLegacyNextJobId > selectedSnapshot.legacyNextJobId)
+    ) {
       return NextResponse.json(
         {
           ...cachedJobsResponse.payload,
@@ -328,6 +337,7 @@ export async function GET(request: Request) {
       escrowAddress: getEscrowV2Address() ?? getEscrowAddress(),
       legacyEscrowAddress: getEscrowAddress(),
       nextJobId: selectedSnapshot.nextJobId.toString(),
+      legacyNextJobId: selectedSnapshot.legacyNextJobId.toString(),
       count: jobs.length,
       counts,
       jobs
