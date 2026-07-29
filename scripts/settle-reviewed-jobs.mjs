@@ -115,7 +115,6 @@ export async function settleReviewedJobs({
     if (Number(job[8]) !== submittedStatus) {
       outcomes.push({
         jobId: decision.jobId,
-        score: decision.score,
         action: decision.action,
         status: "skipped",
         reason: `onchain status is ${Number(job[8])}, not SUBMITTED`
@@ -132,7 +131,6 @@ export async function settleReviewedJobs({
     if (!live) {
       outcomes.push({
         jobId: decision.jobId,
-        score: decision.score,
         action: decision.action,
         status: "verified"
       });
@@ -153,7 +151,6 @@ export async function settleReviewedJobs({
 
     outcomes.push({
       jobId: decision.jobId,
-      score: decision.score,
       action: decision.action,
       status: "settled",
       txHash,

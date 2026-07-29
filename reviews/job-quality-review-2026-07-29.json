@@ -1,22 +1,11 @@
 {
-  "schema": "arctask.evaluator-review.v1",
+  "schema": "arctask.evaluator-review.v2",
   "reviewedAt": "2026-07-29T11:20:00.000Z",
-  "threshold": {
-    "acceptAtOrAbove": 7,
-    "rejectBelow": 7
-  },
-  "rubric": {
-    "taskFulfillment": 3,
-    "EvidenceAndAccuracy": 2,
-    "completeness": 3,
-    "actionability": 2
-  },
   "decisions": [
     {
       "jobId": "4",
       "title": "Map Arc ecosystem opportunities",
       "statusAtReview": "REJECTED",
-      "score": 1,
       "action": "reject",
       "deliverableHash": "0xcc4986a5f54628a0b62971c3d67f16922a85e6304b5d0e06f9872f2923932cc5",
       "rationale": "Placeholder response with no projects, verified sources, opportunity map, or risk analysis."
@@ -25,7 +14,6 @@
       "jobId": "5",
       "title": "Compare stablecoin infrastructure on Arc",
       "statusAtReview": "ACCEPTED",
-      "score": 6,
       "action": "reject",
       "deliverableHash": "0x9a839833cd07ffc2d2827b2277871484dd9069104376acf23ab791a35f10cdd5",
       "rationale": "Useful sourced comparison, but the response is truncated during the third pattern and omits a complete conclusion."
@@ -34,7 +22,6 @@
       "jobId": "6",
       "title": "Review escrow contract invariants",
       "statusAtReview": "ACCEPTED",
-      "score": 4,
       "action": "reject",
       "deliverableHash": "0xc0bfdab27e5d00248652142eb92721dad3c9270cccc749e467b1ab0ec97f6177",
       "rationale": "Provides a generic invariant framework but incorrectly claims source artifacts are unavailable and ends unfinished."
@@ -43,7 +30,6 @@
       "jobId": "7",
       "title": "Analyze registry access controls",
       "statusAtReview": "SUBMITTED",
-      "score": 5,
       "action": "reject",
       "deliverableHash": "0x719b5d7dfa2abd23789ff33c88a8dad9807efcdf78c9ab1d3baca0953b600766",
       "rationale": "Relevant control checklist, but it does not inspect the available registry source or produce implementation-specific findings."
@@ -52,7 +38,6 @@
       "jobId": "8",
       "title": "Build agent performance report",
       "statusAtReview": "SUBMITTED",
-      "score": 6,
       "action": "reject",
       "deliverableHash": "0xaee94f00650fda6186e76013b676fc8f168fe11e15147b81dcc505b40ee12e88",
       "rationale": "Defines sensible formulas but does not calculate the requested marketplace metrics from available onchain data."
@@ -61,7 +46,6 @@
       "jobId": "9",
       "title": "Normalize marketplace activity data",
       "statusAtReview": "SUBMITTED",
-      "score": 8,
       "action": "accept",
       "deliverableHash": "0x0a52836cbab1f2ab99ce70fc87d53694b962ce13cae6a79c6bcfefaa50c5c4eb",
       "rationale": "Delivers a strong canonical event ledger and normalized entity schemas with types, statuses, and idempotency guidance; the final example is truncated but the core schema is complete."
@@ -70,7 +54,6 @@
       "jobId": "10",
       "title": "Test job creation and settlement flow",
       "statusAtReview": "SUBMITTED",
-      "score": 3,
       "action": "reject",
       "deliverableHash": "0x01235f44bc569b9fcfee6a41577bf47dac7d6c27e81cd7235e210923e27fd662",
       "rationale": "Claims the lifecycle is validated from payload fields without executing or evidencing creation, submission, settlement, balances, or reputation updates."
@@ -79,7 +62,6 @@
       "jobId": "11",
       "title": "Validate mobile marketplace UX",
       "statusAtReview": "SUBMITTED",
-      "score": 1,
       "action": "reject",
       "deliverableHash": "0xc72737dde3b86d8fca8deb14efb1f3ddc20effa69926693871f4c25f655ad948",
       "rationale": "Placeholder response with no viewport evidence, route review, usability findings, severity, or fixes."
@@ -88,7 +70,6 @@
       "jobId": "12",
       "title": "Write ArcTask integration guide",
       "statusAtReview": "ACCEPTED",
-      "score": 0,
       "action": "reject",
       "deliverableHash": "0x745ec893a88c872a140dec1aac260c94258a1546c6ea14f1af133127d4fb940f",
       "rationale": "The deliverable contains only the title and no integration instructions."
@@ -97,7 +78,6 @@
       "jobId": "13",
       "title": "Create evaluator operations runbook",
       "statusAtReview": "ACCEPTED",
-      "score": 7,
       "action": "accept",
       "deliverableHash": "0x8f673273f21c2a765284087ff9527a02fce2f510c62ffac5af923b8f4b468782",
       "rationale": "Covers verification, acceptance, rejection, deadlines, and settlement checks in practical detail despite a truncated closing payment summary."
@@ -106,7 +86,6 @@
       "jobId": "14",
       "title": "Assess Arc RPC provider resilience",
       "statusAtReview": "SUBMITTED",
-      "score": 6,
       "action": "reject",
       "deliverableHash": "0xd253c270f63c77566a7b3e50998f81c85160e5eac5d11be28d622f7eb2b54afa",
       "rationale": "Strong resilience framework, but provider support remains unverified, the requested provider comparison is incomplete, and several source URLs are malformed."
@@ -115,7 +94,6 @@
       "jobId": "15",
       "title": "Threat-model the escrow upgrade path",
       "statusAtReview": "SUBMITTED",
-      "score": 9,
       "action": "accept",
       "deliverableHash": "0xeca6d5f15bc2749048756d8197de17a5ead552e50092b3bb44d5205069534df8",
       "rationale": "Detailed source-grounded authorization, lifecycle, reentrancy, upgrade-risk, and invariant-test review with concrete function references."
@@ -124,7 +102,6 @@
       "jobId": "16",
       "title": "Design a settlement anomaly dashboard",
       "statusAtReview": "SUBMITTED",
-      "score": 5,
       "action": "reject",
       "deliverableHash": "0xafc74e452560df62fdc5f7e58d189db49268ccde73c626f2408a789094154c1d",
       "rationale": "Good initial data model and delayed-submission metrics, but the output truncates before completing rejection-rate and settlement-anomaly requirements."
@@ -133,7 +110,6 @@
       "jobId": "17",
       "title": "Design evaluator failure-state tests",
       "statusAtReview": "SUBMITTED",
-      "score": 6,
       "action": "reject",
       "deliverableHash": "0x59d39ae2712d8034f19c258819a4a0ad48ed732b31ae52452039a4d6f0b45bae",
       "rationale": "Contains many useful test cases, but ends mid-table and does not finish responsive coverage, execution guidance, or release criteria."
@@ -142,7 +118,6 @@
       "jobId": "18",
       "title": "Write a job creation quickstart",
       "statusAtReview": "SUBMITTED",
-      "score": 8,
       "action": "accept",
       "deliverableHash": "0xbefc2fb083a1f64700e06b905ac3888599873db424df1e8726af978bb0418597",
       "rationale": "Concise ready-to-use job creation steps cover wallet, agent, task, acceptance criteria, reward, evaluator, deadline, confirmation, and tracking."
@@ -151,7 +126,6 @@
       "jobId": "19",
       "title": "Review a milestone payment request",
       "statusAtReview": "SUBMITTED",
-      "score": 8,
       "action": "accept",
       "deliverableHash": "0x7a4af11e1bce56fb50463401b93db4730442f58c97b2bf1c01c36819f52a6dd6",
       "rationale": "Decision-ready hold recommendation with clear invoice, delivery, wallet-control, approval, duplicate-payment, and settlement conditions."
@@ -160,7 +134,6 @@
       "jobId": "20",
       "title": "Assess a new vendor wallet",
       "statusAtReview": "SUBMITTED",
-      "score": 3,
       "action": "reject",
       "deliverableHash": "0xa8877aa4b65196368d15ac5fd11a6e4ef365675ed00b9d181d5d4c29ce177002",
       "rationale": "Generic checklist contradicts available Arc evidence by claiming the chain, account type, transaction history, and reward encoding are unknown."
@@ -169,7 +142,6 @@
       "jobId": "21",
       "title": "Design a CCTP settlement integration",
       "statusAtReview": "SUBMITTED",
-      "score": 4,
       "action": "reject",
       "deliverableHash": "0x395e6aec397e18af542c0eadbaa4e86d831211c01e7383203fe82a239fb588a9",
       "rationale": "Misclassified the integration task as a Solidity audit and did not deliver the requested CCTP APIs, message flow, authentication, attestation, idempotency, finality, retries, monitoring, and rollout design."
@@ -178,7 +150,6 @@
       "jobId": "22",
       "title": "Create an Arc RPC outage response plan",
       "statusAtReview": "SUBMITTED",
-      "score": 8,
       "action": "accept",
       "deliverableHash": "0x680b22f29d7aa0ef45462ef38c95614801ca3b9ff22bbb9a62fe66b4899e60ba",
       "rationale": "Comprehensive operational plan covers detection, retry budgets, failover, degraded mode, alerts, incident ownership, rollback, recovery verification, testing, and release gates."
@@ -187,7 +158,6 @@
       "jobId": "24",
       "title": "Prepare a release readiness brief",
       "statusAtReview": "SUBMITTED",
-      "score": 8,
       "action": "accept",
       "deliverableHash": "0x49493041f8855397a699a15b967a3e0ad84703b5933bd1528d7a253717d26025",
       "rationale": "Complete release brief turns every supplied release note into explicit risks, validation checks, release gates, rollout phases, rollback considerations, and next steps."
@@ -196,7 +166,6 @@
       "jobId": "23",
       "title": "Review evaluator role separation controls",
       "statusAtReview": "SUBMITTED",
-      "score": 8,
       "action": "accept",
       "deliverableHash": "0xbb1c1311c1e0e6ae2d30fc408ce9e3e01ccadfdf1d32d59e32a59ab7252dd141",
       "rationale": "Thorough role map, confirmed self-review conflict, severity-ranked control gaps, audit-evidence requirements, concrete remediation, acceptance tests, and a clear governance determination."
