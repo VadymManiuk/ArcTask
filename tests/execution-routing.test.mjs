@@ -19,7 +19,9 @@ test("reward tiers select progressively stronger GPT-5.6 models and budgets", ()
   for (let index = 1; index < tiers.length; index += 1) {
     assert.ok(tiers[index].maxRuntimeMs > tiers[index - 1].maxRuntimeMs);
     assert.ok(tiers[index].maxOutputTokens > tiers[index - 1].maxOutputTokens);
+    assert.ok(tiers[index].maxTotalTokens > tiers[index - 1].maxTotalTokens);
   }
+  assert.ok(tiers.every((tier) => tier.maxRequests <= 2));
 });
 
 test("contract security review requires at least an expert execution tier", () => {

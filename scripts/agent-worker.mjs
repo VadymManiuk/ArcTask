@@ -28,6 +28,12 @@ import {
   isProviderCooldownActive,
   isProviderQuotaError
 } from "../lib/provider-health.mjs";
+import {
+  getNextUtcDayIso,
+  getUsageBudgetState,
+  normalizeUsageLedger,
+  recordTokenUsage
+} from "../lib/usage-budget.mjs";
 import { isContractReviewTask, isProductQaTask } from "../lib/task-routing.mjs";
 import {
   allocateAttemptTimeout,
@@ -53,6 +59,19 @@ class InsufficientComputeBudgetError extends Error {
     );
     this.name = "InsufficientComputeBudgetError";
     this.executionPlan = executionPlan;
+  }
+}
+
+class UsageBudgetExceededError extends Error {
+  constructor(scope, state) {
+    super(
+      scope === "daily"
+        ? `DAILY_TOKEN_BUDGET_EXHAUSTED: ${state.daily.totalTokens}/${dailyTokenBudget} tokens used today.`
+        : `JOB_TOKEN_BUDGET_EXHAUSTED: ${state.job.totalTokens} tokens and ${state.job.requests} requests already used.`
+    );
+    this.name = "UsageBudgetExceededError";
+    this.scope = scope;
+    this.state = state;
   }
 }
 
@@ -267,6 +286,8 @@ function buildExecutionPlan(jobId, job, payload) {
       maxRuntimeMs: openAiTimeoutMs,
       requestTimeoutMs: openAiTimeoutMs,
       maxOutputTokens: openAiMaxOutputTokens,
+      maxTotalTokens: Math.min(openAiMaxOutputTokens * 2, routingMaxJobTotalTokens),
+      maxRequests: 1,
       maxAttempts: 1,
       validationPasses: 0
     };
@@ -289,6 +310,8 @@ function buildExecutionPlan(jobId, job, payload) {
       maxRuntimeMs: openAiTimeoutMs,
       requestTimeoutMs: openAiTimeoutMs,
       maxOutputTokens: openAiMaxOutputTokens,
+      maxTotalTokens: Math.min(openAiMaxOutputTokens * 2, routingMaxJobTotalTokens),
+      maxRequests: 1,
       maxAttempts: 1,
       validationPasses: 0
     };
@@ -298,7 +321,9 @@ function buildExecutionPlan(jobId, job, payload) {
     ...plan,
     maxRuntimeMs: Math.min(plan.maxRuntimeMs, routingMaxRuntimeMs),
     requestTimeoutMs: Math.min(plan.requestTimeoutMs, routingMaxRuntimeMs),
-    maxOutputTokens: Math.min(plan.maxOutputTokens, routingMaxOutputTokens)
+    maxOutputTokens: Math.min(plan.maxOutputTokens, routingMaxOutputTokens),
+    maxTotalTokens: Math.min(plan.maxTotalTokens, routingMaxJobTotalTokens),
+    maxRequests: Math.min(plan.maxRequests, routingMaxRequests)
   };
 }
 
@@ -578,19 +603,76 @@ function buildPaymentReviewSummary(payload) {
   ].join("\n");
 }
 
-async function requestOpenAiResponse({ requestBody, timeoutMs, onProgress }) {
+function getPersistedUsageState(jobId, jobTokenBudget) {
+  return getUsageBudgetState(
+    readJsonFile(usagePath, normalizeUsageLedger({})),
+    {
+      jobId: jobId.toString(),
+      dailyTokenBudget,
+      jobTokenBudget
+    }
+  );
+}
+
+function assertTokenBudgetAvailable(jobId, executionPlan) {
+  const state = getPersistedUsageState(jobId, executionPlan.maxTotalTokens);
+  if (state.dailyExceeded) {
+    throw new UsageBudgetExceededError("daily", state);
+  }
+  if (state.jobExceeded || state.job.requests >= executionPlan.maxRequests) {
+    throw new UsageBudgetExceededError("job", state);
+  }
+  return state;
+}
+
+function recordOpenAiUsage(jobId, body) {
+  const usage = body?.usage ?? {};
+  const inputTokens = Number(usage.input_tokens ?? 0);
+  const outputTokens = Number(usage.output_tokens ?? 0);
+  const ledger = recordTokenUsage(
+    readJsonFile(usagePath, normalizeUsageLedger({})),
+    {
+      jobId: jobId.toString(),
+      inputTokens,
+      outputTokens,
+      totalTokens: Number(usage.total_tokens ?? inputTokens + outputTokens)
+    }
+  );
+  atomicWriteJson(usagePath, ledger);
+}
+
+async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeoutMs, onProgress }) {
+  const budgetState = assertTokenBudgetAvailable(jobId, executionPlan);
+  const estimatedInputTokens = Math.ceil(JSON.stringify(requestBody.input ?? "").length / 3);
+  const availableTotalTokens = Math.min(budgetState.dailyRemaining, budgetState.jobRemaining);
+  const availableOutputTokens = availableTotalTokens - estimatedInputTokens;
+  if (availableOutputTokens < 1_000) {
+    throw new UsageBudgetExceededError(
+      budgetState.dailyRemaining <= budgetState.jobRemaining ? "daily" : "job",
+      budgetState
+    );
+  }
+  const boundedRequestBody = {
+    ...requestBody,
+    max_output_tokens: Math.min(
+      Number(requestBody.max_output_tokens ?? executionPlan.maxOutputTokens),
+      availableOutputTokens
+    )
+  };
   let lastError;
   for (const apiKey of openAiApiKeys) {
     try {
-      return await requestBackgroundResponse({
+      const body = await requestBackgroundResponse({
         apiKey,
         baseUrl: openAiBaseUrl,
-        requestBody,
+        requestBody: boundedRequestBody,
         timeoutMs,
         httpTimeoutMs: openAiHttpTimeoutMs,
         pollIntervalMs: openAiPollIntervalMs,
         onProgress
       });
+      recordOpenAiUsage(jobId, body);
+      return body;
     } catch (caught) {
       lastError = caught;
       if (!isProviderQuotaError(caught)) {
@@ -718,6 +800,8 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
         ...(attempt === 1 && executionPlan.reasoningMode ? { mode: executionPlan.reasoningMode } : {})
       };
       const body = await requestOpenAiResponse({
+        jobId,
+        executionPlan,
         timeoutMs: attemptTimeoutMs,
         onProgress: ({ id, status, elapsedMs }) =>
           writeStatus({
@@ -800,6 +884,8 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
 
     try {
       const body = await requestOpenAiResponse({
+        jobId,
+        executionPlan,
         timeoutMs: Math.min(executionPlan.requestTimeoutMs, remainingMs),
         onProgress: ({ id, status, elapsedMs }) =>
           writeStatus({
@@ -1041,6 +1127,11 @@ function createInitialStatus() {
     pollIntervalMs,
     maxJobsPerTick,
     staleLockMs,
+    costControls: {
+      dailyTokenBudget,
+      maxJobTotalTokens: routingMaxJobTotalTokens,
+      maxRequestsPerJob: routingMaxRequests
+    },
     managedAgents: workerAccounts.map(({ account }) => ({
       address: account.address
     })),
@@ -1062,6 +1153,7 @@ function createInitialStatus() {
     },
     recentEvents: [],
     activeJob: null,
+    blockedJobs: [],
     providerHealth: {
       status: openAiApiKeys.length > 0 ? "ready" : "unconfigured",
       code: openAiApiKeys.length > 0 ? "ok" : "missing_api_key",
@@ -1249,6 +1341,34 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   let lastError;
   let providerPaused = false;
   const statusBeforeTick = readJsonFile(statusPath, createInitialStatus());
+  let blockedJobs = Array.isArray(statusBeforeTick.blockedJobs) ? [...statusBeforeTick.blockedJobs] : [];
+
+  const dailyUsageState = getPersistedUsageState("__daily__", routingMaxJobTotalTokens);
+  if (dailyUsageState.dailyExceeded) {
+    writeStatus({
+      activeJob: null,
+      providerHealth: {
+        status: "paused",
+        code: "daily_budget_exhausted",
+        message: "AI execution is paused because the configured daily token budget has been reached.",
+        retryAt: getNextUtcDayIso()
+      },
+      lastError: `Daily token budget reached: ${dailyUsageState.daily.totalTokens}/${dailyTokenBudget}.`,
+      usageBudget: {
+        day: new Date().toISOString().slice(0, 10),
+        usedTokens: dailyUsageState.daily.totalTokens,
+        dailyTokenBudget,
+        remainingTokens: dailyUsageState.dailyRemaining
+      },
+      queue: {
+        ...statusBeforeTick.queue,
+        locked: listActiveLocks(lockDir),
+        submitted: 0,
+        failed: 0
+      }
+    });
+    return;
+  }
 
   if (openAiApiKeys.length === 0 && !allowDeterministicFallback) {
     writeStatus({
@@ -1345,6 +1465,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
       }
 
       handled += 1;
+      blockedJobs = blockedJobs.filter((item) => item.jobId !== jobId.toString());
       appendStatusEvent({
         type: dryRun ? "job_dry_run" : "job_submitted",
         jobId: jobId.toString(),
@@ -1376,34 +1497,77 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         continue;
       }
 
-      failed += 1;
-      lastError = caught instanceof Error ? caught.message : "unknown submit error";
-      if (isProviderQuotaError(caught)) {
-        const latestStatus = readJsonFile(statusPath, createInitialStatus());
-        const providerHealth = createQuotaCooldown(latestStatus.providerHealth, Date.now(), {
-          baseCooldownMs: providerQuotaBaseCooldownMs,
-          maxCooldownMs: providerQuotaMaxCooldownMs
-        });
-        appendStatusEvent({
-          type: "provider_paused",
-          code: providerHealth.code,
-          retryAt: providerHealth.retryAt,
-          jobId: jobId.toString()
-        });
-        writeStatus({
-          providerHealth,
-          lastError: "Model provider quota is unavailable; queued jobs are preserved."
-        });
-        console.error(`provider quota unavailable; pausing execution until ${providerHealth.retryAt}`);
-        providerPaused = true;
-      } else {
-        appendStatusEvent({
-          type: "job_failed",
-          jobId: jobId.toString(),
-          worker: workerAccount.account.address,
-          error: lastError
-        });
-        console.error(`job ${jobId} failed: ${lastError}`);
+      if (caught instanceof UsageBudgetExceededError) {
+        skipped += 1;
+        if (caught.scope === "daily") {
+          const providerHealth = {
+            status: "paused",
+            code: "daily_budget_exhausted",
+            message: "AI execution is paused because the configured daily token budget has been reached.",
+            retryAt: getNextUtcDayIso()
+          };
+          appendStatusEvent({
+            type: "provider_paused",
+            code: providerHealth.code,
+            retryAt: providerHealth.retryAt,
+            jobId: jobId.toString()
+          });
+          writeStatus({
+            providerHealth,
+            lastError: caught.message
+          });
+          providerPaused = true;
+        } else {
+          blockedJobs = [
+            {
+              jobId: jobId.toString(),
+              code: "job_budget_exhausted",
+              message: "The job reached its protected AI token ceiling and will not incur more API cost.",
+              usedTokens: caught.state.job.totalTokens,
+              requestCount: caught.state.job.requests
+            },
+            ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
+          ].slice(0, 100);
+          appendStatusEvent({
+            type: "job_budget_exhausted",
+            jobId: jobId.toString(),
+            usedTokens: caught.state.job.totalTokens,
+            requestCount: caught.state.job.requests
+          });
+          continue;
+        }
+      }
+
+      if (!(caught instanceof UsageBudgetExceededError && caught.scope === "daily")) {
+        failed += 1;
+        lastError = caught instanceof Error ? caught.message : "unknown submit error";
+        if (isProviderQuotaError(caught)) {
+          const latestStatus = readJsonFile(statusPath, createInitialStatus());
+          const providerHealth = createQuotaCooldown(latestStatus.providerHealth, Date.now(), {
+            baseCooldownMs: providerQuotaBaseCooldownMs,
+            maxCooldownMs: providerQuotaMaxCooldownMs
+          });
+          appendStatusEvent({
+            type: "provider_paused",
+            code: providerHealth.code,
+            retryAt: providerHealth.retryAt,
+            jobId: jobId.toString()
+          });
+          writeStatus({
+            providerHealth,
+            lastError: "Model provider quota is unavailable; queued jobs are preserved."
+          });
+          console.error(`provider quota unavailable; pausing execution until ${providerHealth.retryAt}`);
+          providerPaused = true;
+        } else {
+          appendStatusEvent({
+            type: "job_failed",
+            jobId: jobId.toString(),
+            worker: workerAccount.account.address,
+            error: lastError
+          });
+          console.error(`job ${jobId} failed: ${lastError}`);
+        }
       }
     } finally {
       try {
@@ -1422,6 +1586,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   }
 
   const latestStatus = readJsonFile(statusPath, createInitialStatus());
+  const finalUsageState = getPersistedUsageState("__daily__", routingMaxJobTotalTokens);
   writeStatus({
     lastError: providerPaused
       ? latestStatus.lastError
@@ -1437,6 +1602,13 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
           consecutiveFailures: 0,
           recoveredAt: new Date().toISOString()
         },
+    blockedJobs,
+    usageBudget: {
+      day: new Date().toISOString().slice(0, 10),
+      usedTokens: finalUsageState.daily.totalTokens,
+      dailyTokenBudget,
+      remainingTokens: finalUsageState.dailyRemaining
+    },
     queue: {
       pending: pendingJobs.length,
       locked: listActiveLocks(lockDir),
@@ -1495,6 +1667,9 @@ const routingSubsidyEnabled = getBooleanEnv("ARC_AGENT_DEMO_SUBSIDY", false);
 const recoveryJobIds = getJobIdSetEnv("ARC_AGENT_RECOVERY_JOB_IDS");
 const routingMaxRuntimeMs = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_RUNTIME_MS", 900_000);
 const routingMaxOutputTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_OUTPUT_TOKENS", 24_000);
+const routingMaxJobTotalTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_TOTAL_TOKENS", 30_000);
+const routingMaxRequests = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_REQUESTS_PER_JOB", 2);
+const dailyTokenBudget = getOptionalPositiveIntegerEnv("ARC_AGENT_DAILY_TOKEN_BUDGET", 50_000);
 const providerQuotaBaseCooldownMs = getPositiveIntegerEnv("ARC_AGENT_PROVIDER_QUOTA_COOLDOWN_MS", 5 * 60_000);
 const providerQuotaMaxCooldownMs = getPositiveIntegerEnv("ARC_AGENT_PROVIDER_QUOTA_MAX_COOLDOWN_MS", 60 * 60_000);
 
@@ -1548,7 +1723,8 @@ const workerAccounts = parsePrivateKeys().map((privateKey) => {
   };
 });
 const outputDir = ensureOutputDir();
-const { lockDir, statusPath } = ensureRuntimeDirs();
+const { stateDir, lockDir, statusPath } = ensureRuntimeDirs();
+const usagePath = path.join(stateDir, "usage.json");
 
 console.log(`ArcTask agent worker`);
 console.log(`accounts: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);

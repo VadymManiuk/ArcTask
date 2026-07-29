@@ -53,6 +53,19 @@ interface WorkerStatus {
     lastFailureAt?: string;
     recoveredAt?: string;
   };
+  blockedJobs?: Array<{
+    jobId?: string;
+    code?: string;
+    message?: string;
+    usedTokens?: number;
+    requestCount?: number;
+  }>;
+  usageBudget?: {
+    day?: string;
+    usedTokens?: number;
+    dailyTokenBudget?: number;
+    remainingTokens?: number;
+  };
   lastError?: string | null;
 }
 
@@ -112,6 +125,14 @@ function sanitizeStatus(status: WorkerStatus) {
           recoveredAt: status.providerHealth.recoveredAt
         }
       : undefined,
+    blockedJobs: (status.blockedJobs ?? []).map((job) => ({
+      jobId: job.jobId,
+      code: job.code,
+      message: job.message,
+      usedTokens: job.usedTokens,
+      requestCount: job.requestCount
+    })),
+    usageBudget: status.usageBudget,
     activeJob: status.activeJob
       ? {
           jobId: status.activeJob.jobId,

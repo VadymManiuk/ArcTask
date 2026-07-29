@@ -26,6 +26,8 @@ export interface ExecutionTier {
   maxRuntimeMs: number;
   requestTimeoutMs: number;
   maxOutputTokens: number;
+  maxTotalTokens: number;
+  maxRequests: number;
   maxAttempts: number;
   validationPasses: number;
   webSearchContext: "low" | "medium" | "high";
@@ -47,6 +49,8 @@ export interface ExecutionPlan {
   maxRuntimeMs: number;
   requestTimeoutMs: number;
   maxOutputTokens: number;
+  maxTotalTokens: number;
+  maxRequests: number;
   maxAttempts: number;
   validationPasses: number;
   webSearchContext: "low" | "medium" | "high";

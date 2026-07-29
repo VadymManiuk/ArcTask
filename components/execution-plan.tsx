@@ -53,6 +53,7 @@ export function ExecutionPlan({
         <PlanValue label="Reasoning" value={plan.reasoningMode === "pro" ? `${plan.reasoningEffort} / pro` : plan.reasoningEffort} />
         <PlanValue label="Maximum time" value={formatRuntime(plan.maxRuntimeMs)} />
         <PlanValue label="Output budget" value={`${plan.maxOutputTokens.toLocaleString()} tokens`} />
+        <PlanValue label="Total token ceiling" value={`${plan.maxTotalTokens.toLocaleString()} tokens`} />
         <PlanValue label="Attempts" value={String(plan.maxAttempts)} />
         <PlanValue label="Validation passes" value={String(plan.validationPasses)} />
       </dl>

@@ -64,6 +64,14 @@ interface ProviderHealth {
   retryAt?: string;
 }
 
+interface BlockedWorkerJob {
+  jobId?: string;
+  code?: string;
+  message?: string;
+  usedTokens?: number;
+  requestCount?: number;
+}
+
 const workerPollSeconds = 15;
 
 const statusSteps: Array<{ key: "funded" | "submitted" | "review" | "settled"; label: string }> = [
@@ -174,6 +182,7 @@ export default function JobDetailsPage() {
   const [deliverableError, setDeliverableError] = useState("");
   const [nowMs, setNowMs] = useState<number | null>(null);
   const [providerHealth, setProviderHealth] = useState<ProviderHealth | null>(null);
+  const [blockedWorkerJob, setBlockedWorkerJob] = useState<BlockedWorkerJob | null>(null);
 
   useEffect(() => {
     setNowMs(Date.now());
@@ -182,8 +191,11 @@ export default function JobDetailsPage() {
   }, []);
 
   useEffect(() => {
-    if (job?.status !== "FUNDED") {
+    const onchainJobId = job?.onchainJobId;
+
+    if (job?.status !== "FUNDED" || !onchainJobId) {
       setProviderHealth(null);
+      setBlockedWorkerJob(null);
       return;
     }
 
@@ -192,14 +204,18 @@ export default function JobDetailsPage() {
       try {
         const response = await fetch("/api/worker/status", { cache: "no-store" });
         const body = (await response.json()) as {
-          status?: { providerHealth?: ProviderHealth };
+          status?: { providerHealth?: ProviderHealth; blockedJobs?: BlockedWorkerJob[] };
         };
         if (active) {
           setProviderHealth(body.status?.providerHealth ?? null);
+          setBlockedWorkerJob(
+            body.status?.blockedJobs?.find((item) => item.jobId === onchainJobId) ?? null
+          );
         }
       } catch {
         if (active) {
           setProviderHealth(null);
+          setBlockedWorkerJob(null);
         }
       }
     }
@@ -210,7 +226,7 @@ export default function JobDetailsPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [job?.status]);
+  }, [job?.onchainJobId, job?.status]);
 
   const loadWorkerDeliverable = useCallback(async () => {
     if (!job?.onchainJobId) {
@@ -422,6 +438,8 @@ export default function JobDetailsPage() {
                     {job.status === "FUNDED"
                       ? providerPaused
                         ? "paused — automatic retry scheduled"
+                        : blockedWorkerJob
+                          ? "paused — job token ceiling reached"
                         : `about every ${workerPollSeconds}s`
                       : "complete"}
                   </p>
@@ -541,7 +559,7 @@ export default function JobDetailsPage() {
               ) : job.status === "FUNDED" ? (
                 <div
                   className={`rounded-md border px-4 py-4 text-sm ${
-                    providerPaused
+                    providerPaused || blockedWorkerJob
                       ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
                       : "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
                   }`}
@@ -553,6 +571,15 @@ export default function JobDetailsPage() {
                         The model provider quota is unavailable. The job and escrow are safe; the worker stopped
                         repeated failed calls and will retry automatically
                         {providerRetryAt ? ` after ${providerRetryAt}` : ""}.
+                      </p>
+                    </>
+                  ) : blockedWorkerJob ? (
+                    <>
+                      <p className="font-semibold">The protected AI budget for this job has been reached.</p>
+                      <p className="mt-2">
+                        The worker stopped before creating additional API cost. Used:{" "}
+                        {blockedWorkerJob.usedTokens?.toLocaleString() ?? "recorded"} tokens across{" "}
+                        {blockedWorkerJob.requestCount ?? "the allowed"} request(s).
                       </p>
                     </>
                   ) : (
