@@ -17,6 +17,7 @@ import {
   collectOpenAiSourceUrls
 } from "./agent-result-quality.mjs";
 import { loadTaskArtifacts } from "./agent-task-context.mjs";
+import { collectWalletRiskEvidence } from "./agent-wallet-evidence.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 import { createExecutionPlan } from "../lib/execution-routing.mjs";
 import {
@@ -449,7 +450,7 @@ function getTaskProfile(payload) {
     return {
       kind: "wallet_or_counterparty_risk",
       instruction:
-        "For wallet or counterparty risk tasks, check completeness, obvious red flags from supplied data, missing verification evidence, operational risks, recommendation, and confidence score."
+        "For wallet or counterparty risk tasks, use the verified Arc RPC and Arcscan evidence snapshot. Required sections: Decision, Verified onchain facts, Recent transaction sample, Ownership and role evidence, Severity-ranked findings, Evidence limitations, Required onboarding controls, and Recommendation. Distinguish confirmed facts, risk indicators, and evidence gaps. Do not claim that the network, balance, nonce, bytecode, account type, or transaction history is unavailable when the evidence contains it. Arc Testnet native USDC uses 18 decimals; do not misclassify correct native-USDC formatting as an unresolved ERC-20 decimal issue."
     };
   }
 
@@ -545,6 +546,15 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
     openAiWebSearchEnabled && taskProfile.kind === "market_research"
       ? [{ type: "web_search", search_context_size: executionPlan.webSearchContext }]
       : undefined;
+  const evidence =
+    taskProfile.kind === "wallet_or_counterparty_risk"
+      ? await collectWalletRiskEvidence({
+          payload,
+          publicClient,
+          rpcUrl,
+          explorerUrl
+        })
+      : undefined;
   const task = {
     jobId: jobId.toString(),
     taskProfile: taskProfile.kind,
@@ -555,6 +565,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       escrowAddress,
       registryAddress
     }),
+    evidence,
     onchain: {
       agentId: job.agentId.toString(),
       client: job.client,
@@ -573,6 +584,8 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
       ? `Use web search. Cite at least ${executionPlan.minimumSources} primary source URLs, separate verified facts from uncertain signals, and include a concise opportunity and risk comparison.`
       : taskProfile.kind === "contract_review"
         ? "Use the supplied contract source and ABI as primary evidence. Do not claim that source code, ABI, or deployed addresses are missing."
+        : taskProfile.kind === "wallet_or_counterparty_risk"
+          ? "Treat task.evidence as the verified wallet-specific evidence set. Analyze the recent transaction sample instead of replacing it with a generic checklist. Do not interpret an absent explorer scam label as sanctions or AML clearance. Keep the report decision-ready and omit controls unrelated to the observed evidence."
         : "Use the supplied payload as primary evidence and clearly identify any input that is genuinely absent.",
     "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, markdown code fences, generic filler, or an unfinished section."
   ].join(" ");
@@ -655,7 +668,8 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
         taskKind: taskProfile.kind,
         summary,
         sourceUrls,
-        minimumSources: executionPlan.minimumSources
+        minimumSources: executionPlan.minimumSources,
+        evidence
       });
       lastError = undefined;
       break;
@@ -739,7 +753,8 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan) {
         taskKind: taskProfile.kind,
         summary: revisedSummary,
         sourceUrls: revisedSourceUrls,
-        minimumSources: executionPlan.minimumSources
+        minimumSources: executionPlan.minimumSources,
+        evidence
       });
       summary = revisedSummary;
       sourceUrls = revisedSourceUrls;

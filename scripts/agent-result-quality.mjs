@@ -40,7 +40,7 @@ export function appendSourceUrls(summary, sourceUrls) {
   return [summary.trim(), "", "Sources:", ...missingUrls.map((url, index) => `${index + 1}. ${url}`)].join("\n");
 }
 
-export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimumSources = 3 }) {
+export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimumSources = 3, evidence }) {
   const normalizedSummary = typeof summary === "string" ? summary.trim() : "";
   if (normalizedSummary.length < 240) {
     throw new Error("Generated deliverable is too short to submit.");
@@ -108,6 +108,54 @@ export function assertAgentResultQuality({ taskKind, summary, sourceUrls, minimu
 
     if (/[:;,]\s*$/.test(normalizedSummary)) {
       throw new Error("Contract review appears to end with an unfinished section or sentence.");
+    }
+  }
+
+  if (taskKind === "wallet_or_counterparty_risk" && evidence?.available) {
+    if (normalizedSummary.length < 900) {
+      throw new Error("Wallet risk assessment is too short to contain evidence-backed findings.");
+    }
+
+    const normalizedLower = normalizedSummary.toLowerCase();
+    const requiredEvidenceValues = [
+      evidence.subjectWallet,
+      String(evidence.network?.chainId),
+      String(evidence.rpcSnapshot?.referenceBlock),
+      String(evidence.rpcSnapshot?.sentTransactionCount),
+      evidence.rpcSnapshot?.accountType
+    ].filter(Boolean);
+    const missingEvidenceValues = requiredEvidenceValues.filter(
+      (value) => !normalizedLower.includes(String(value).toLowerCase())
+    );
+    if (missingEvidenceValues.length > 0) {
+      throw new Error(`Wallet assessment omitted verified evidence: ${missingEvidenceValues.join(", ")}.`);
+    }
+
+    const requiredTopics = ["verified", "transaction", "ownership", "severity", "limitation", "recommendation"];
+    const missingTopics = requiredTopics.filter((topic) => !normalizedLower.includes(topic));
+    if (missingTopics.length > 0) {
+      throw new Error(`Wallet assessment is missing required topics: ${missingTopics.join(", ")}.`);
+    }
+
+    const sampledHashes =
+      evidence.explorerEvidence?.transactionSample?.transactions
+        ?.slice(0, 5)
+        .map((transaction) => transaction.hash)
+        .filter(Boolean) ?? [];
+    if (sampledHashes.length > 0 && !sampledHashes.some((hash) => normalizedLower.includes(hash.toLowerCase()))) {
+      throw new Error("Wallet assessment does not reference any sampled transaction hash.");
+    }
+
+    const contradictedEvidenceSignals = [
+      "the intended blockchain is not identified",
+      "no chain id",
+      "no chain-specific code query",
+      "account type and custody controls are unknown",
+      "transaction and counterparty risk is unassessed",
+      "reward amount and asset encoding are unresolved"
+    ];
+    if (contradictedEvidenceSignals.some((signal) => normalizedLower.includes(signal))) {
+      throw new Error("Wallet assessment contradicts the supplied Arc RPC evidence.");
     }
   }
 }

@@ -257,6 +257,12 @@ and generated ABIs. The worker requires concrete lifecycle function references, 
 analysis, settlement/refund invariants, reentrancy analysis, recommended tests, and a deployment recommendation
 before it can submit the deliverable hash.
 
+Wallet and counterparty-risk jobs automatically include a reference-block Arc RPC snapshot (chain ID, native USDC
+balance, sent-transaction count, bytecode, and account type) plus a bounded recent Arcscan transaction sample. The
+quality gate requires the final report to cite those wallet-specific facts and at least one sampled transaction when
+available; generic onboarding checklists or statements that contradict the supplied evidence are rejected before
+onchain submission. Explorer labels remain explicitly non-authoritative for sanctions, AML, or legal ownership.
+
 The worker writes runtime telemetry to `.agent-worker/state/status.json` using atomic writes. The app exposes that
 through `/api/worker/status`, with Vercel falling back to `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` when the status file is
 available only on the VPS. The dashboard shows heartbeat, queue, managed agents, recent events, and Arc Testnet job

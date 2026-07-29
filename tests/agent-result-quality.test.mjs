@@ -92,3 +92,58 @@ test("contract reviews require concrete lifecycle and code references", () => {
     /code references/
   );
 });
+
+test("wallet risk assessments must use the supplied Arc RPC and transaction evidence", () => {
+  const transactionHash = `0x${"a".repeat(64)}`;
+  const evidence = {
+    available: true,
+    subjectWallet: "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
+    network: { chainId: 5_042_002 },
+    rpcSnapshot: {
+      referenceBlock: "54242998",
+      sentTransactionCount: 128,
+      accountType: "eoa"
+    },
+    explorerEvidence: {
+      transactionSample: {
+        transactions: [{ hash: transactionHash }]
+      }
+    }
+  };
+  const validSummary = [
+    "Recommendation: HOLD pending ownership verification.",
+    `Verified wallet: ${evidence.subjectWallet}`,
+    "Verified Arc Testnet chain ID: 5042002.",
+    "Reference block: 54242998. Account type: EOA. Sent transaction count: 128.",
+    `Recent transaction evidence includes ${transactionHash}, an outgoing contract call.`,
+    "Ownership evidence: the role assignment does not prove current control.",
+    "Severity-ranked findings: High verification gap; Medium role concentration.",
+    "Evidence limitations: the explorer label is not sanctions or AML clearance.",
+    "Final recommendation: require a signed challenge and independent vendor identity verification.",
+    "This conclusion distinguishes confirmed facts, risk indicators, and missing proof.",
+    "The observed balance, nonce, account type, and successful contract call demonstrate activity on Arc Testnet, but they do not prove the vendor's legal identity, beneficial ownership, sanctions status, or entitlement to receive payment.",
+    "The evaluator should preserve the reference block and transaction sample, issue a fresh domain-bound signature challenge, verify the signer through an independent vendor channel, and repeat the screening immediately before approving an address allowlist change."
+  ].join("\n\n");
+
+  assert.doesNotThrow(() =>
+    assertAgentResultQuality({
+      taskKind: "wallet_or_counterparty_risk",
+      summary: validSummary,
+      sourceUrls: [],
+      evidence
+    })
+  );
+
+  assert.throws(
+    () =>
+      assertAgentResultQuality({
+        taskKind: "wallet_or_counterparty_risk",
+        summary:
+          "The intended blockchain is not identified. Transaction and counterparty risk is unassessed. " +
+          "Request generic ownership documents before onboarding.".repeat(20),
+        sourceUrls: [],
+        evidence
+      }),
+    /omitted verified evidence|contradicts/
+  );
+});
