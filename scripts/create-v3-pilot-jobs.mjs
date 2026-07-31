@@ -170,7 +170,7 @@ const agentChallengeJobs = [
     reward: "0.1",
     title: "Write agent image registration help",
     description:
-      "Write a short implementation help note for ArcTask agent images. Cover PNG, JPEG, or WebP up to 1 MB; browser optimization into public onchain metadata; the public-data warning; generated Arc-mark fallback; removal; one success check; failure handling. Use the exact headings Add an image, Fallback, Privacy, Check, Troubleshooting, Next step. Keep it under 400 words.",
+      "Write a short implementation help note for ArcTask agent images. Cover PNG, JPEG, or WebP up to 1 MB; browser optimization into public onchain metadata; the public-data warning; generated Arc-mark fallback; removal; one success check; failure handling. Use the exact headings Prerequisites, Steps, Fallback, Privacy, Success check, Failure handling, Assumptions, Next step. Keep it under 400 words.",
     acceptanceCriteria: [
       "Uses every requested section",
       "Explains supported formats, size limit, and optimization",
@@ -185,7 +185,7 @@ const agentChallengeJobs = [
     reward: "0.5",
     title: "Define agent avatar adoption metrics",
     description:
-      "Using the supplied ArcTask marketplace snapshot, create an implementation-ready measurement specification for custom-image versus generated-mark adoption. Define the canonical fields, formulas, denominators, null handling, image-load failure signals, accessibility checks, cohort comparisons, validation queries or pseudocode, dashboard views, and alert thresholds. Separate metrics calculable from the current snapshot from metrics that require new historical events, and finish with a prioritized instrumentation plan.",
+      "Using the supplied ArcTask marketplace snapshot, create an implementation-ready measurement specification for custom-image versus generated-mark adoption. Use the exact sections Data source, Canonical fields, Metrics, Thresholds, Validation, Limitations, Dashboard, Instrumentation. For every metric state its formula, numerator, denominator, exclusions, cohort, and null handling. Cover image-load failures and accessibility checks. Separate current snapshot calculations from metrics requiring historical events.",
     acceptanceCriteria: [
       "Defines canonical fields and exact formulas",
       "Covers nulls, broken images, and accessibility signals",
@@ -200,7 +200,7 @@ const agentChallengeJobs = [
     reward: "2",
     title: "Design resilient agent image metadata ingestion",
     description:
-      "Design an implementation-ready ArcTask pipeline for ingesting agent images embedded in public onchain metadata. Cover browser-side crop and compression, strict PNG/JPEG/WebP input validation, encoded-size limits, metadata schema and decoding, data-URL allowlisting, CSP and XSS boundaries, caching, deterministic Arc-mark fallback, corrupted or oversized payload handling, observability, migration compatibility, test matrix, phased rollout, rollback, and unresolved assumptions. Separate current implemented behavior from recommendations and include concrete TypeScript interfaces and validation pseudocode.",
+      "Design an implementation-ready ArcTask integration for ingesting agent images embedded in public onchain metadata. Use the exact sections Scope, Implemented behavior, Data flow, Authentication and trust boundaries, Interfaces, Validation, Idempotency and caching, Finality assumptions, Retry and fallback, Monitoring, Risk register, Test matrix, Rollout and rollback, Open assumptions. Cover browser crop and compression, strict PNG/JPEG/WebP validation, encoded-size limits, data-URL allowlisting, CSP/XSS, corrupted payloads, deterministic Arc marks, migration compatibility, TypeScript interfaces, and validation pseudocode. Separate current behavior from recommendations.",
     acceptanceCriteria: [
       "Provides an end-to-end data and validation flow",
       "Covers security, CSP, corrupted payloads, and size limits",
@@ -234,6 +234,19 @@ loadLocalEnv();
 const execute = process.argv.includes("--execute");
 const repairStandard = process.argv.includes("--repair-standard");
 const repairPilot = process.argv.includes("--repair-pilot");
+const retryTierArgument = process.argv.find((value) => value.startsWith("--retry-tier="));
+const targetVersionArgument = process.argv.find((value) => value.startsWith("--target-version="));
+const retryTier = retryTierArgument?.slice("--retry-tier=".length);
+const targetVersion = targetVersionArgument
+  ? Number(targetVersionArgument.slice("--target-version=".length))
+  : undefined;
+
+if (retryTier && !["starter", "standard", "pro", "expert", "critical"].includes(retryTier)) {
+  throw new Error("--retry-tier must be starter, standard, pro, expert, or critical.");
+}
+if (retryTier && (!Number.isInteger(targetVersion) || targetVersion < 2)) {
+  throw new Error("--retry-tier requires --target-version=2 or greater.");
+}
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
 const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? defaultReadRpcUrl;
 const escrowAddress =
@@ -411,6 +424,71 @@ if (repairStandard) {
   }
   console.log(
     `Funded standard retry #${existing.jobId} v2 with ${definition.reward} USDC: ${hash}`
+  );
+  process.exit(0);
+}
+
+if (retryTier) {
+  if (!execute) {
+    throw new Error("--retry-tier requires --execute.");
+  }
+  const definition = pilotJobs.find((job) => job.expectedTier === retryTier);
+  const existing = definition
+    ? existingJobs.get(`${retryTier}:${definition.agentId}`)
+    : undefined;
+  if (!definition || !existing) {
+    throw new Error(`The ${retryTier} challenge job does not exist.`);
+  }
+  const execution = await withRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "getJobExecution",
+      args: [existing.jobId]
+    })
+  );
+  if (Number(execution[0]) >= targetVersion) {
+    console.log(
+      `${retryTier} challenge #${existing.jobId} already uses execution version ${execution[0]}; no retry created.`
+    );
+    process.exit(0);
+  }
+  if (Number(existing.job[8]) !== 0) {
+    throw new Error(`${retryTier} challenge #${existing.jobId} is not FUNDED.`);
+  }
+  const rewardIncrease = parseUnits(definition.reward, 18);
+  const quote = await withRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "quoteFunding",
+      args: [rewardIncrease]
+    })
+  );
+  const revisedPayload = {
+    ...existing.payload,
+    title: definition.title,
+    description: definition.description,
+    rewardAmount: Number(formatUnits(existing.job[4] + rewardIncrease, 18)),
+    deadline: new Date(Number(deadline) * 1000).toISOString(),
+    acceptanceCriteria: definition.acceptanceCriteria,
+    executionEstimate: plans.find(({ job }) => job.expectedTier === retryTier).plan,
+    revisedAt: new Date().toISOString(),
+    revisionReason: "Retry funded after the previous execution did not satisfy the explicit quality-gate sections."
+  };
+  const hash = await walletClient.writeContract({
+    address: escrowAddress,
+    abi: escrowAbi,
+    functionName: "fundRetry",
+    args: [existing.jobId, rewardIncrease, deadline, encodePayload(revisedPayload)],
+    value: quote[0]
+  });
+  const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
+  if (receipt.status !== "success") {
+    throw new Error(`fundRetry failed for ${retryTier} challenge #${existing.jobId}: ${hash}`);
+  }
+  console.log(
+    `Funded ${retryTier} retry #${existing.jobId} v${targetVersion} with ${definition.reward} USDC: ${hash}`
   );
   process.exit(0);
 }
