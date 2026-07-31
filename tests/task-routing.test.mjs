@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getMinimumExecutionTier,
+  getTaskReasoningEffort,
   isContractReviewTask,
   isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
@@ -86,4 +87,10 @@ test("an explicitly funded difficulty is a minimum and cannot be downgraded", ()
   assert.equal(getMinimumExecutionTier("contract_review", "starter"), "expert");
   assert.equal(getMinimumExecutionTier("documentation_task", "standard"), "standard");
   assert.equal(getMinimumExecutionTier("documentation_task", "unknown"), "starter");
+});
+
+test("Standard documentation uses low reasoning to preserve visible output budget", () => {
+  assert.equal(getTaskReasoningEffort("documentation_task", "standard", "medium"), "low");
+  assert.equal(getTaskReasoningEffort("documentation_task", "pro", "medium"), "medium");
+  assert.equal(getTaskReasoningEffort("contract_review", "standard", "medium"), "medium");
 });

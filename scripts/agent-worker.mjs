@@ -45,6 +45,7 @@ import {
 } from "../lib/usage-budget.mjs";
 import {
   getMinimumExecutionTier,
+  getTaskReasoningEffort,
   isContractReviewTask,
   isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
@@ -418,6 +419,11 @@ async function buildExecutionPlan(jobId, job, payload, executionKey = jobId.toSt
 
   const enforcedPlan = {
     ...plan,
+    reasoningEffort: getTaskReasoningEffort(
+      taskProfile.kind,
+      plan.selectedTier,
+      plan.reasoningEffort
+    ),
     maxRuntimeMs: Math.min(plan.maxRuntimeMs, routingMaxRuntimeMs),
     requestTimeoutMs: Math.min(plan.requestTimeoutMs, routingMaxRuntimeMs),
     maxOutputTokens: Math.min(plan.maxOutputTokens, routingMaxOutputTokens),
@@ -1082,6 +1088,9 @@ async function runOpenAiExecutor(
               ? "Use task.evidence as the current Arc marketplace snapshot. Cite its reference block, calculate supported values, and distinguish snapshot facts from metrics that require historical events."
         : "Use the supplied payload as primary evidence and clearly identify any input that is genuinely absent.",
     `Keep the complete deliverable under approximately ${targetMaximumChars} characters so the conclusion is never truncated.`,
+    taskProfile.kind === "documentation_task"
+      ? "Use no more than 650 words and prioritize the requested publish-ready content over commentary."
+      : "",
     `End the response with the exact standalone line ${completionMarker}. A response without this final marker is incomplete and must not be submitted.`,
     "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, generic filler, or an unfinished section."
   ].join(" ");
