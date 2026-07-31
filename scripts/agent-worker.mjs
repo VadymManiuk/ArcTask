@@ -66,6 +66,7 @@ const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
+const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
@@ -314,8 +315,12 @@ function getMaximumArtifactChars(executionPlan) {
   return Math.min(60_000, Math.max(3_000, Math.floor(availableArtifactTokens * 2.5)));
 }
 
+function isRetryFundedEscrowVersion(escrowVersion) {
+  return escrowVersion === "v2" || escrowVersion === "v3" || escrowVersion === "v4";
+}
+
 function getContractCodeReferences(escrowVersion) {
-  if (escrowVersion === "v2" || escrowVersion === "v3") {
+  if (isRetryFundedEscrowVersion(escrowVersion)) {
     return [
       "createJob",
       "fundRetry",
@@ -1641,7 +1646,7 @@ async function readJob(jobId, escrowContext) {
     })
   );
   const execution =
-    escrowContext.version === "v3"
+    escrowContext.version === "v3" || escrowContext.version === "v4"
       ? await withRpcRetry(() =>
           publicClient.readContract({
             address: escrowContext.address,
@@ -1677,7 +1682,7 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount, escrowCon
   }
 
   const executionKey =
-    escrowContext.version === "v3"
+    escrowContext.version === "v3" || escrowContext.version === "v4"
       ? `${jobId.toString()}:v${job.executionVersion ?? 1}`
       : jobId.toString();
   const deliverable = await buildDeliverable(
@@ -1886,7 +1891,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             model: caught.executionPlan.model,
             fundedReward: caught.executionPlan.rewardAmount,
             minimumRecommendedReward: caught.executionPlan.minimumRecommendedReward,
-            canFundRetry: escrowContext.version === "v3"
+            canFundRetry: escrowContext.version === "v3" || escrowContext.version === "v4"
           },
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
         ].slice(0, 100);
@@ -1909,7 +1914,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             executionVersion: job.executionVersion,
             requiredTier: caught.executionPlan?.requiredTier,
             minimumRecommendedReward: caught.executionPlan?.minimumRecommendedReward,
-            canFundRetry: escrowContext.version === "v3"
+            canFundRetry: escrowContext.version === "v3" || escrowContext.version === "v4"
           },
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
         ].slice(0, 100);
@@ -2031,6 +2036,8 @@ const escrowV2Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS",
 const escrowV2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
 const escrowV3Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS", defaultEscrowV3Address);
 const escrowV3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
+const escrowV4Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS", defaultEscrowV4Address);
+const escrowV4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?? "3000000");
 const registryAddress = optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
 const dryRun = getBooleanEnv("ARC_AGENT_DRY_RUN", true);
 const once = getBooleanEnv("ARC_AGENT_ONCE", false);
@@ -2102,7 +2109,8 @@ const registryAbi = readAbi("ERC8004AgentRegistry.json");
 const escrowContexts = [
   { address: escrowAddress, abi: escrowAbi, firstJobId: 1n, version: "v1" },
   { address: escrowV2Address, abi: escrowV2Abi, firstJobId: escrowV2InitialJobId, version: "v2" },
-  { address: escrowV3Address, abi: escrowV2Abi, firstJobId: escrowV3InitialJobId, version: "v3" }
+  { address: escrowV3Address, abi: escrowV2Abi, firstJobId: escrowV3InitialJobId, version: "v3" },
+  { address: escrowV4Address, abi: escrowV2Abi, firstJobId: escrowV4InitialJobId, version: "v4" }
 ];
 const publicClient = createPublicClient({
   chain: arcTestnet,

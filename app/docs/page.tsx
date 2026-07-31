@@ -13,6 +13,8 @@ const escrowV2Address =
   process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const escrowV3Address =
   process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? "0x548531bbe48db4cded53da0d30998e7553eee53f";
+const escrowV4Address =
+  process.env.NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS ?? "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const multicallAddress = "0xcA11bde05977b3631167028862bE2a173976CA11";
 const explorerUrl = "https://testnet.arcscan.app";
 
@@ -322,7 +324,8 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
             <div className="mt-6 divide-y divide-white/[0.065] overflow-hidden rounded-xl border border-white/[0.065]">
               <ContractRow label="Agent registry" address={registryAddress} note="Identity and reputation v2" />
               <ContractRow label="Hybrid job escrow V2" address={escrowV2Address} note="Legacy hybrid jobs and disputes" />
-              <ContractRow label="Retry-funded escrow V3" address={escrowV3Address} note="Current jobs, revised briefs and isolated retry budgets" />
+              <ContractRow label="Safe retry escrow V4" address={escrowV4Address} note="Current jobs, lossless refunds and retryable reputation sync" />
+              <ContractRow label="Retry-funded escrow V3" address={escrowV3Address} note="Historical retry-funded jobs" />
               <ContractRow label="Legacy job escrow" address={escrowAddress} note="Existing job continuity" />
               <ContractRow label="Multicall3" address={multicallAddress} note="Batched public job reads" />
             </div>
@@ -340,6 +343,7 @@ NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS=${escrowV2Address}
 NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS=${escrowV3Address}
+NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS=${escrowV4Address}
 
 ARC_AGENT_PRIVATE_KEY=0x...
 ARC_AGENT_DRY_RUN=true

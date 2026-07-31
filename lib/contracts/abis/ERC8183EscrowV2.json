@@ -37,6 +37,11 @@
   },
   {
     "inputs": [],
+    "name": "DisputeExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidAddress",
     "type": "error"
   },
@@ -73,6 +78,11 @@
   {
     "inputs": [],
     "name": "NothingToWithdraw",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutcomeNotPending",
     "type": "error"
   },
   {
@@ -340,6 +350,74 @@
       }
     ],
     "name": "JobRefunded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "accepted",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "failureHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "OutcomeSyncPending",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "agentId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "accepted",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rewardAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "OutcomeSyncRecorded",
     "type": "event"
   },
   {
@@ -802,6 +880,40 @@
         "type": "uint256"
       }
     ],
+    "name": "getJobOutcomeSync",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "pending",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "recorded",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "accepted",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "rewardAmount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      }
+    ],
     "name": "getJobResolution",
     "outputs": [
       {
@@ -1035,6 +1147,19 @@
       }
     ],
     "name": "resolveDispute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      }
+    ],
+    "name": "retryRecordOutcome",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

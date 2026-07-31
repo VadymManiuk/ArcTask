@@ -62,11 +62,19 @@ contract ArcTaskEscrowV2 {
         uint256 evaluatorFeeAmount;
     }
 
+    struct OutcomeSync {
+        bool pending;
+        bool recorded;
+        bool accepted;
+        uint256 rewardAmount;
+    }
+
     IArcTaskAgentRegistryV2 public immutable registry;
     address public immutable treasury;
     address public immutable arbitrator;
     uint256 public nextJobId;
     mapping(uint256 => Job) private jobRecords;
+    mapping(uint256 => OutcomeSync) private outcomeSyncs;
     mapping(address => uint256) public claimable;
     bool private locked;
 
@@ -119,6 +127,19 @@ contract ArcTaskEscrowV2 {
     event WorkRejected(uint256 indexed jobId, address indexed client, uint256 clientRefund);
     event JobRefunded(uint256 indexed jobId, address indexed client, uint256 clientRefund);
     event CreditAdded(uint256 indexed jobId, address indexed recipient, uint256 amount, bytes32 reason);
+    event OutcomeSyncPending(
+        uint256 indexed jobId,
+        uint256 indexed agentId,
+        bool accepted,
+        uint256 rewardAmount,
+        bytes32 failureHash
+    );
+    event OutcomeSyncRecorded(
+        uint256 indexed jobId,
+        uint256 indexed agentId,
+        bool accepted,
+        uint256 rewardAmount
+    );
     event Withdrawal(address indexed recipient, uint256 amount);
 
     error InvalidAddress();
@@ -129,10 +150,12 @@ contract ArcTaskEscrowV2 {
     error DeadlinePassed();
     error ReviewActive();
     error DisputeActive();
+    error DisputeExpired();
     error InvalidReason();
     error InvalidAward();
     error RevisionLimitReached();
     error NothingToWithdraw();
+    error OutcomeNotPending();
     error NativeTransferFailed();
     error ReentrantCall();
 
@@ -363,6 +386,7 @@ contract ArcTaskEscrowV2 {
         Job storage job = _job(jobId);
         if (job.status != JobStatus.Disputed) revert InvalidStatus();
         if (msg.sender != arbitrator) revert Unauthorized();
+        if (block.timestamp > job.disputeDeadline) revert DisputeExpired();
         if (providerAwardBps > BPS) revert InvalidAward();
         if (reasonHash == bytes32(0)) revert InvalidReason();
 
@@ -394,11 +418,8 @@ contract ArcTaskEscrowV2 {
         }
 
         job.updatedAt = block.timestamp;
-        registry.recordOutcome(
-            job.agentId,
-            providerWins,
-            job.computeFeeAmount + providerAward
-        );
+        job.disputeReasonHash = reasonHash;
+        _queueOutcome(jobId, job, providerWins, job.computeFeeAmount + providerAward);
 
         emit DisputeResolved(jobId, providerAwardBps, reasonHash, providerAward, clientRefund);
         if (providerWins) {
@@ -422,6 +443,7 @@ contract ArcTaskEscrowV2 {
         _credit(jobId, job.client, job.clientBondAmount, keccak256("CLIENT_BOND_RETURN"));
         job.status = JobStatus.Rejected;
         job.updatedAt = block.timestamp;
+        _queueOutcome(jobId, job, false, 0);
 
         emit DisputeResolved(jobId, uint16(BPS / 2), keccak256("STALE_DISPUTE"), providerAward, clientRefund);
         emit WorkRejected(jobId, job.client, clientRefund);
@@ -433,9 +455,7 @@ contract ArcTaskEscrowV2 {
         if (msg.sender != job.client) revert Unauthorized();
         if (block.timestamp <= job.deadline) revert DeadlinePassed();
 
-        uint256 unearnedReward = job.computeFeeCredited
-            ? job.rewardAmount - job.computeFeeAmount
-            : job.rewardAmount;
+        uint256 unearnedReward = job.rewardAmount - job.computeFeeCreditedAmount;
         uint256 clientRefund = unearnedReward + job.clientBondAmount + job.evaluatorFeeAmount;
 
         job.status = JobStatus.Refunded;
@@ -443,6 +463,14 @@ contract ArcTaskEscrowV2 {
         _credit(jobId, job.client, clientRefund, keccak256("EXPIRED_REFUND"));
 
         emit JobRefunded(jobId, job.client, clientRefund);
+    }
+
+    function retryRecordOutcome(uint256 jobId) external nonReentrant {
+        Job storage job = _job(jobId);
+        OutcomeSync storage outcome = outcomeSyncs[jobId];
+        if (!outcome.pending || outcome.recorded) revert OutcomeNotPending();
+
+        _tryRecordOutcome(jobId, job, outcome);
     }
 
     function withdraw() external nonReentrant {
@@ -558,6 +586,23 @@ contract ArcTaskEscrowV2 {
         );
     }
 
+    function getJobOutcomeSync(
+        uint256 jobId
+    )
+        external
+        view
+        returns (bool pending, bool recorded, bool accepted, uint256 rewardAmount)
+    {
+        _job(jobId);
+        OutcomeSync storage outcome = outcomeSyncs[jobId];
+        return (
+            outcome.pending,
+            outcome.recorded,
+            outcome.accepted,
+            outcome.rewardAmount
+        );
+    }
+
     function _accept(uint256 jobId, Job storage job, bytes32 reason) private {
         uint256 remainingReward = job.rewardAmount - job.computeFeeAmount;
         job.status = JobStatus.Accepted;
@@ -565,9 +610,48 @@ contract ArcTaskEscrowV2 {
         _credit(jobId, job.agentOwner, remainingReward, reason);
         _credit(jobId, job.client, job.clientBondAmount, keccak256("CLIENT_BOND_RETURN"));
         _creditEvaluatorFee(jobId, job);
-        registry.recordOutcome(job.agentId, true, job.rewardAmount);
+        _queueOutcome(jobId, job, true, job.rewardAmount);
 
         emit WorkAccepted(jobId, job.agentOwner, job.rewardAmount);
+    }
+
+    function _queueOutcome(
+        uint256 jobId,
+        Job storage job,
+        bool accepted,
+        uint256 rewardAmount
+    ) private {
+        OutcomeSync storage outcome = outcomeSyncs[jobId];
+        outcome.pending = true;
+        outcome.recorded = false;
+        outcome.accepted = accepted;
+        outcome.rewardAmount = rewardAmount;
+        _tryRecordOutcome(jobId, job, outcome);
+    }
+
+    function _tryRecordOutcome(
+        uint256 jobId,
+        Job storage job,
+        OutcomeSync storage outcome
+    ) private {
+        try registry.recordOutcome(job.agentId, outcome.accepted, outcome.rewardAmount) {
+            outcome.pending = false;
+            outcome.recorded = true;
+            emit OutcomeSyncRecorded(
+                jobId,
+                job.agentId,
+                outcome.accepted,
+                outcome.rewardAmount
+            );
+        } catch (bytes memory reason) {
+            emit OutcomeSyncPending(
+                jobId,
+                job.agentId,
+                outcome.accepted,
+                outcome.rewardAmount,
+                keccak256(reason)
+            );
+        }
     }
 
     function _creditEvaluatorFee(uint256 jobId, Job storage job) private {

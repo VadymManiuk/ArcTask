@@ -17,6 +17,7 @@ const defaultExplorerUrl = "https://testnet.arcscan.app";
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
+const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const submittedStatus = 1;
 
 function loadLocalEnv(rootDir) {
@@ -71,6 +72,10 @@ export async function settleReviewedJobs({
     },
     v3: {
       address: process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address,
+      abi: escrowV2Abi
+    },
+    v4: {
+      address: process.env.NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS ?? defaultEscrowV4Address,
       abi: escrowV2Abi
     }
   };

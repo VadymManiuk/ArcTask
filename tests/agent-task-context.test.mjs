@@ -34,6 +34,22 @@ test("V3 contract-review context uses the funded-retry source and ABI", () => {
   assert.ok(artifacts.reviewTarget.abi.some((item) => item.name === "getJobExecution"));
 });
 
+test("V4 contract-review context exposes the patched settlement controls", () => {
+  const artifacts = loadTaskArtifacts({
+    taskKind: "contract_review",
+    rootDir: process.cwd(),
+    escrowAddress: "0xb4791ed947067daf445c936ee44cedec949bdbb4",
+    registryAddress: "0xd8499627775ac67cd756335a3c48387d0aff5553",
+    escrowVersion: "v4"
+  });
+
+  assert.equal(artifacts.reviewTarget.deploymentVersion, "v4");
+  assert.equal(artifacts.reviewTarget.sourcePath, "contracts/ArcTaskEscrowV2.sol");
+  assert.match(artifacts.reviewTarget.sourceCode, /computeFeeCreditedAmount/);
+  assert.match(artifacts.reviewTarget.sourceCode, /function retryRecordOutcome/);
+  assert.ok(artifacts.reviewTarget.abi.some((item) => item.name === "getJobOutcomeSync"));
+});
+
 test("product QA context includes live route and source evidence", () => {
   const artifacts = loadTaskArtifacts({
     taskKind: "product_qa",

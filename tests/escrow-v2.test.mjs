@@ -73,7 +73,9 @@ test("Escrow V2 ABI exposes hybrid review, dispute, refund, and withdrawal actio
     "getJobEconomics",
     "getJobResolution",
     "fundRetry",
-    "getJobExecution"
+    "getJobExecution",
+    "retryRecordOutcome",
+    "getJobOutcomeSync"
   ]) {
     assert.ok(functions.has(functionName), `${functionName} is missing`);
   }
@@ -158,4 +160,42 @@ test("expired jobs preserve the compute fee only after a valid submission", () =
     economics.platform + economics.compute + refundAfterRevision,
     economics.total
   );
+});
+
+test("expiry after an unsubmitted retry refunds every uncredited compute tranche", () => {
+  const initial = quote(10_000n);
+  const retry = quote(10_000n);
+  const totalFunding = initial.total + retry.total;
+  const cumulativeReward = initial.reward + retry.reward;
+  const cumulativeBond = initial.bond + retry.bond;
+  const cumulativePlatform = initial.platform + retry.platform;
+  const cumulativeEvaluator = initial.evaluator + retry.evaluator;
+  const creditedCompute = initial.compute;
+
+  const clientRefund =
+    cumulativeReward - creditedCompute + cumulativeBond + cumulativeEvaluator;
+
+  assert.equal(
+    cumulativePlatform + creditedCompute + clientRefund,
+    totalFunding,
+    "terminal credits must allocate the complete funded amount"
+  );
+
+  const legacyRefund =
+    cumulativeReward - (initial.compute + retry.compute) + cumulativeBond + cumulativeEvaluator;
+  assert.equal(totalFunding - (cumulativePlatform + creditedCompute + legacyRefund), retry.compute);
+});
+
+test("Escrow V2 source makes registry outcome sync retryable and dispute windows exclusive", () => {
+  const source = fs.readFileSync("contracts/ArcTaskEscrowV2.sol", "utf8");
+
+  assert.match(
+    source,
+    /job\.rewardAmount\s*-\s*job\.computeFeeCreditedAmount/,
+    "refund must subtract only compute that was actually credited"
+  );
+  assert.match(source, /try registry\.recordOutcome/);
+  assert.match(source, /function retryRecordOutcome/);
+  assert.match(source, /block\.timestamp > job\.disputeDeadline/);
+  assert.match(source, /_queueOutcome\(jobId, job, false, 0\)/);
 });

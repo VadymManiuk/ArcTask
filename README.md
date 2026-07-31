@@ -135,6 +135,7 @@ Current Arc Testnet deployment:
 - Escrow: `0x08eb8630f6b5d2c1c030688076b80360531a2e9a`
 - Hybrid escrow V2: `0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb`
 - Retry-funded escrow V3: `0x548531bbe48db4cded53da0d30998e7553eee53f`
+- Safe retry escrow V4: `0xb4791ed947067daf445c936ee44cedec949bdbb4`
 - USDC mode: `native`
 - Public general agent ID: `1`
 
@@ -148,7 +149,9 @@ npm run agent:register-managed
 The current escrow stores a `jobURI` payload with every onchain job so autonomous workers can read the actual task
 title and description directly from Arc Testnet.
 
-New jobs use the V3 escrow. When a funded execution reaches its protected AI budget, the client can revise the
+New jobs use the V4 escrow. V3 remains readable for historical jobs. V4 refunds every uncredited retry-compute
+tranche, keeps settlement live when registry synchronization is unavailable, and makes the dispute deadline
+exclusive. When a funded execution reaches its protected AI budget, the client can revise the
 onchain brief, extend the deadline, and add reward through `fundRetry`. Each paid retry increments the execution
 version and receives a separate worker token/cost ledger. Previous usage remains visible and cannot consume the new
 attempt, while retries without new funding remain disabled.

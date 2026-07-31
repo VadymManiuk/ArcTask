@@ -14,8 +14,10 @@ export const maxDuration = 30;
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
+const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const v2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
 const v3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
+const v4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?? "3000000");
 const defaultSecondaryRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
 const legacyStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 const v2Statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED", "DISPUTED"];
@@ -110,6 +112,11 @@ function getEscrowV2Address() {
 
 function getEscrowV3Address() {
   const address = process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address;
+  return address && /^0x[a-fA-F0-9]{40}$/.test(address) ? (address as Address) : null;
+}
+
+function getEscrowV4Address() {
+  const address = process.env.NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS ?? defaultEscrowV4Address;
   return address && /^0x[a-fA-F0-9]{40}$/.test(address) ? (address as Address) : null;
 }
 
@@ -216,7 +223,8 @@ async function loadJobsSnapshot(
 ) {
   const v2Address = getEscrowV2Address();
   const v3Address = getEscrowV3Address();
-  const [blockNumber, legacy, v2, v3] = await Promise.all([
+  const v4Address = getEscrowV4Address();
+  const [blockNumber, legacy, v2, v3, v4] = await Promise.all([
     withServerRpcRetry(() => rpcClient.getBlockNumber()),
     loadContractJobs(rpcClient, getEscrowAddress(), escrowAbi as Abi, BigInt(1), limit, false),
     v2Address
@@ -232,16 +240,34 @@ async function loadJobsSnapshot(
           true,
           true
         )
-      : Promise.resolve({ nextJobId: v3InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] })
+      : Promise.resolve({ nextJobId: v3InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] }),
+    v4Address
+      ? loadContractJobs(
+          rpcClient,
+          v4Address,
+          escrowV2Abi as Abi,
+          v4InitialJobId,
+          limit,
+          true,
+          true
+        )
+      : Promise.resolve({ nextJobId: v4InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] })
   ]);
-  const jobs = [...v3.jobs, ...v2.jobs, ...legacy.jobs]
+  const jobs = [...v4.jobs, ...v3.jobs, ...v2.jobs, ...legacy.jobs]
     .sort((left, right) => Number(BigInt(right.createdAt) - BigInt(left.createdAt)))
     .slice(0, limit);
 
   return {
     source,
     blockNumber,
-    nextJobId: v3Address ? v3.nextJobId : v2Address ? v2.nextJobId : legacy.nextJobId,
+    nextJobId: v4Address
+      ? v4.nextJobId
+      : v3Address
+        ? v3.nextJobId
+        : v2Address
+          ? v2.nextJobId
+          : legacy.nextJobId,
+    v3NextJobId: v3.nextJobId,
     v2NextJobId: v2.nextJobId,
     legacyNextJobId: legacy.nextJobId,
     jobs,
@@ -265,6 +291,9 @@ function compareSnapshots(
   }
   if (left.v2NextJobId !== right.v2NextJobId) {
     return left.v2NextJobId > right.v2NextJobId ? 1 : -1;
+  }
+  if (left.v3NextJobId !== right.v3NextJobId) {
+    return left.v3NextJobId > right.v3NextJobId ? 1 : -1;
   }
   if (left.terminalJobs !== right.terminalJobs) {
     return left.terminalJobs > right.terminalJobs ? 1 : -1;
@@ -380,7 +409,9 @@ export async function GET(request: Request) {
       ok: true,
       source: selectedSnapshot.source,
       blockNumber: selectedSnapshot.blockNumber.toString(),
-      escrowAddress: getEscrowV3Address() ?? getEscrowV2Address() ?? getEscrowAddress(),
+      escrowAddress:
+        getEscrowV4Address() ?? getEscrowV3Address() ?? getEscrowV2Address() ?? getEscrowAddress(),
+      v3EscrowAddress: getEscrowV3Address(),
       v2EscrowAddress: getEscrowV2Address(),
       legacyEscrowAddress: getEscrowAddress(),
       nextJobId: selectedSnapshot.nextJobId.toString(),

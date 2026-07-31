@@ -35,17 +35,21 @@ function getPayloadText(payload) {
   return `${payload?.title ?? ""}\n${payload?.description ?? ""}`.toLowerCase();
 }
 
+function usesVersionedEscrow(escrowVersion) {
+  return escrowVersion === "v2" || escrowVersion === "v3" || escrowVersion === "v4";
+}
+
 function getEscrowReviewTarget({ rootDir, escrowAddress, escrowVersion }) {
-  const usesVersionedEscrow = escrowVersion === "v2" || escrowVersion === "v3";
-  const sourcePath = usesVersionedEscrow
+  const isVersionedEscrow = usesVersionedEscrow(escrowVersion);
+  const sourcePath = isVersionedEscrow
     ? "contracts/ArcTaskEscrowV2.sol"
     : "contracts/ArcTaskEscrow.sol";
-  const abiPath = usesVersionedEscrow
+  const abiPath = isVersionedEscrow
     ? "lib/contracts/abis/ERC8183EscrowV2.json"
     : "lib/contracts/abis/ERC8183Escrow.json";
 
   return {
-    name: usesVersionedEscrow
+    name: isVersionedEscrow
       ? `ArcTaskEscrowV2 (${escrowVersion.toUpperCase()} deployment)`
       : "ArcTaskEscrow",
     deployedAddress: escrowAddress,
@@ -100,7 +104,7 @@ export function loadTaskArtifacts({
       ...(/\b(settlement|onchain|transaction|lifecycle|creation)\b/i.test(text)
         ? [
             "lib/onchain.ts",
-            escrowVersion === "v2" || escrowVersion === "v3"
+            usesVersionedEscrow(escrowVersion)
               ? "contracts/ArcTaskEscrowV2.sol"
               : "contracts/ArcTaskEscrow.sol",
             "contracts/ArcTaskAgentRegistry.sol"
@@ -149,7 +153,7 @@ export function loadTaskArtifacts({
     return {
       arcConfiguration: readArtifact("lib/arc.ts", 8_000),
       escrowBoundary: readArtifact(
-        escrowVersion === "v2" || escrowVersion === "v3"
+        usesVersionedEscrow(escrowVersion)
           ? "contracts/ArcTaskEscrowV2.sol"
           : "contracts/ArcTaskEscrow.sol",
         14_000

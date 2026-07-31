@@ -16,6 +16,7 @@ import { waitForTransactionReceiptWithRetry } from "./arc-rpc.mjs";
 const rootDir = process.cwd();
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
+const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 
 function loadLocalEnv() {
@@ -43,10 +44,13 @@ loadLocalEnv();
 
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
 const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? "https://testnet.arcscan.app/api/eth-rpc";
-const useV3 = process.argv.includes("--v3");
-const escrowAddress = useV3
-  ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address
-  : process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address;
+const useV4 = process.argv.includes("--v4");
+const useFundedRetry = useV4 || process.argv.includes("--v3");
+const escrowAddress = useV4
+  ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS ?? defaultEscrowV4Address
+  : useFundedRetry
+    ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address
+    : process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address;
 const registryAddress = process.env.NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS ?? defaultRegistryAddress;
 const account = privateKeyToAccount(
   requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY").startsWith("0x")
@@ -114,7 +118,12 @@ await send(
   quote[0]
 );
 let expectedAcceptedClaimable = quote[0];
-if (useV3) {
+if (useFundedRetry) {
+  await send("submitDeliverable", [
+    nextJobId,
+    keccak256(stringToHex("ArcTask hybrid escrow initial smoke deliverable"))
+  ]);
+  await send("requestRevision", [nextJobId, "Smoke retry lifecycle verification"]);
   const retryReward = parseUnits("0.001", 18);
   const retryQuote = await publicClient.readContract({
     address: escrowAddress,

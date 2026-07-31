@@ -16,6 +16,7 @@ import {
   contractAddresses,
   escrowV2InitialJobId,
   escrowV3InitialJobId,
+  escrowV4InitialJobId,
   getOnchainReadiness
 } from "@/lib/arc-config";
 import { getJobDeadlineSeconds } from "@/lib/job-deadline";
@@ -169,7 +170,12 @@ function getEventSummary(eventName: OnchainEventName, args: Record<string, unkno
 }
 
 function getContractAddress(
-  name: "erc8004Registry" | "erc8183Escrow" | "erc8183EscrowV2" | "erc8183EscrowV3"
+  name:
+    | "erc8004Registry"
+    | "erc8183Escrow"
+    | "erc8183EscrowV2"
+    | "erc8183EscrowV3"
+    | "erc8183EscrowV4"
 ) {
   const readiness = getOnchainReadiness();
   if (readiness.mode !== "onchain") {
@@ -190,16 +196,24 @@ function getContractAddress(
 
 function getEscrowContext(onchainJobId?: string) {
   const jobId = onchainJobId === undefined ? null : BigInt(onchainJobId);
-  const isV3 = jobId !== null && jobId >= escrowV3InitialJobId;
+  const isV4 = jobId !== null && jobId >= escrowV4InitialJobId;
+  const isV3 = isV4 || (jobId !== null && jobId >= escrowV3InitialJobId);
   const isV2 = isV3 || (jobId !== null && jobId >= escrowV2InitialJobId);
   const address = getContractAddress(
-    isV3 ? "erc8183EscrowV3" : isV2 ? "erc8183EscrowV2" : "erc8183Escrow"
+    isV4
+      ? "erc8183EscrowV4"
+      : isV3
+        ? "erc8183EscrowV3"
+        : isV2
+          ? "erc8183EscrowV2"
+          : "erc8183Escrow"
   );
   return {
     address,
     abi: isV2 ? escrowV2Abi : escrowAbi,
     isV2,
-    isV3
+    isV3,
+    isV4
   };
 }
 
@@ -400,7 +414,7 @@ export async function createJobOnchain(input: {
   deadline: string;
   evaluatorWallet: Address;
 }) {
-  const escrowAddress = getContractAddress("erc8183EscrowV3");
+  const escrowAddress = getContractAddress("erc8183EscrowV4");
   const { account, walletClient } = await getConnectedWalletClient();
   assertConnectedWallet(account, input.clientWallet, "client wallet");
   const rewardValue = parseUnits(input.rewardAmount.toString(), arcTestnet.nativeCurrency.decimals);

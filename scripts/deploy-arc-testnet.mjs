@@ -137,7 +137,11 @@ const privateKey = normalizePrivateKey(requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE
 const deployEscrowOnly = process.argv.includes("--escrow-only");
 const deployEscrowV2Only = process.argv.includes("--escrow-v2-only");
 const deployEscrowV3Only = process.argv.includes("--escrow-v3-only");
-if ([deployEscrowOnly, deployEscrowV2Only, deployEscrowV3Only].filter(Boolean).length > 1) {
+const deployEscrowV4Only = process.argv.includes("--escrow-v4-only");
+if (
+  [deployEscrowOnly, deployEscrowV2Only, deployEscrowV3Only, deployEscrowV4Only].filter(Boolean)
+    .length > 1
+) {
   throw new Error("Choose only one escrow-only deployment target.");
 }
 
@@ -180,7 +184,7 @@ console.log("Escrow uses Arc native testnet USDC via msg.value.");
 const compiled = compileContracts();
 writeContractAbis(compiled);
 
-const registryAddress = deployEscrowOnly || deployEscrowV2Only || deployEscrowV3Only
+const registryAddress = deployEscrowOnly || deployEscrowV2Only || deployEscrowV3Only || deployEscrowV4Only
   ? requiredEnv("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS")
   : await deployContract({
       walletClient,
@@ -188,7 +192,7 @@ const registryAddress = deployEscrowOnly || deployEscrowV2Only || deployEscrowV3
       contract: compiled.registry,
       args: []
     });
-if (!deployEscrowOnly && !deployEscrowV2Only && !deployEscrowV3Only) {
+if (!deployEscrowOnly && !deployEscrowV2Only && !deployEscrowV3Only && !deployEscrowV4Only) {
   console.log(`Agent registry deployed: ${registryAddress}`);
 } else {
   console.log(`Using existing agent registry: ${registryAddress}`);
@@ -197,15 +201,16 @@ if (!deployEscrowOnly && !deployEscrowV2Only && !deployEscrowV3Only) {
 const treasuryAddress = process.env.ARCTASK_TREASURY_ADDRESS ?? account.address;
 const arbitratorAddress = process.env.ARCTASK_ARBITRATOR_ADDRESS ?? account.address;
 const initialV2JobId = BigInt(
-  process.env.ARCTASK_V3_INITIAL_JOB_ID ??
+  process.env.ARCTASK_V4_INITIAL_JOB_ID ??
+    process.env.ARCTASK_V3_INITIAL_JOB_ID ??
     process.env.ARCTASK_V2_INITIAL_JOB_ID ??
-    (deployEscrowV3Only ? "2000000" : "1000000")
+    (deployEscrowV4Only ? "3000000" : deployEscrowV3Only ? "2000000" : "1000000")
 );
 const escrowAddress = await deployContract({
   walletClient,
   publicClient,
-  contract: deployEscrowV2Only || deployEscrowV3Only ? compiled.escrowV2 : compiled.escrow,
-  args: deployEscrowV2Only || deployEscrowV3Only
+  contract: deployEscrowV2Only || deployEscrowV3Only || deployEscrowV4Only ? compiled.escrowV2 : compiled.escrow,
+  args: deployEscrowV2Only || deployEscrowV3Only || deployEscrowV4Only
     ? [registryAddress, treasuryAddress, arbitratorAddress, initialV2JobId]
     : [registryAddress]
 });
@@ -224,7 +229,7 @@ if (authorizationReceipt.status !== "success") {
 console.log(`Escrow authorized in registry: ${authorizationHash}`);
 
 let managedAgentId;
-if (!deployEscrowV2Only && !deployEscrowV3Only && process.env.ARC_AGENT_PRIVATE_KEY) {
+if (!deployEscrowV2Only && !deployEscrowV3Only && !deployEscrowV4Only && process.env.ARC_AGENT_PRIVATE_KEY) {
   const managedAccount = privateKeyToAccount(normalizePrivateKey(process.env.ARC_AGENT_PRIVATE_KEY));
   const managedWalletClient = createWalletClient({
     account: managedAccount,
@@ -270,7 +275,13 @@ if (!deployEscrowV2Only && !deployEscrowV3Only && process.env.ARC_AGENT_PRIVATE_
 }
 
 console.log("\nAdd these to .env.local and production:");
-if (deployEscrowV3Only) {
+if (deployEscrowV4Only) {
+  console.log(`NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS=${escrowAddress}`);
+  console.log(`ARCTASK_TREASURY_ADDRESS=${treasuryAddress}`);
+  console.log(`ARCTASK_ARBITRATOR_ADDRESS=${arbitratorAddress}`);
+  console.log(`ARCTASK_V4_INITIAL_JOB_ID=${initialV2JobId}`);
+  console.log(`NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID=${initialV2JobId}`);
+} else if (deployEscrowV3Only) {
   console.log(`NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS=${escrowAddress}`);
   console.log(`ARCTASK_TREASURY_ADDRESS=${treasuryAddress}`);
   console.log(`ARCTASK_ARBITRATOR_ADDRESS=${arbitratorAddress}`);
