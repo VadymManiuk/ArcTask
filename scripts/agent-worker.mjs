@@ -1891,7 +1891,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             model: caught.executionPlan.model,
             fundedReward: caught.executionPlan.rewardAmount,
             minimumRecommendedReward: caught.executionPlan.minimumRecommendedReward,
-            canFundRetry: escrowContext.version === "v3" || escrowContext.version === "v4"
+            canFundRetry: escrowContext.version === "v4"
           },
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
         ].slice(0, 100);
@@ -1914,7 +1914,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             executionVersion: job.executionVersion,
             requiredTier: caught.executionPlan?.requiredTier,
             minimumRecommendedReward: caught.executionPlan?.minimumRecommendedReward,
-            canFundRetry: escrowContext.version === "v3" || escrowContext.version === "v4"
+            canFundRetry: escrowContext.version === "v4"
           },
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
         ].slice(0, 100);

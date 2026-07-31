@@ -464,8 +464,8 @@ export async function fundRetryOnchain(input: {
   deadline: string;
 }) {
   const escrow = getEscrowContext(input.onchainJobId);
-  if (!escrow.isV3) {
-    throw new Error("Funded retries are available only for current-generation escrow jobs.");
+  if (!escrow.isV4) {
+    throw new Error("Funded retries are available only for safe V4 escrow jobs.");
   }
   if (!Number.isFinite(input.rewardIncrease) || input.rewardIncrease <= 0) {
     throw new Error("Retry funding must be greater than zero.");
