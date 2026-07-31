@@ -114,6 +114,19 @@ test("quality topics accept clear semantic equivalents instead of brittle headin
   );
 });
 
+test("documentation verification language satisfies the verify topic", () => {
+  assert.doesNotThrow(() =>
+    assertAgentResultQuality({
+      taskKind: "documentation_task",
+      summary:
+        "Prerequisites are listed first. Step 1 explains setup. Verification confirms the expected result. Failure handling explains recovery. Assumptions are explicit. Next actions are clear.",
+      sourceUrls: [],
+      minimumLength: 100,
+      requiredTopics: ["prerequisite", "step", "verify", "failure", "assumption", "next"]
+    })
+  );
+});
+
 test("contract reviews require concrete lifecycle and code references", () => {
   const completeReview = [
     "Scope and authorization matrix for ArcTaskEscrow.",
