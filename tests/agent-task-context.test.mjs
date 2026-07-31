@@ -18,6 +18,22 @@ test("contract-review context includes deployed contracts, source, and ABI", () 
   assert.match(artifacts.dependency.sourceCode, /function recordOutcome/);
 });
 
+test("V3 contract-review context uses the funded-retry source and ABI", () => {
+  const artifacts = loadTaskArtifacts({
+    taskKind: "contract_review",
+    rootDir: process.cwd(),
+    escrowAddress: "0x548531bbe48db4cded53da0d30998e7553eee53f",
+    registryAddress: "0xd8499627775ac67cd756335a3c48387d0aff5553",
+    escrowVersion: "v3"
+  });
+
+  assert.equal(artifacts.reviewTarget.deploymentVersion, "v3");
+  assert.equal(artifacts.reviewTarget.sourcePath, "contracts/ArcTaskEscrowV2.sol");
+  assert.match(artifacts.reviewTarget.sourceCode, /function fundRetry/);
+  assert.match(artifacts.reviewTarget.sourceCode, /function requestRevision/);
+  assert.ok(artifacts.reviewTarget.abi.some((item) => item.name === "getJobExecution"));
+});
+
 test("product QA context includes live route and source evidence", () => {
   const artifacts = loadTaskArtifacts({
     taskKind: "product_qa",
@@ -50,4 +66,23 @@ test("documentation context contains verified ArcTask configuration", () => {
     "0x08eb8630f6b5d2c1c030688076b80360531a2e9a"
   );
   assert.match(artifacts.productDocumentation.content, /ArcTask/);
+});
+
+test("documentation context respects the shared artifact character budget", () => {
+  const maximumArtifactChars = 9_000;
+  const artifacts = loadTaskArtifacts({
+    taskKind: "documentation_task",
+    payload: { title: "Write ArcTask terminology" },
+    rootDir: process.cwd(),
+    escrowAddress: "0x548531bbe48db4cded53da0d30998e7553eee53f",
+    registryAddress: "0xd8499627775ac67cd756335a3c48387d0aff5553",
+    escrowVersion: "v3",
+    maximumArtifactChars
+  });
+  const totalChars =
+    artifacts.productConfiguration.networkSource.content.length +
+    artifacts.productDocumentation.content.length;
+
+  assert.ok(totalChars <= maximumArtifactChars);
+  assert.equal(artifacts.productDocumentation.truncated, true);
 });

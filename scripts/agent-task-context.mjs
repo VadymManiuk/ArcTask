@@ -18,8 +18,42 @@ function readTextArtifact(rootDir, relativePath, maximumChars = 24_000) {
   };
 }
 
+function createArtifactReader(rootDir, maximumArtifactChars) {
+  let remainingChars = Number.isFinite(maximumArtifactChars)
+    ? Math.max(0, Math.floor(maximumArtifactChars))
+    : Number.POSITIVE_INFINITY;
+
+  return (relativePath, maximumChars = 24_000) => {
+    const allowedChars = Math.min(maximumChars, remainingChars);
+    const artifact = readTextArtifact(rootDir, relativePath, allowedChars);
+    remainingChars -= artifact.content.length;
+    return artifact;
+  };
+}
+
 function getPayloadText(payload) {
   return `${payload?.title ?? ""}\n${payload?.description ?? ""}`.toLowerCase();
+}
+
+function getEscrowReviewTarget({ rootDir, escrowAddress, escrowVersion }) {
+  const usesVersionedEscrow = escrowVersion === "v2" || escrowVersion === "v3";
+  const sourcePath = usesVersionedEscrow
+    ? "contracts/ArcTaskEscrowV2.sol"
+    : "contracts/ArcTaskEscrow.sol";
+  const abiPath = usesVersionedEscrow
+    ? "lib/contracts/abis/ERC8183EscrowV2.json"
+    : "lib/contracts/abis/ERC8183Escrow.json";
+
+  return {
+    name: usesVersionedEscrow
+      ? `ArcTaskEscrowV2 (${escrowVersion.toUpperCase()} deployment)`
+      : "ArcTaskEscrow",
+    deployedAddress: escrowAddress,
+    deploymentVersion: escrowVersion ?? "legacy",
+    sourcePath,
+    sourceCode: readText(rootDir, sourcePath),
+    abi: readJson(rootDir, abiPath)
+  };
 }
 
 export function loadTaskArtifacts({
@@ -27,17 +61,19 @@ export function loadTaskArtifacts({
   payload,
   rootDir,
   escrowAddress,
-  registryAddress
+  registryAddress,
+  escrowVersion,
+  maximumArtifactChars
 }) {
+  const readArtifact = createArtifactReader(rootDir, maximumArtifactChars);
+
   if (taskKind === "contract_review" || taskKind === "governance_compliance") {
     return {
-      reviewTarget: {
-        name: "ArcTaskEscrow",
-        deployedAddress: escrowAddress,
-        sourcePath: "contracts/ArcTaskEscrow.sol",
-        sourceCode: readText(rootDir, "contracts/ArcTaskEscrow.sol"),
-        abi: readJson(rootDir, "lib/contracts/abis/ERC8183Escrow.json")
-      },
+      reviewTarget: getEscrowReviewTarget({
+        rootDir,
+        escrowAddress,
+        escrowVersion
+      }),
       dependency: {
         name: "ArcTaskAgentRegistry",
         deployedAddress: registryAddress,
@@ -62,15 +98,24 @@ export function loadTaskArtifacts({
       "app/globals.css",
       ...new Set(routeFiles.length > 0 ? routeFiles : ["app/jobs/[id]/page.tsx"]),
       ...(/\b(settlement|onchain|transaction|lifecycle|creation)\b/i.test(text)
-        ? ["lib/onchain.ts", "contracts/ArcTaskEscrow.sol", "contracts/ArcTaskAgentRegistry.sol"]
+        ? [
+            "lib/onchain.ts",
+            escrowVersion === "v2" || escrowVersion === "v3"
+              ? "contracts/ArcTaskEscrowV2.sol"
+              : "contracts/ArcTaskEscrow.sol",
+            "contracts/ArcTaskAgentRegistry.sol"
+          ]
         : [])
     ];
+    const maximumCharsPerFile = Number.isFinite(maximumArtifactChars)
+      ? Math.max(2_000, Math.floor(maximumArtifactChars / files.length))
+      : 24_000;
 
     return {
       liveSiteUrl: "https://arctask.xyz",
       reviewMethod:
         "Use the supplied route source as concrete static evidence. Do not claim that browser or viewport execution occurred unless the task evidence explicitly contains screenshots or runtime observations.",
-      files: files.map((file) => readTextArtifact(rootDir, file))
+      files: files.map((file) => readArtifact(file, maximumCharsPerFile))
     };
   }
 
@@ -79,9 +124,9 @@ export function loadTaskArtifacts({
       productConfiguration: {
         escrowAddress,
         registryAddress,
-        networkSource: readTextArtifact(rootDir, "lib/arc.ts", 8_000)
+        networkSource: readArtifact("lib/arc.ts", 4_000)
       },
-      productDocumentation: readTextArtifact(rootDir, "README.md", 28_000),
+      productDocumentation: readArtifact("README.md", 28_000),
       verificationNote:
         "Use these repository facts for ready-to-use ArcTask documentation. Do not invent routes, contract addresses, lifecycle transitions, or wallet behavior."
     };
@@ -90,10 +135,10 @@ export function loadTaskArtifacts({
   if (taskKind === "devops_reliability") {
     return {
       architecture: [
-        readTextArtifact(rootDir, "scripts/deploy-worker-vps.sh", 8_000),
-        readTextArtifact(rootDir, "scripts/arc-rpc.mjs", 8_000),
-        readTextArtifact(rootDir, "app/api/network/jobs/route.ts", 14_000),
-        readTextArtifact(rootDir, "app/api/worker/status/route.ts", 14_000)
+        readArtifact("scripts/deploy-worker-vps.sh", 8_000),
+        readArtifact("scripts/arc-rpc.mjs", 8_000),
+        readArtifact("app/api/network/jobs/route.ts", 14_000),
+        readArtifact("app/api/worker/status/route.ts", 14_000)
       ],
       verificationNote:
         "Base the outage, retry, degraded-mode, and recovery plan on these deployed ArcTask code paths. Separate implemented controls from recommendations."
@@ -102,8 +147,13 @@ export function loadTaskArtifacts({
 
   if (taskKind === "protocol_integration") {
     return {
-      arcConfiguration: readTextArtifact(rootDir, "lib/arc.ts", 8_000),
-      escrowBoundary: readTextArtifact(rootDir, "contracts/ArcTaskEscrow.sol", 14_000),
+      arcConfiguration: readArtifact("lib/arc.ts", 8_000),
+      escrowBoundary: readArtifact(
+        escrowVersion === "v2" || escrowVersion === "v3"
+          ? "contracts/ArcTaskEscrowV2.sol"
+          : "contracts/ArcTaskEscrow.sol",
+        14_000
+      ),
       verificationNote:
         "Use current primary-source documentation for external protocols and these repository artifacts for ArcTask integration boundaries."
     };

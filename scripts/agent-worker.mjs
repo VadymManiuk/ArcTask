@@ -307,11 +307,22 @@ function getTaskMinimumTier(taskKind) {
     treasury_payment_review: "pro",
     protocol_integration: "pro",
     devops_reliability: "pro",
+    product_qa: "pro",
+    product_review: "pro",
     market_research: "standard",
     data_analysis: "standard",
     governance_compliance: "standard"
   };
   return minimumTiers[taskKind] ?? "starter";
+}
+
+function getMaximumArtifactChars(executionPlan) {
+  const reservedPromptTokens = 1_200;
+  const availableArtifactTokens =
+    executionPlan.maxTotalTokens -
+    executionPlan.maxOutputTokens -
+    reservedPromptTokens;
+  return Math.min(60_000, Math.max(4_000, availableArtifactTokens * 3));
 }
 
 async function buildExecutionPlan(jobId, job, payload, executionKey = jobId.toString()) {
@@ -1038,7 +1049,9 @@ async function runOpenAiExecutor(
       payload,
       rootDir,
       escrowAddress: escrowContext.address,
-      registryAddress
+      registryAddress,
+      escrowVersion: escrowContext.version,
+      maximumArtifactChars: getMaximumArtifactChars(executionPlan)
     }),
     evidence,
     onchain: {
