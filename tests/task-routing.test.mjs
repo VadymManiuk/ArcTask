@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getMinimumExecutionTier,
   isContractReviewTask,
   isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
@@ -78,4 +79,11 @@ test("production worker recovery routes as DevOps rather than product review", (
   assert.equal(isDevOpsReliabilityTask(text), true);
   assert.equal(isProductReviewTask(text), false);
   assert.equal(isProductReviewTask("Review the frontend product UX."), true);
+});
+
+test("an explicitly funded difficulty is a minimum and cannot be downgraded", () => {
+  assert.equal(getMinimumExecutionTier("contract_review", "critical"), "critical");
+  assert.equal(getMinimumExecutionTier("contract_review", "starter"), "expert");
+  assert.equal(getMinimumExecutionTier("documentation_task", "standard"), "standard");
+  assert.equal(getMinimumExecutionTier("documentation_task", "unknown"), "starter");
 });

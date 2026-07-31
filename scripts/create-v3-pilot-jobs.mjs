@@ -336,10 +336,10 @@ if (repairPilot) {
     throw new Error("--repair-pilot requires --execute.");
   }
   const repairTargets = new Map([
-    ["standard", 3],
+    ["standard", 4],
     ["pro", 2],
-    ["expert", 2],
-    ["critical", 2]
+    ["expert", 3],
+    ["critical", 3]
   ]);
   const revisionReasons = {
     standard:

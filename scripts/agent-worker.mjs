@@ -44,6 +44,7 @@ import {
   recordTokenUsage
 } from "../lib/usage-budget.mjs";
 import {
+  getMinimumExecutionTier,
   isContractReviewTask,
   isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
@@ -302,29 +303,13 @@ async function buildDeliverable(
   };
 }
 
-function getTaskMinimumTier(taskKind) {
-  const minimumTiers = {
-    contract_review: "expert",
-    wallet_or_counterparty_risk: "pro",
-    treasury_payment_review: "pro",
-    protocol_integration: "pro",
-    devops_reliability: "pro",
-    product_qa: "pro",
-    product_review: "pro",
-    market_research: "standard",
-    data_analysis: "standard",
-    governance_compliance: "standard"
-  };
-  return minimumTiers[taskKind] ?? "starter";
-}
-
 function getMaximumArtifactChars(executionPlan) {
-  const reservedPromptTokens = 1_200;
+  const reservedPromptTokens = 3_000;
   const availableArtifactTokens =
     executionPlan.maxTotalTokens -
     executionPlan.maxOutputTokens -
     reservedPromptTokens;
-  return Math.min(60_000, Math.max(4_000, availableArtifactTokens * 3));
+  return Math.min(60_000, Math.max(3_000, Math.floor(availableArtifactTokens * 2.5)));
 }
 
 async function buildExecutionPlan(jobId, job, payload, executionKey = jobId.toString()) {
@@ -338,7 +323,7 @@ async function buildExecutionPlan(jobId, job, payload, executionKey = jobId.toSt
   const taskProfile = getTaskProfile(payload);
   const options = {
     allowSubsidy: routingSubsidyEnabled || recoveryJobIds.has(jobId.toString()),
-    minimumTier: getTaskMinimumTier(taskProfile.kind)
+    minimumTier: getMinimumExecutionTier(taskProfile.kind, payload?.difficulty)
   };
   let plan = createExecutionPlan(input, options);
 
@@ -1058,7 +1043,10 @@ async function runOpenAiExecutor(
       deadlineIso: new Date(Number(job.deadline) * 1000).toISOString()
     }
   };
-  const targetMaximumChars = Math.min(30_000, Math.max(4_000, executionPlan.maxOutputTokens * 2));
+  const targetMaximumChars = Math.min(
+    20_000,
+    Math.max(4_000, Math.floor(executionPlan.maxOutputTokens * 1.5))
+  );
 
   const systemInstructions = [
     "You are an autonomous ArcTask AI agent. Complete the requested task from the supplied onchain payload and verified artifacts.",
