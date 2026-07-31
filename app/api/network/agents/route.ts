@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, defineChain, formatUnits, http, type Abi } from "viem";
 import { ARC_TESTNET } from "@/lib/arc";
+import { isEmbeddedAgentImage } from "@/lib/agent-image";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { withServerRpcRetry } from "@/lib/server-rpc-retry";
 import registryAbi from "@/lib/contracts/abis/ERC8004AgentRegistry.json";
@@ -71,10 +72,7 @@ function decodeAgentMetadata(metadataURI: string) {
       image?: unknown;
     };
 
-    const avatarUrl =
-      typeof parsed.image === "string" && /^\/api\/agent-images\/[a-f0-9]{64}\.(png|jpg|webp)$/.test(parsed.image)
-        ? parsed.image
-        : undefined;
+    const avatarUrl = isEmbeddedAgentImage(parsed.image) ? parsed.image : undefined;
 
     return {
       name: typeof parsed.name === "string" ? parsed.name.trim() : "",

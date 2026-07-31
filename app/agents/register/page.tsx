@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { createEmbeddedAgentImage } from "@/lib/agent-image-client";
 import { registerAgentAction } from "@/lib/store";
 import type { Agent, TxRecord } from "@/lib/types";
 import { isAddressLike, splitCapabilities } from "@/lib/utils";
@@ -20,6 +21,8 @@ export default function RegisterAgentPage() {
   const [ownerWallet, setOwnerWallet] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string>();
+  const [isProcessingAvatar, setIsProcessingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReadingWallet, setIsReadingWallet] = useState(false);
@@ -34,17 +37,6 @@ export default function RegisterAgentPage() {
     }),
     [avatarPreviewUrl, capabilities, name]
   );
-
-  useEffect(() => {
-    if (!avatarFile) {
-      setAvatarPreviewUrl(undefined);
-      return;
-    }
-
-    const previewUrl = URL.createObjectURL(avatarFile);
-    setAvatarPreviewUrl(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [avatarFile]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -62,7 +54,10 @@ export default function RegisterAgentPage() {
 
     try {
       setIsSubmitting(true);
-      const avatarUrl = avatarFile ? await uploadAgentImage(avatarFile) : undefined;
+      const avatarUrl = avatarFile ? avatarPreviewUrl : undefined;
+      if (avatarFile && !avatarUrl) {
+        throw new Error("Wait for the agent image to finish processing.");
+      }
       const metadataUri = createAgentMetadataUri({
         name: name.trim(),
         description: description.trim(),
@@ -70,6 +65,9 @@ export default function RegisterAgentPage() {
         ownerWallet,
         avatarUrl
       });
+      if (metadataUri.length > 4_000) {
+        throw new Error("Agent metadata is too large. Shorten the description or remove the custom image.");
+      }
       setCreated(
         await registerAgentAction({
           name: name.trim(),
@@ -87,12 +85,13 @@ export default function RegisterAgentPage() {
     }
   }
 
-  function selectAvatar(event: ChangeEvent<HTMLInputElement>) {
+  async function selectAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     setError("");
 
     if (!file) {
       setAvatarFile(null);
+      setAvatarPreviewUrl(undefined);
       return;
     }
 
@@ -108,7 +107,19 @@ export default function RegisterAgentPage() {
       return;
     }
 
-    setAvatarFile(file);
+    try {
+      setIsProcessingAvatar(true);
+      const embeddedImage = await createEmbeddedAgentImage(file);
+      setAvatarFile(file);
+      setAvatarPreviewUrl(embeddedImage);
+    } catch (caught) {
+      setAvatarFile(null);
+      setAvatarPreviewUrl(undefined);
+      event.target.value = "";
+      setError(caught instanceof Error ? caught.message : "Unable to process this image.");
+    } finally {
+      setIsProcessingAvatar(false);
+    }
   }
 
   async function fillConnectedWallet() {
@@ -148,16 +159,28 @@ export default function RegisterAgentPage() {
                 <AgentAvatar agent={previewAgent} className="h-12 w-12" />
                 <div className="min-w-0 flex-1">
                   <Input
+                    ref={avatarInputRef}
                     id="agentImage"
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
+                    disabled={isProcessingAvatar || isSubmitting}
                     onChange={selectAvatar}
                     className="h-auto border-0 bg-transparent p-0 file:mr-3 file:rounded-lg file:bg-[#1689e8] file:px-3 file:py-2 file:text-white"
                   />
-                  <p className="mt-2 text-xs text-slate-600">PNG, JPEG, or WebP up to 1 MB. Without a file, ArcTask creates a unique mark.</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    {isProcessingAvatar ? "Optimizing image…" : "PNG, JPEG, or WebP up to 1 MB. Optimized for public onchain metadata."}
+                  </p>
                 </div>
                 {avatarFile ? (
-                  <button type="button" onClick={() => setAvatarFile(null)} className="text-xs text-slate-500 hover:text-white">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAvatarFile(null);
+                      setAvatarPreviewUrl(undefined);
+                      if (avatarInputRef.current) avatarInputRef.current.value = "";
+                    }}
+                    className="text-xs text-slate-500 hover:text-white"
+                  >
                     Remove
                   </button>
                 ) : null}
@@ -178,8 +201,8 @@ export default function RegisterAgentPage() {
               <Input id="ownerWallet" maxLength={42} placeholder="0x…" value={ownerWallet} onChange={(event) => setOwnerWallet(event.target.value)} />
             </div>
             {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (avatarFile ? "Uploading and confirming…" : "Confirm in wallet…") : "Register agent"}
+            <Button type="submit" disabled={isSubmitting || isProcessingAvatar}>
+              {isSubmitting ? "Confirm in wallet…" : isProcessingAvatar ? "Optimizing image…" : "Register agent"}
             </Button>
           </form>
 
@@ -235,19 +258,6 @@ function createAgentMetadataUri(input: {
   )}`;
 }
 
-async function uploadAgentImage(file: File) {
-  const formData = new FormData();
-  formData.set("image", file);
-  const response = await fetch("/api/agent-images", {
-    method: "POST",
-    body: formData
-  });
-  const body = (await response.json()) as { error?: string; url?: string };
-  if (!response.ok || !body.url) {
-    throw new Error(body.error || "Agent image upload failed.");
-  }
-  return body.url;
-}
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
   return (

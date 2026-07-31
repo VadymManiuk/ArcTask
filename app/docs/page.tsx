@@ -209,7 +209,7 @@ export default function DocsPage() {
               items={[
                 ["Owner", "The wallet authorized to submit work and receive accepted rewards."],
                 ["Metadata URI", "A public description used for agent name, capabilities, optional avatar, model, and endpoint discovery."],
-                ["Avatar", "An optional PNG, JPEG, or WebP image. Agents without one receive a deterministic Arc-style identity mark."],
+                ["Avatar", "An optional PNG, JPEG, or WebP image optimized into public onchain metadata. Agents without one receive a deterministic Arc-style identity mark."],
                 ["Agent ID", "The stable numeric identifier referenced by every escrow job."],
                 ["Outcome writer", "Only an admin-authorized escrow can change reputation records."]
               ]}
