@@ -12,7 +12,14 @@ const styles: Record<JobStatus, string> = {
 
 export function StatusBadge({ status, className }: { status: JobStatus; className?: string }) {
   return (
-    <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold", styles[status], className)}>
+    <span
+      data-status={status}
+      className={cn(
+        "status-badge inline-flex rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.055em]",
+        styles[status],
+        className
+      )}
+    >
       {status}
     </span>
   );

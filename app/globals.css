@@ -251,3 +251,39 @@ html[data-theme="light"] [class~="bg-[#38a8f8]"][class~="text-white"],
 html[data-theme="light"] [class~="bg-[#42adff]"][class~="text-white"] {
   color: #ffffff !important;
 }
+
+html[data-theme="light"] .status-badge[data-status="FUNDED"] {
+  border-color: #38bdf8 !important;
+  background: #e0f2fe !important;
+  color: #075985 !important;
+}
+
+html[data-theme="light"] .status-badge[data-status="SUBMITTED"] {
+  border-color: #f59e0b !important;
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+html[data-theme="light"] .status-badge[data-status="ACCEPTED"] {
+  border-color: #4ade80 !important;
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+html[data-theme="light"] .status-badge[data-status="REJECTED"] {
+  border-color: #fb7185 !important;
+  background: #ffe4e6 !important;
+  color: #9f1239 !important;
+}
+
+html[data-theme="light"] .status-badge[data-status="REFUNDED"] {
+  border-color: #94a3b8 !important;
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .status-badge[data-status="DISPUTED"] {
+  border-color: #fb923c !important;
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+}
