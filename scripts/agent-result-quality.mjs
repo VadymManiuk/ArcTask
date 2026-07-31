@@ -74,6 +74,7 @@ export function assertAgentResultQuality({
   minimumLength = 240,
   requiredTopics = [],
   requiredEvidenceValues = [],
+  contractCodeReferences = [],
   requireCompletionMarker = false,
   requireSources = false
 }) {
@@ -138,15 +139,18 @@ export function assertAgentResultQuality({
       throw new Error("Contract review is too short to contain a complete invariant analysis.");
     }
 
-    const requiredCodeReferences = [
-      "createJob",
-      "submitDeliverable",
-      "acceptWork",
-      "rejectWork",
-      "refundExpired",
-      "_sendNativeUsdc",
-      "nonReentrant"
-    ];
+    const requiredCodeReferences =
+      contractCodeReferences.length > 0
+        ? contractCodeReferences
+        : [
+            "createJob",
+            "submitDeliverable",
+            "acceptWork",
+            "rejectWork",
+            "refundExpired",
+            "_sendNativeUsdc",
+            "nonReentrant"
+          ];
     const missingCodeReferences = requiredCodeReferences.filter((name) => !normalizedSummary.includes(name));
     if (missingCodeReferences.length > 0) {
       throw new Error(`Contract review is missing code references: ${missingCodeReferences.join(", ")}.`);

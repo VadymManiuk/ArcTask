@@ -312,6 +312,23 @@ function getMaximumArtifactChars(executionPlan) {
   return Math.min(60_000, Math.max(3_000, Math.floor(availableArtifactTokens * 2.5)));
 }
 
+function getContractCodeReferences(escrowVersion) {
+  if (escrowVersion === "v2" || escrowVersion === "v3") {
+    return [
+      "createJob",
+      "fundRetry",
+      "submitDeliverable",
+      "requestRevision",
+      "acceptWork",
+      "resolveDispute",
+      "refundExpired",
+      "withdraw",
+      "nonReentrant"
+    ];
+  }
+  return [];
+}
+
 async function buildExecutionPlan(jobId, job, payload, executionKey = jobId.toString()) {
   const input = {
     title: payload?.title,
@@ -1188,6 +1205,7 @@ async function runOpenAiExecutor(
         minimumLength: taskProfile.minimumLength,
         requiredTopics: taskProfile.requiredTopics,
         requiredEvidenceValues: evidenceValues,
+        contractCodeReferences: getContractCodeReferences(escrowContext.version),
         requireCompletionMarker: true,
         requireSources: Boolean(tools)
       });
@@ -1284,6 +1302,7 @@ async function runOpenAiExecutor(
         minimumLength: taskProfile.minimumLength,
         requiredTopics: taskProfile.requiredTopics,
         requiredEvidenceValues: evidenceValues,
+        contractCodeReferences: getContractCodeReferences(escrowContext.version),
         requireCompletionMarker: true,
         requireSources: Boolean(tools)
       });

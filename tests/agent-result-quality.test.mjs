@@ -148,6 +148,39 @@ test("contract reviews require concrete lifecycle and code references", () => {
   );
 });
 
+test("V3 contract reviews are validated against funded-retry functions", () => {
+  const completeReview = [
+    "Scope and authorization matrix for ArcTaskEscrowV2.",
+    "createJob and fundRetry enforce exact funding and deadline checks.",
+    "submitDeliverable and requestRevision define the execution-version state transition.",
+    "acceptWork settles accepted work while resolveDispute handles arbitrated settlement.",
+    "refundExpired covers the deadline refund path and withdraw implements pull payments.",
+    "The nonReentrant boundary protects external settlement calls.",
+    "State transition, authorization, settlement, refund, and reentrancy findings are ranked.",
+    "Recommended tests cover accounting conservation and every caller boundary.",
+    "Deployment recommendation: fix blockers before production."
+  ].join("\n\n");
+
+  assert.doesNotThrow(() =>
+    assertAgentResultQuality({
+      taskKind: "contract_review",
+      summary: completeReview.repeat(3),
+      sourceUrls: [],
+      contractCodeReferences: [
+        "createJob",
+        "fundRetry",
+        "submitDeliverable",
+        "requestRevision",
+        "acceptWork",
+        "resolveDispute",
+        "refundExpired",
+        "withdraw",
+        "nonReentrant"
+      ]
+    })
+  );
+});
+
 test("wallet risk assessments must use the supplied Arc RPC and transaction evidence", () => {
   const transactionHash = `0x${"a".repeat(64)}`;
   const evidence = {
