@@ -15,6 +15,8 @@ import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs"
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
+const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const submittedStatus = 1;
 
 function loadLocalEnv(rootDir) {
@@ -52,10 +54,26 @@ export async function settleReviewedJobs({
   loadLocalEnv(rootDir);
   const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
   const explorerUrl = (process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl).replace(/\/+$/, "");
-  const escrowAddress = process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress;
-  const escrowAbi = JSON.parse(
+  const escrowV1Abi = JSON.parse(
     fs.readFileSync(path.join(rootDir, "lib/contracts/abis/ERC8183Escrow.json"), "utf8")
   );
+  const escrowV2Abi = JSON.parse(
+    fs.readFileSync(path.join(rootDir, "lib/contracts/abis/ERC8183EscrowV2.json"), "utf8")
+  );
+  const escrowContexts = {
+    v1: {
+      address: process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress,
+      abi: escrowV1Abi
+    },
+    v2: {
+      address: process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address,
+      abi: escrowV2Abi
+    },
+    v3: {
+      address: process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address,
+      abi: escrowV2Abi
+    }
+  };
   const reviewDocument = JSON.parse(fs.readFileSync(reviewPath, "utf8"));
   const decisions = (reviewDocument.decisions ?? [])
     .filter((review) => review.statusAtReview === "SUBMITTED")
@@ -103,10 +121,20 @@ export async function settleReviewedJobs({
 
   for (const decision of decisions) {
     const jobId = BigInt(decision.jobId);
+    const escrowVersion = decision.escrowVersion ?? reviewDocument.escrowVersion ?? "v1";
+    const escrowContext = escrowContexts[escrowVersion];
+    if (!escrowContext) {
+      throw new Error(`Review ${decision.jobId} has unsupported escrowVersion ${escrowVersion}.`);
+    }
+    if (decision.action === "reject" && escrowVersion !== "v1") {
+      throw new Error(
+        `Review ${decision.jobId} cannot use legacy reject settlement on ${escrowVersion}; use revision or dispute flow.`
+      );
+    }
     const job = await withRpcRetry(() =>
       publicClient.readContract({
-        address: escrowAddress,
-        abi: escrowAbi,
+        address: escrowContext.address,
+        abi: escrowContext.abi,
         functionName: "jobs",
         args: [jobId]
       })
@@ -115,6 +143,7 @@ export async function settleReviewedJobs({
     if (Number(job[8]) !== submittedStatus) {
       outcomes.push({
         jobId: decision.jobId,
+        escrowVersion,
         action: decision.action,
         status: "skipped",
         reason: `onchain status is ${Number(job[8])}, not SUBMITTED`
@@ -131,6 +160,7 @@ export async function settleReviewedJobs({
     if (!live) {
       outcomes.push({
         jobId: decision.jobId,
+        escrowVersion,
         action: decision.action,
         status: "verified"
       });
@@ -139,8 +169,8 @@ export async function settleReviewedJobs({
 
     const functionName = decision.action === "accept" ? "acceptWork" : "rejectWork";
     const txHash = await walletClient.writeContract({
-      address: escrowAddress,
-      abi: escrowAbi,
+      address: escrowContext.address,
+      abi: escrowContext.abi,
       functionName,
       args: [jobId]
     });
@@ -151,6 +181,7 @@ export async function settleReviewedJobs({
 
     outcomes.push({
       jobId: decision.jobId,
+      escrowVersion,
       action: decision.action,
       status: "settled",
       txHash,

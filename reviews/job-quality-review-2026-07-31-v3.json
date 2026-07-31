@@ -1,0 +1,52 @@
+{
+  "schema": "arctask.evaluator-review.v2",
+  "escrowVersion": "v3",
+  "reviewedAt": "2026-07-31T17:16:00.000Z",
+  "decisions": [
+    {
+      "jobId": "2000007",
+      "title": "Return an agent profile checklist",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0xf669ea9657137a4172b82f9e757ced1387adf4b86be9d4558e2753ffe2de4d8c",
+      "rationale": "Exactly follows the five-bullet format and requested order, uses the supplied owner, and clearly marks capability and availability as unspecified instead of inventing facts."
+    },
+    {
+      "jobId": "2000008",
+      "title": "Write agent image registration help",
+      "statusAtReview": "SUBMITTED",
+      "score": 7.5,
+      "action": "accept",
+      "deliverableHash": "0x4f1315867ac7f3494359b33be6dee6a1f8dedd76589327008ba30bae187dc3a6",
+      "rationale": "Covers formats, the 1 MB input limit, browser optimization, public metadata, fallback, checks, failure handling, assumptions, and next steps. It slightly overstates a post-registration edit flow that is not evidenced, but the requested registration guidance remains complete and usable."
+    },
+    {
+      "jobId": "2000009",
+      "title": "Define agent avatar adoption metrics",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0xe91728b6c1ebc2dc49751593f8dd5bf1c558034b698fbd6f25488a28760193ec",
+      "rationale": "Grounds the analysis in the exact Arc snapshot and reference block, calculates supported metrics, correctly leaves unavailable avatar metrics null, and supplies canonical fields, formulas, denominators, thresholds, validation queries, limitations, dashboard views, and instrumentation priorities."
+    },
+    {
+      "jobId": "2000010",
+      "title": "Design resilient agent image metadata ingestion",
+      "statusAtReview": "SUBMITTED",
+      "score": 7,
+      "action": "accept",
+      "deliverableHash": "0xd3ad816e2c2715dd6c9f0e43d12bc6ce94046a280f9730801de13b315e9006a9",
+      "rationale": "Provides a comprehensive data flow, trust boundaries, validation pseudocode, idempotency, finality, retries, monitoring, risks, tests, and rollout plan. The design is over-engineered for the current compact embedded-data implementation and understates existing avatar code, but it still meets the requested integration-design criteria with substantial practical security value."
+    },
+    {
+      "jobId": "2000011",
+      "title": "Audit V3 settlement and retry accounting boundaries",
+      "statusAtReview": "SUBMITTED",
+      "score": 9.5,
+      "action": "accept",
+      "deliverableHash": "0x9cefd3a3e0be72b4dc3898b0cc3cec671520ab7eda5a57ec2bece5713f76101a",
+      "rationale": "Delivers a source-grounded authorization matrix and state machine, proves conservation paths, identifies a concrete stranded-compute-fee defect with a reproducible sequence, ranks liveness and deadline findings, and provides minimal patches, Foundry tests, invariants, deployment blockers, and an explicit do-not-ship recommendation."
+    }
+  ]
+}
