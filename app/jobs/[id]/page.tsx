@@ -258,6 +258,13 @@ export default function JobDetailsPage() {
     setRetryDeadline(retryJobDeadline > tomorrow ? retryJobDeadline : tomorrow);
   }, [retryJobId, retryJobTitle, retryJobDescription, retryJobDeadline]);
 
+  useEffect(() => {
+    const suggestedReward = blockedWorkerJob?.minimumRecommendedReward;
+    if (typeof suggestedReward === "number" && suggestedReward > 0) {
+      setRetryReward(suggestedReward.toString());
+    }
+  }, [blockedWorkerJob?.jobId, blockedWorkerJob?.minimumRecommendedReward]);
+
   const loadWorkerDeliverable = useCallback(async () => {
     if (!job?.onchainJobId) {
       setWorkerDeliverable(null);

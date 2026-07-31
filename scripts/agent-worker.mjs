@@ -79,12 +79,13 @@ class InsufficientComputeBudgetError extends Error {
 }
 
 class UsageBudgetExceededError extends Error {
-  constructor(state) {
+  constructor(state, executionPlan) {
     super(
       `JOB_COMPUTE_BUDGET_EXHAUSTED: ${state.job.totalTokens} tokens, ${state.job.requestKinds.generation} generation requests, and $${state.job.costUsd.toFixed(6)} used.`
     );
     this.name = "UsageBudgetExceededError";
     this.state = state;
+    this.executionPlan = executionPlan;
   }
 }
 
@@ -866,7 +867,7 @@ function assertTokenBudgetAvailable(jobId, executionPlan) {
     state.jobCostExceeded ||
     state.job.requestKinds.generation >= generationRequestLimit
   ) {
-    throw new UsageBudgetExceededError(state);
+    throw new UsageBudgetExceededError(state, executionPlan);
   }
   return state;
 }
@@ -950,7 +951,7 @@ async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeou
   // Reduced caps routinely end as `incomplete/max_output_tokens` and cannot
   // pass the completion-marker quality gate.
   if (availableOutputTokens < executionPlan.maxOutputTokens) {
-    throw new UsageBudgetExceededError(budgetState);
+    throw new UsageBudgetExceededError(budgetState, executionPlan);
   }
   const boundedRequestBody = {
     ...requestBody,
@@ -1099,7 +1100,7 @@ async function runOpenAiExecutor(
     ) - priorGenerationRequests
   );
   if (remainingAttempts === 0) {
-    throw new UsageBudgetExceededError(priorUsageState);
+    throw new UsageBudgetExceededError(priorUsageState, executionPlan);
   }
 
   for (let attempt = 1; attempt <= remainingAttempts; attempt += 1) {
@@ -1888,6 +1889,8 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             requestCount: caught.state.job.requestKinds.generation,
             model: caught.state.job.lastModel,
             executionVersion: job.executionVersion,
+            requiredTier: caught.executionPlan?.requiredTier,
+            minimumRecommendedReward: caught.executionPlan?.minimumRecommendedReward,
             canFundRetry: escrowContext.version === "v3"
           },
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
