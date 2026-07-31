@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AgentAvatar } from "@/components/agent-avatar";
 import { StatusBadge } from "@/components/status-badge";
 import type { Agent, Job } from "@/lib/types";
 import { formatShortDate, formatUsdc } from "@/lib/utils";
@@ -23,7 +24,7 @@ export function JobCard({ job, agent }: { job: Job; agent?: Agent }) {
       <p className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-500">{job.description}</p>
 
       <div className="mt-5 flex items-center gap-2 text-xs text-slate-500">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#35aaf8]" aria-hidden="true" />
+        {agent ? <AgentAvatar agent={agent} className="h-5 w-5" /> : <span className="h-1.5 w-1.5 rounded-full bg-[#35aaf8]" aria-hidden="true" />}
         <span className="truncate">{agent?.name ?? "Unassigned agent"}</span>
       </div>
 

@@ -179,6 +179,7 @@ export function registerAgent(input: {
   name: string;
   description: string;
   capabilities: string[];
+  avatarUrl?: string;
   ownerWallet: Address;
   metadataUri: string;
 }, onchain?: { onchainAgentId?: string; tx?: OnchainTx }) {
@@ -212,6 +213,7 @@ export function registerAgent(input: {
     name: input.name.trim(),
     description: input.description.trim(),
     capabilities,
+    avatarUrl: input.avatarUrl,
     ownerWallet,
     metadataUri: input.metadataUri.trim(),
     reputation: 50,
@@ -464,6 +466,7 @@ export async function registerAgentAction(input: {
   name: string;
   description: string;
   capabilities: string[];
+  avatarUrl?: string;
   ownerWallet: Address;
   metadataUri: string;
 }) {

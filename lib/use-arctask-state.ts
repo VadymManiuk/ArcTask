@@ -19,6 +19,7 @@ interface NetworkAgent {
   totalEarned: number;
   name: string;
   description: string;
+  avatarUrl?: string;
   capabilities: string[];
 }
 
@@ -124,6 +125,7 @@ function createNetworkState(
       onchainAgentId: agent.onchainAgentId,
       name: agent.name,
       description: agent.description,
+      avatarUrl: agent.avatarUrl,
       capabilities: agent.capabilities,
       ownerWallet: agent.ownerWallet,
       metadataUri: "",

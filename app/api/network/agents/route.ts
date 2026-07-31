@@ -68,11 +68,18 @@ function decodeAgentMetadata(metadataURI: string) {
       name?: unknown;
       description?: unknown;
       capabilities?: unknown;
+      image?: unknown;
     };
+
+    const avatarUrl =
+      typeof parsed.image === "string" && /^\/api\/agent-images\/[a-f0-9]{64}\.(png|jpg|webp)$/.test(parsed.image)
+        ? parsed.image
+        : undefined;
 
     return {
       name: typeof parsed.name === "string" ? parsed.name.trim() : "",
       description: typeof parsed.description === "string" ? parsed.description.trim() : "",
+      avatarUrl,
       capabilities: Array.isArray(parsed.capabilities)
         ? parsed.capabilities.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
         : []
@@ -97,6 +104,7 @@ function serializeAgent(agentId: bigint, agent: OnchainAgent) {
     totalEarned: Number(formatUnits(agent[7], arcTestnet.nativeCurrency.decimals)),
     name: metadata?.name || `Agent #${agentId.toString()}`,
     description: metadata?.description || "Autonomous agent registered on ArcTask.",
+    avatarUrl: metadata?.avatarUrl,
     capabilities: metadata?.capabilities ?? []
   };
 }
@@ -171,6 +179,7 @@ export async function GET(request: Request) {
       totalEarned: agent.totalEarned,
       name: agent.name,
       description: agent.description,
+      avatarUrl: agent.avatarUrl,
       capabilities: agent.capabilities
     }));
 

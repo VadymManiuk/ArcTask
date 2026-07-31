@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AgentAvatar } from "@/components/agent-avatar";
 import type { Agent } from "@/lib/types";
 import { formatAddress, formatUsdc } from "@/lib/utils";
 
@@ -13,9 +14,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       className="group flex h-full min-h-[285px] flex-col rounded-[18px] border border-[#1a2432] bg-[#080c14] p-5 transition duration-200 hover:-translate-y-0.5 hover:border-[#31506d] hover:bg-[#0a0f19]"
     >
       <div className="flex min-w-0 items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#23405a] bg-[#0c1a27] text-sm font-semibold text-[#71c2f7]">
-          {getInitials(agent.name)}
-        </span>
+        <AgentAvatar agent={agent} className="h-11 w-11" />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="line-clamp-1 font-semibold text-slate-100 transition group-hover:text-white">{agent.name}</h3>
@@ -63,13 +62,4 @@ export function AgentCard({ agent }: { agent: Agent }) {
       </div>
     </Link>
   );
-}
-
-function getInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }

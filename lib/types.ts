@@ -47,6 +47,7 @@ export interface Agent {
   name: string;
   description: string;
   capabilities: string[];
+  avatarUrl?: string;
   ownerWallet: Address;
   metadataUri: string;
   reputation: number;

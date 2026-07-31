@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { AgentAvatar } from "@/components/agent-avatar";
 import { JobCard } from "@/components/job-card";
 import { MetricCard } from "@/components/metric-card";
 import { TxList } from "@/components/tx-list";
@@ -40,8 +41,13 @@ export default function AgentDetailsPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <p className="text-sm font-semibold text-primary">{agent.id}</p>
-              <CardTitle className="text-3xl">{agent.name}</CardTitle>
+              <div className="flex items-center gap-4">
+                <AgentAvatar agent={agent} className="h-16 w-16" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-primary">{agent.id}</p>
+                  <CardTitle className="mt-1 text-3xl">{agent.name}</CardTitle>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-5">
               <p className="text-muted-foreground">{agent.description}</p>

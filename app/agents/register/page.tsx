@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { AgentAvatar } from "@/components/agent-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,24 +18,33 @@ export default function RegisterAgentPage() {
   const [description, setDescription] = useState("");
   const [capabilities, setCapabilities] = useState("");
   const [ownerWallet, setOwnerWallet] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string>();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReadingWallet, setIsReadingWallet] = useState(false);
   const [created, setCreated] = useState<{ agent: Agent; tx: TxRecord } | null>(null);
 
-  const generatedMetadataUri = useMemo(
-    () =>
-      `data:application/json,${encodeURIComponent(
-        JSON.stringify({
-          schema: "arctask.agent.v1",
-          name,
-          description,
-          capabilities: splitCapabilities(capabilities),
-          ownerWallet
-        })
-      )}`,
-    [capabilities, description, name, ownerWallet]
+  const previewAgent = useMemo(
+    () => ({
+      id: `preview:${name || "agent"}`,
+      name: name || "Your agent",
+      capabilities: splitCapabilities(capabilities),
+      avatarUrl: avatarPreviewUrl
+    }),
+    [avatarPreviewUrl, capabilities, name]
   );
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreviewUrl(undefined);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [avatarFile]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -52,13 +62,22 @@ export default function RegisterAgentPage() {
 
     try {
       setIsSubmitting(true);
+      const avatarUrl = avatarFile ? await uploadAgentImage(avatarFile) : undefined;
+      const metadataUri = createAgentMetadataUri({
+        name: name.trim(),
+        description: description.trim(),
+        capabilities: splitCapabilities(capabilities),
+        ownerWallet,
+        avatarUrl
+      });
       setCreated(
         await registerAgentAction({
           name: name.trim(),
           description: description.trim(),
           capabilities: splitCapabilities(capabilities),
+          avatarUrl,
           ownerWallet,
-          metadataUri: generatedMetadataUri
+          metadataUri
         })
       );
     } catch (caught) {
@@ -66,6 +85,30 @@ export default function RegisterAgentPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function selectAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setError("");
+
+    if (!file) {
+      setAvatarFile(null);
+      return;
+    }
+
+    if (!(["image/png", "image/jpeg", "image/webp"] as string[]).includes(file.type)) {
+      setError("Choose a PNG, JPEG, or WebP image.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 1024 * 1024) {
+      setError("Agent image must be 1 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    setAvatarFile(file);
   }
 
   async function fillConnectedWallet() {
@@ -100,6 +143,26 @@ export default function RegisterAgentPage() {
             <Field label="Capabilities, comma separated" htmlFor="capabilities">
               <Input id="capabilities" maxLength={240} value={capabilities} onChange={(event) => setCapabilities(event.target.value)} />
             </Field>
+            <Field label="Agent image (optional)" htmlFor="agentImage">
+              <div className="flex items-center gap-4 rounded-xl border border-[#1a2432] bg-[#070b13] p-3">
+                <AgentAvatar agent={previewAgent} className="h-12 w-12" />
+                <div className="min-w-0 flex-1">
+                  <Input
+                    id="agentImage"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={selectAvatar}
+                    className="h-auto border-0 bg-transparent p-0 file:mr-3 file:rounded-lg file:bg-[#1689e8] file:px-3 file:py-2 file:text-white"
+                  />
+                  <p className="mt-2 text-xs text-slate-600">PNG, JPEG, or WebP up to 1 MB. Without a file, ArcTask creates a unique mark.</p>
+                </div>
+                {avatarFile ? (
+                  <button type="button" onClick={() => setAvatarFile(null)} className="text-xs text-slate-500 hover:text-white">
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </Field>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="ownerWallet">Owner wallet</Label>
@@ -116,7 +179,7 @@ export default function RegisterAgentPage() {
             </div>
             {error ? <p className="text-sm text-rose-300">{error}</p> : null}
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Confirm in wallet…" : "Register agent"}
+              {isSubmitting ? (avatarFile ? "Uploading and confirming…" : "Confirm in wallet…") : "Register agent"}
             </Button>
           </form>
 
@@ -134,14 +197,12 @@ export default function RegisterAgentPage() {
       </Card>
       <aside className="border-t border-[#192230] bg-[#080c13] p-6 lg:border-l lg:border-t-0">
         <div className="sticky top-28 rounded-2xl border border-[#1a2432] bg-[#070b12] p-5">
-          <span className="grid h-14 w-14 place-items-center rounded-xl border border-[#203248] bg-[#0d1a28] text-lg font-semibold text-[#6dbbf1]">
-            {name.trim().slice(0, 2).toUpperCase() || "—"}
-          </span>
+          <AgentAvatar agent={previewAgent} className="h-14 w-14" />
           <p className="mt-5 text-xl font-semibold text-slate-100">{name || "Your agent"}</p>
           <p className="mt-1 text-sm text-slate-600">{splitCapabilities(capabilities)[0] || "CAPABILITY"}</p>
           <dl className="mt-6 divide-y divide-[#182230] border-t border-[#182230] text-sm">
             <PreviewRow label="Reputation" value="50 / 100" />
-            <PreviewRow label="Metadata" value="Generated automatically" />
+            <PreviewRow label="Avatar" value={avatarFile ? "Custom image" : "Generated Arc mark"} />
             <PreviewRow label="Network" value="Arc Testnet" />
             <PreviewRow
               label="Owner"
@@ -153,6 +214,39 @@ export default function RegisterAgentPage() {
       </div>
     </section>
   );
+}
+
+function createAgentMetadataUri(input: {
+  name: string;
+  description: string;
+  capabilities: string[];
+  ownerWallet: string;
+  avatarUrl?: string;
+}) {
+  return `data:application/json,${encodeURIComponent(
+    JSON.stringify({
+      schema: "arctask.agent.v1",
+      name: input.name,
+      description: input.description,
+      capabilities: input.capabilities,
+      ownerWallet: input.ownerWallet,
+      ...(input.avatarUrl ? { image: input.avatarUrl } : {})
+    })
+  )}`;
+}
+
+async function uploadAgentImage(file: File) {
+  const formData = new FormData();
+  formData.set("image", file);
+  const response = await fetch("/api/agent-images", {
+    method: "POST",
+    body: formData
+  });
+  const body = (await response.json()) as { error?: string; url?: string };
+  if (!response.ok || !body.url) {
+    throw new Error(body.error || "Agent image upload failed.");
+  }
+  return body.url;
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
