@@ -15,7 +15,10 @@ import { createExecutionPlan } from "../lib/execution-routing.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
-const pilotBatch = "arctask.v3.five-level-pilot.2026-07-31";
+const challengeMode = process.argv.includes("--agent-challenge");
+const pilotBatch = challengeMode
+  ? "arctask.v3.agent-challenge.2026-07-31"
+  : "arctask.v3.five-level-pilot.2026-07-31";
 const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
@@ -68,7 +71,7 @@ function sameAddress(left, right) {
   return left.toLowerCase() === right.toLowerCase();
 }
 
-const pilotJobs = [
+const baselinePilotJobs = [
   {
     expectedTier: "starter",
     agentId: 1n,
@@ -144,6 +147,87 @@ const pilotJobs = [
     ]
   }
 ];
+
+const agentChallengeJobs = [
+  {
+    expectedTier: "starter",
+    agentId: 1n,
+    agentName: "ArcTask Public General Agent",
+    reward: "0.01",
+    title: "Return an agent profile checklist",
+    description:
+      "Return exactly five bullets with these headings in this order: Name, Owner, Capability, Availability, Verification. Use only the supplied task text and include no introduction or conclusion.",
+    acceptanceCriteria: [
+      "Contains exactly five bullets",
+      "Uses every requested heading in order",
+      "Contains no introduction or conclusion"
+    ]
+  },
+  {
+    expectedTier: "standard",
+    agentId: 8n,
+    agentName: "Technical Writer Agent",
+    reward: "0.1",
+    title: "Write agent image registration help",
+    description:
+      "Write a short implementation help note for ArcTask agent images. Cover PNG, JPEG, or WebP up to 1 MB; browser optimization into public onchain metadata; the public-data warning; generated Arc-mark fallback; removal; one success check. Use the exact headings Add an image, Fallback, Privacy, Check, Next step. Keep it under 400 words.",
+    acceptanceCriteria: [
+      "Uses every requested section",
+      "Explains supported formats, size limit, and optimization",
+      "Clearly warns that metadata is public",
+      "Explains fallback, removal, and verification"
+    ]
+  },
+  {
+    expectedTier: "pro",
+    agentId: 6n,
+    agentName: "Data Analysis Agent",
+    reward: "0.5",
+    title: "Define agent avatar adoption metrics",
+    description:
+      "Using the supplied ArcTask marketplace snapshot, create an implementation-ready measurement specification for custom-image versus generated-mark adoption. Define the canonical fields, formulas, denominators, null handling, image-load failure signals, accessibility checks, cohort comparisons, validation queries or pseudocode, dashboard views, and alert thresholds. Separate metrics calculable from the current snapshot from metrics that require new historical events, and finish with a prioritized instrumentation plan.",
+    acceptanceCriteria: [
+      "Defines canonical fields and exact formulas",
+      "Covers nulls, broken images, and accessibility signals",
+      "Separates current snapshot metrics from missing history",
+      "Includes validation logic and prioritized instrumentation"
+    ]
+  },
+  {
+    expectedTier: "expert",
+    agentId: 11n,
+    agentName: "Protocol Integration Engineer",
+    reward: "2",
+    title: "Design resilient agent image metadata ingestion",
+    description:
+      "Design an implementation-ready ArcTask pipeline for ingesting agent images embedded in public onchain metadata. Cover browser-side crop and compression, strict PNG/JPEG/WebP input validation, encoded-size limits, metadata schema and decoding, data-URL allowlisting, CSP and XSS boundaries, caching, deterministic Arc-mark fallback, corrupted or oversized payload handling, observability, migration compatibility, test matrix, phased rollout, rollback, and unresolved assumptions. Separate current implemented behavior from recommendations and include concrete TypeScript interfaces and validation pseudocode.",
+    acceptanceCriteria: [
+      "Provides an end-to-end data and validation flow",
+      "Covers security, CSP, corrupted payloads, and size limits",
+      "Includes interfaces, pseudocode, observability, and tests",
+      "Separates implemented behavior from recommendations",
+      "Defines rollout, rollback, and compatibility strategy"
+    ]
+  },
+  {
+    expectedTier: "critical",
+    agentId: 5n,
+    agentName: "Smart Contract Auditor",
+    reward: "10",
+    title: "Audit V3 settlement and retry accounting boundaries",
+    description:
+      "Perform a critical production-readiness audit of the supplied ArcTaskEscrowV2 Solidity source and ABI as deployed for V3. Build an authorization matrix and state machine. Review createJob, fundRetry, submitDeliverable, requestRevision, acceptWork, finalizeReview, openDispute, resolveDispute, finalizeStaleDispute, refundExpired, withdraw, getJobEconomics, getJobResolution, getJobExecution, and nonReentrant boundaries. Prove or disprove conservation of client funding across repeated top-ups, executionBudgetAmount isolation, computeFeeCreditedAmount accounting, claimable-credit solvency, deadline changes, registry outcome calls, reentrancy, denial-of-service, event correctness, evaluator conflicts, and adversarial transaction ordering. Provide severity-ranked confirmed findings, concrete exploit or failure sequences, Foundry-style unit and invariant tests, minimal remediation patches, deployment blockers, accepted residual risks, and a final ship or do-not-ship recommendation.",
+    acceptanceCriteria: [
+      "References every requested function and verified source behavior",
+      "Provides explicit authorization and state-transition invariants",
+      "Proves accounting conservation across multiple retry top-ups",
+      "Includes adversarial sequences and executable test designs",
+      "Provides minimal patches and an explicit deployment recommendation"
+    ]
+  }
+];
+
+const pilotJobs = challengeMode ? agentChallengeJobs : baselinePilotJobs;
 
 loadLocalEnv();
 

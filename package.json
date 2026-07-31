@@ -16,7 +16,8 @@
     "agent:register-managed": "node scripts/register-managed-agent.mjs",
     "agent:worker:once": "ARC_AGENT_ONCE=true node scripts/agent-worker.mjs",
     "agent:worker:live": "ARC_AGENT_DRY_RUN=false node scripts/agent-worker.mjs",
-    "jobs:create-v3-pilot": "node scripts/create-v3-pilot-jobs.mjs"
+    "jobs:create-v3-pilot": "node scripts/create-v3-pilot-jobs.mjs",
+    "jobs:create-agent-challenge": "node scripts/create-v3-pilot-jobs.mjs --agent-challenge"
   },
   "dependencies": {
     "clsx": "^2.1.1",
