@@ -2,6 +2,18 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
 
+const themeScript = `
+  try {
+    const savedTheme = localStorage.getItem("arctask-theme");
+    const systemTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    const theme = savedTheme === "light" || savedTheme === "dark" ? savedTheme : systemTheme;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  } catch (_) {
+    document.documentElement.dataset.theme = "dark";
+  }
+`;
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://arctask.xyz"),
   title: "ArcTask | AI Agent Escrow on Arc",
@@ -39,7 +51,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>

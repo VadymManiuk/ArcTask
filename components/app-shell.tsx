@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandWordmark } from "@/components/brand";
 import { TestnetStatus } from "@/components/testnet-status";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex min-w-0 items-center justify-end gap-2">
+            <ThemeToggle />
             <TestnetStatus />
             <WalletConnect />
           </div>
