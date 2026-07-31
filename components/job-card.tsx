@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
 import type { Agent, Job } from "@/lib/types";
-import { formatAddress, formatUsdc } from "@/lib/utils";
+import { formatShortDate, formatUsdc } from "@/lib/utils";
 
 export function JobCard({ job, agent }: { job: Job; agent?: Agent }) {
   const fallbackId = job.id.replace(/\D/g, "").slice(-3);
@@ -10,25 +10,32 @@ export function JobCard({ job, agent }: { job: Job; agent?: Agent }) {
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="group block h-full rounded-2xl border border-[#1a2432] bg-[#080c14] p-4 hover:border-[#2a3b50]"
+      className="group flex h-full min-h-[260px] flex-col rounded-[18px] border border-[#1a2432] bg-[#080c14] p-5 transition duration-200 hover:-translate-y-0.5 hover:border-[#31506d] hover:bg-[#0a0f19]"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#203248] bg-[#0d1a28] text-xs font-semibold text-[#6dbbf1]">
-            #{displayId}
-          </span>
-          <div className="min-w-0">
-          <h3 className="break-words font-semibold">{job.title}</h3>
-          <p className="mt-1 line-clamp-2 break-words text-sm leading-6 text-slate-500">{job.description}</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-between gap-3">
         <StatusBadge status={job.status} />
+        <span className="text-xs text-slate-600">Job #{displayId}</span>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[#182230] pt-4 text-xs text-slate-500">
-        <span><strong className="font-semibold text-slate-200">{formatUsdc(job.rewardAmount)} USDC</strong></span>
-        <span className="text-right">{job.deadline}</span>
-        <span className="truncate text-slate-400">{agent?.name ?? "Unknown agent"}</span>
-        <span className="text-right">{formatAddress(job.clientWallet)}</span>
+
+      <h3 className="mt-5 line-clamp-2 break-words text-lg font-semibold leading-7 tracking-[-0.025em] text-slate-100 transition group-hover:text-white">
+        {job.title}
+      </h3>
+      <p className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-500">{job.description}</p>
+
+      <div className="mt-5 flex items-center gap-2 text-xs text-slate-500">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#35aaf8]" aria-hidden="true" />
+        <span className="truncate">{agent?.name ?? "Unassigned agent"}</span>
+      </div>
+
+      <div className="mt-auto grid grid-cols-2 gap-4 border-t border-[#182230] pt-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.12em] text-slate-600">Reward</p>
+          <p className="mt-1 text-sm font-semibold text-white">{formatUsdc(job.rewardAmount)} USDC</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-slate-600">Deadline</p>
+          <p className="mt-1 text-sm font-medium text-slate-300">{formatShortDate(job.deadline)}</p>
+        </div>
       </div>
     </Link>
   );
