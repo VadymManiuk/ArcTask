@@ -110,6 +110,12 @@ main {
     border-color: #31506d;
     color: #ffffff;
   }
+
+  .agent-access-badge {
+    border-color: rgba(52, 211, 153, 0.52);
+    background: rgba(16, 185, 129, 0.16);
+    color: #a7f3d0;
+  }
 }
 
 html[data-theme="light"] .theme-toggle {
@@ -123,6 +129,12 @@ html[data-theme="light"] .theme-toggle:hover {
   border-color: #9fb4ca;
   background: #f8fafc;
   color: #0f172a;
+}
+
+html[data-theme="light"] .agent-access-badge {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #14532d;
 }
 
 /* Light palette for the existing ArcTask surface hierarchy. */

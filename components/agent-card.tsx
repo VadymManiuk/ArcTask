@@ -19,7 +19,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="line-clamp-1 font-semibold text-slate-100 transition group-hover:text-white">{agent.name}</h3>
             {isManagedWorker ? (
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+              <span className="agent-access-badge rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em]">
                 Public
               </span>
             ) : null}
