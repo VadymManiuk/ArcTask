@@ -83,3 +83,31 @@ test("monthly usage is telemetry and an optional emergency guard rather than a d
   assert.equal(getMonthlyUsage(ledger, july30).totalTokens, 6_000);
   assert.equal(getNextUtcMonthIso(july30), "2026-08-01T00:00:00.000Z");
 });
+
+test("funded retry versions receive isolated per-execution budgets while daily spend remains cumulative", () => {
+  const nowMs = Date.parse("2026-07-31T12:00:00.000Z");
+  let ledger = recordTokenUsage({}, {
+    jobId: "2000000:v1",
+    inputTokens: 4_000,
+    outputTokens: 1_000,
+    totalTokens: 5_000,
+    costUsd: 0.05
+  }, nowMs);
+  ledger = recordTokenUsage(ledger, {
+    jobId: "2000000:v2",
+    inputTokens: 800,
+    outputTokens: 200,
+    totalTokens: 1_000,
+    costUsd: 0.01
+  }, nowMs);
+
+  const retry = getUsageBudgetState(ledger, {
+    jobId: "2000000:v2",
+    jobTokenBudget: 5_000,
+    jobCostBudgetUsd: 0.05
+  }, nowMs);
+  assert.equal(retry.job.totalTokens, 1_000);
+  assert.equal(retry.job.costUsd, 0.01);
+  assert.equal(retry.daily.totalTokens, 6_000);
+  assert.equal(retry.daily.costUsd, 0.06);
+});

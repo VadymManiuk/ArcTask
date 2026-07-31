@@ -49,6 +49,9 @@ contract ArcTaskEscrowV2 {
         bool evaluatorFeeCredited;
         string revisionReason;
         bytes32 disputeReasonHash;
+        uint32 executionVersion;
+        uint256 executionBudgetAmount;
+        uint256 computeFeeCreditedAmount;
     }
 
     struct Economics {
@@ -91,6 +94,14 @@ contract ArcTaskEscrowV2 {
         uint8 revisionCount
     );
     event RevisionRequested(uint256 indexed jobId, uint8 revisionCount, string reason);
+    event RetryFunded(
+        uint256 indexed jobId,
+        uint32 indexed executionVersion,
+        uint256 rewardIncrease,
+        uint256 executionBudgetAmount,
+        uint64 deadline,
+        string jobURI
+    );
     event DisputeOpened(
         uint256 indexed jobId,
         address indexed evaluator,
@@ -207,6 +218,8 @@ contract ArcTaskEscrowV2 {
         job.clientBondAmount = economics.clientBondAmount;
         job.platformFeeAmount = economics.platformFeeAmount;
         job.evaluatorFeeAmount = economics.evaluatorFeeAmount;
+        job.executionVersion = 1;
+        job.executionBudgetAmount = rewardAmount;
 
         _credit(jobId, treasury, economics.platformFeeAmount, keccak256("PLATFORM_FEE"));
 
@@ -227,6 +240,7 @@ contract ArcTaskEscrowV2 {
         if (msg.sender != job.agentOwner) revert Unauthorized();
         if (block.timestamp > job.deadline) revert DeadlinePassed();
         if (deliverableHash == bytes32(0)) revert InvalidReason();
+        if (job.executionBudgetAmount == 0) revert InvalidFunding();
 
         job.deliverableHash = deliverableHash;
         job.status = JobStatus.Submitted;
@@ -234,12 +248,60 @@ contract ArcTaskEscrowV2 {
         job.updatedAt = block.timestamp;
         job.revisionReason = "";
 
-        if (!job.computeFeeCredited) {
+        uint256 computeFeeCredit = job.computeFeeAmount - job.computeFeeCreditedAmount;
+        if (computeFeeCredit > 0) {
             job.computeFeeCredited = true;
-            _credit(jobId, job.agentOwner, job.computeFeeAmount, keccak256("COMPUTE_FEE"));
+            job.computeFeeCreditedAmount = job.computeFeeAmount;
+            _credit(jobId, job.agentOwner, computeFeeCredit, keccak256("COMPUTE_FEE"));
         }
 
         emit DeliverableSubmitted(jobId, deliverableHash, job.reviewDeadline, job.revisionCount);
+    }
+
+    function fundRetry(
+        uint256 jobId,
+        uint256 rewardIncrease,
+        uint64 newDeadline,
+        string calldata revisedJobURI
+    ) external payable {
+        Job storage job = _job(jobId);
+        if (job.status != JobStatus.Funded) revert InvalidStatus();
+        if (msg.sender != job.client) revert Unauthorized();
+        if (newDeadline <= block.timestamp || newDeadline < job.deadline) revert DeadlinePassed();
+        if (bytes(revisedJobURI).length == 0) revert InvalidReason();
+
+        Economics memory economics = _quoteFunding(rewardIncrease);
+        if (msg.value != economics.totalFunding) revert InvalidFunding();
+
+        job.rewardAmount += rewardIncrease;
+        job.deadline = newDeadline;
+        job.jobURI = revisedJobURI;
+        job.updatedAt = block.timestamp;
+        job.computeFeeAmount += economics.computeFeeAmount;
+        job.clientBondAmount += economics.clientBondAmount;
+        job.platformFeeAmount += economics.platformFeeAmount;
+        job.evaluatorFeeAmount += economics.evaluatorFeeAmount;
+        job.executionVersion += 1;
+        job.executionBudgetAmount = rewardIncrease;
+
+        _credit(jobId, treasury, economics.platformFeeAmount, keccak256("PLATFORM_FEE"));
+
+        emit RetryFunded(
+            jobId,
+            job.executionVersion,
+            rewardIncrease,
+            rewardIncrease,
+            newDeadline,
+            revisedJobURI
+        );
+        emit JobEconomics(
+            jobId,
+            job.computeFeeAmount,
+            job.clientBondAmount,
+            job.platformFeeAmount,
+            job.evaluatorFeeAmount,
+            economics.totalFunding
+        );
     }
 
     function requestRevision(uint256 jobId, string calldata reason) external {
@@ -256,6 +318,7 @@ contract ArcTaskEscrowV2 {
         job.reviewDeadline = 0;
         job.updatedAt = block.timestamp;
         job.revisionReason = reason;
+        job.executionBudgetAmount = 0;
 
         emit RevisionRequested(jobId, job.revisionCount, reason);
     }
@@ -473,6 +536,25 @@ contract ArcTaskEscrowV2 {
             job.revisionCount,
             job.revisionReason,
             job.disputeReasonHash
+        );
+    }
+
+    function getJobExecution(
+        uint256 jobId
+    )
+        external
+        view
+        returns (
+            uint32 executionVersion,
+            uint256 executionBudgetAmount,
+            uint256 computeFeeCreditedAmount
+        )
+    {
+        Job storage job = _job(jobId);
+        return (
+            job.executionVersion,
+            job.executionBudgetAmount,
+            job.computeFeeCreditedAmount
         );
     }
 

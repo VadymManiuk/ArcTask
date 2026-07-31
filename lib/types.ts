@@ -9,6 +9,7 @@ export type TxAction =
   | "WORK_ACCEPTED"
   | "WORK_REJECTED"
   | "JOB_REFUNDED"
+  | "JOB_RETRY_FUNDED"
   | "REVISION_REQUESTED"
   | "DISPUTE_OPENED"
   | "DISPUTE_RESOLVED";
@@ -72,6 +73,8 @@ export interface Job {
   deliverableHash?: string;
   createdAt: string;
   updatedAt: string;
+  executionVersion?: number;
+  executionBudgetAmount?: number;
   txHistory: TxRecord[];
 }
 

@@ -18,7 +18,9 @@ export const runtime = "nodejs";
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const v2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
+const v3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 
 const arcTestnet = defineChain({
   id: ARC_TESTNET.chainId,
@@ -123,16 +125,20 @@ function normalizeDeliverablePayload(value: unknown, jobId: string) {
 }
 
 function getEscrowContext(jobId: string) {
-  const isV2 = BigInt(jobId) >= v2InitialJobId;
+  const numericJobId = BigInt(jobId);
+  const isV3 = numericJobId >= v3InitialJobId;
+  const isV2 = isV3 || numericJobId >= v2InitialJobId;
   const address = (
-    isV2
+    isV3
+      ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address
+      : isV2
       ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address
       : process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultEscrowAddress
   ) as Address | undefined;
   if (!address || !isAddress(address)) {
     throw new Error("Escrow contract is not configured.");
   }
-  return { address, abi: isV2 ? escrowV2Abi : escrowAbi, isV2 };
+  return { address, abi: isV2 ? escrowV2Abi : escrowAbi, isV2, isV3 };
 }
 
 async function getOnchainJob(jobId: string) {

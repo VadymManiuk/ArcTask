@@ -71,11 +71,38 @@ test("Escrow V2 ABI exposes hybrid review, dispute, refund, and withdrawal actio
     "refundExpired",
     "withdraw",
     "getJobEconomics",
-    "getJobResolution"
+    "getJobResolution",
+    "fundRetry",
+    "getJobExecution"
   ]) {
     assert.ok(functions.has(functionName), `${functionName} is missing`);
   }
   assert.equal(functions.has("rejectWork"), false);
+});
+
+test("retry top-ups preserve percentage economics and isolate the new execution budget", () => {
+  const initial = quote(2n * 10n ** 18n);
+  const retry = quote(1n * 10n ** 18n);
+  const totalFunding = initial.total + retry.total;
+  const aggregateReward = initial.reward + retry.reward;
+  const aggregateCompute = initial.compute + retry.compute;
+  const aggregateBond = initial.bond + retry.bond;
+  const aggregatePlatform = initial.platform + retry.platform;
+  const aggregateEvaluator = initial.evaluator + retry.evaluator;
+
+  assert.equal(retry.reward, 1n * 10n ** 18n);
+  assert.equal(
+    aggregateReward + aggregateBond + aggregatePlatform + aggregateEvaluator,
+    totalFunding
+  );
+  assert.equal(
+    aggregatePlatform +
+      aggregateCompute +
+      (aggregateReward - aggregateCompute) +
+      aggregateBond +
+      aggregateEvaluator,
+    totalFunding
+  );
 });
 
 test("Escrow V2 percentage allocations conserve all client funding", () => {

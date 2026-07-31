@@ -60,6 +60,7 @@ const rootDir = process.cwd();
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const fundedStatus = 0;
@@ -246,14 +247,28 @@ function serializeBigInts(value) {
   );
 }
 
-async function buildDeliverable(jobId, job, accountAddress, explorerUrl, escrowContext) {
+async function buildDeliverable(
+  jobId,
+  job,
+  accountAddress,
+  explorerUrl,
+  escrowContext,
+  executionKey = jobId.toString()
+) {
   const payload = decodeJobPayloadUri(job.jobURI);
-  const executionPlan = await buildExecutionPlan(jobId, job, payload);
+  const executionPlan = await buildExecutionPlan(jobId, job, payload, executionKey);
   if (executionPlan.budgetDecision === "insufficient") {
     throw new InsufficientComputeBudgetError(executionPlan);
   }
 
-  const result = await buildAgentResult(jobId, job, payload, executionPlan, escrowContext);
+  const result = await buildAgentResult(
+    jobId,
+    job,
+    payload,
+    executionPlan,
+    escrowContext,
+    executionKey
+  );
   const report = {
     kind: "ArcTask autonomous agent deliverable",
     version: 1,
@@ -298,11 +313,13 @@ function getTaskMinimumTier(taskKind) {
   return minimumTiers[taskKind] ?? "starter";
 }
 
-async function buildExecutionPlan(jobId, job, payload) {
+async function buildExecutionPlan(jobId, job, payload, executionKey = jobId.toString()) {
   const input = {
     title: payload?.title,
     description: payload?.description,
-    rewardAmount: Number(formatUnits(job.rewardAmount, 18))
+    rewardAmount: Number(
+      formatUnits(job.executionBudgetAmount ?? job.rewardAmount, 18)
+    )
   };
   const taskProfile = getTaskProfile(payload);
   const options = {
@@ -335,7 +352,13 @@ async function buildExecutionPlan(jobId, job, payload) {
   let routingWarning;
   if (openAiApiKeys.length > 0) {
     try {
-      aiAssessment = await analyzeJobRouting(jobId, input, taskProfile.kind, plan);
+      aiAssessment = await analyzeJobRouting(
+        jobId,
+        input,
+        taskProfile.kind,
+        plan,
+        executionKey
+      );
       plan = createExecutionPlan(input, {
         ...options,
         aiAssessment
@@ -399,7 +422,14 @@ async function buildExecutionPlan(jobId, job, payload) {
     : enforcedPlan;
 }
 
-async function buildAgentResult(jobId, job, payload, executionPlan, escrowContext) {
+async function buildAgentResult(
+  jobId,
+  job,
+  payload,
+  executionPlan,
+  escrowContext,
+  executionKey = jobId.toString()
+) {
   if (openAiApiKeys.length === 0) {
     if (allowDeterministicFallback) {
       return buildFallbackAgentResult(jobId, payload, "OPENAI_API_KEY is not configured.");
@@ -409,7 +439,14 @@ async function buildAgentResult(jobId, job, payload, executionPlan, escrowContex
   }
 
   try {
-    return await runOpenAiExecutor(jobId, job, payload, executionPlan, escrowContext);
+    return await runOpenAiExecutor(
+      jobId,
+      job,
+      payload,
+      executionPlan,
+      escrowContext,
+      executionKey
+    );
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : "OpenAI executor failed.";
     if (allowDeterministicFallback) {
@@ -692,14 +729,20 @@ function parseRoutingAssessment(text) {
   return normalizeAiRoutingAssessment(JSON.parse(trimmed.slice(firstBrace, lastBrace + 1)));
 }
 
-async function analyzeJobRouting(jobId, input, taskKind, basePlan) {
-  const decisionKey = jobId.toString();
+async function analyzeJobRouting(
+  jobId,
+  input,
+  taskKind,
+  basePlan,
+  executionKey = jobId.toString()
+) {
+  const decisionKey = executionKey;
   const decisions = readJsonFile(routingDecisionPath, {});
   if (decisions[decisionKey]?.assessment) {
     return normalizeAiRoutingAssessment(decisions[decisionKey].assessment);
   }
   const previousUsage = getPersistedUsageState(
-    jobId,
+    executionKey,
     basePlan.maxTotalTokens,
     basePlan.computeBudgetUsd
   );
@@ -757,7 +800,7 @@ async function analyzeJobRouting(jobId, input, taskKind, basePlan) {
     onProgress: ({ id, status, elapsedMs }) =>
       writeStatus({
         activeJob: {
-          jobId: decisionKey,
+          jobId: jobId.toString(),
           phase: "routing",
           attempt: 1,
           status,
@@ -774,7 +817,7 @@ async function analyzeJobRouting(jobId, input, taskKind, basePlan) {
       input: requestInput
     }
   });
-  recordOpenAiUsage(jobId, body, {
+  recordOpenAiUsage(executionKey, body, {
     model: routerModel,
     requestKind: "routing"
   });
@@ -938,7 +981,14 @@ function mergeUsage(current, body, model) {
   };
 }
 
-async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowContext) {
+async function runOpenAiExecutor(
+  jobId,
+  job,
+  payload,
+  executionPlan,
+  escrowContext,
+  executionKey = jobId.toString()
+) {
   const startedAt = Date.now();
   const taskProfile = getTaskProfile(payload);
   const webSearchTaskKinds = new Set(["market_research", "protocol_integration", "devops_reliability"]);
@@ -1028,7 +1078,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
   let modelUsed = executionPlan.model;
   let lastError;
   const priorUsageState = getPersistedUsageState(
-    jobId,
+    executionKey,
     executionPlan.maxTotalTokens,
     executionPlan.computeBudgetUsd
   );
@@ -1075,7 +1125,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
           ? executionPlan.escalationModel
           : executionPlan.model;
       const body = await requestOpenAiResponse({
-        jobId,
+        jobId: executionKey,
         executionPlan,
         timeoutMs: attemptTimeoutMs,
         onProgress: ({ id, status, elapsedMs }) =>
@@ -1161,7 +1211,7 @@ async function runOpenAiExecutor(jobId, job, payload, executionPlan, escrowConte
 
     try {
       const body = await requestOpenAiResponse({
-        jobId,
+        jobId: executionKey,
         executionPlan,
         timeoutMs: Math.min(executionPlan.requestTimeoutMs, remainingMs),
         onProgress: ({ id, status, elapsedMs }) =>
@@ -1568,6 +1618,17 @@ async function readJob(jobId, escrowContext) {
       args: [jobId]
     })
   );
+  const execution =
+    escrowContext.version === "v3"
+      ? await withRpcRetry(() =>
+          publicClient.readContract({
+            address: escrowContext.address,
+            abi: escrowContext.abi,
+            functionName: "getJobExecution",
+            args: [jobId]
+          })
+        )
+      : null;
 
   return {
     client: result[0],
@@ -1580,7 +1641,9 @@ async function readJob(jobId, escrowContext) {
     deliverableHash: result[7],
     status: result[8],
     createdAt: result[9],
-    updatedAt: result[10]
+    updatedAt: result[10],
+    executionVersion: execution ? Number(execution[0]) : undefined,
+    executionBudgetAmount: execution ? execution[1] : undefined
   };
 }
 
@@ -1591,7 +1654,18 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount, escrowCon
     return false;
   }
 
-  const deliverable = await buildDeliverable(jobId, job, workerAccount.account.address, explorerUrl, escrowContext);
+  const executionKey =
+    escrowContext.version === "v3"
+      ? `${jobId.toString()}:v${job.executionVersion ?? 1}`
+      : jobId.toString();
+  const deliverable = await buildDeliverable(
+    jobId,
+    job,
+    workerAccount.account.address,
+    explorerUrl,
+    escrowContext,
+    executionKey
+  );
   if (dryRun) {
     const filePath = writeDeliverable(outputDir, jobId, deliverable);
     console.log(`dry-run job ${jobId}: would submit ${deliverable.hash}`);
@@ -1780,6 +1854,20 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             fundedReward: caught.executionPlan.rewardAmount
           });
         }
+        blockedJobs = [
+          {
+            jobId: jobId.toString(),
+            code: "insufficient_compute_budget",
+            message: "The funded execution budget is below the minimum safe tier for this task.",
+            executionVersion: job.executionVersion,
+            requiredTier: caught.executionPlan.requiredTier,
+            model: caught.executionPlan.model,
+            fundedReward: caught.executionPlan.rewardAmount,
+            minimumRecommendedReward: caught.executionPlan.minimumRecommendedReward,
+            canFundRetry: escrowContext.version === "v3"
+          },
+          ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
+        ].slice(0, 100);
         console.log(`defer job ${jobId}: ${caught.message}`);
         continue;
       }
@@ -1794,7 +1882,10 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
             message: "The job reached its protected AI compute budget and will not incur more API cost.",
             usedTokens: caught.state.job.totalTokens,
             usedCostUsd: caught.state.job.costUsd,
-            requestCount: caught.state.job.requestKinds.generation
+            requestCount: caught.state.job.requestKinds.generation,
+            model: caught.state.job.lastModel,
+            executionVersion: job.executionVersion,
+            canFundRetry: escrowContext.version === "v3"
           },
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
         ].slice(0, 100);
@@ -1914,6 +2005,8 @@ const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerU
 const escrowAddress = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS", defaultEscrowAddress);
 const escrowV2Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS", defaultEscrowV2Address);
 const escrowV2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
+const escrowV3Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS", defaultEscrowV3Address);
+const escrowV3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 const registryAddress = optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
 const dryRun = getBooleanEnv("ARC_AGENT_DRY_RUN", true);
 const once = getBooleanEnv("ARC_AGENT_ONCE", false);
@@ -1984,7 +2077,8 @@ const escrowV2Abi = readAbi("ERC8183EscrowV2.json");
 const registryAbi = readAbi("ERC8004AgentRegistry.json");
 const escrowContexts = [
   { address: escrowAddress, abi: escrowAbi, firstJobId: 1n, version: "v1" },
-  { address: escrowV2Address, abi: escrowV2Abi, firstJobId: escrowV2InitialJobId, version: "v2" }
+  { address: escrowV2Address, abi: escrowV2Abi, firstJobId: escrowV2InitialJobId, version: "v2" },
+  { address: escrowV3Address, abi: escrowV2Abi, firstJobId: escrowV3InitialJobId, version: "v3" }
 ];
 const publicClient = createPublicClient({
   chain: arcTestnet,

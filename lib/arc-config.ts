@@ -6,6 +6,7 @@ export const defaultContractAddresses = {
   erc8004Registry: "0xd8499627775ac67cd756335a3c48387d0aff5553",
   erc8183Escrow: "0x08eb8630f6b5d2c1c030688076b80360531a2e9a",
   erc8183EscrowV2: "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb",
+  erc8183EscrowV3: "0x548531bbe48db4cded53da0d30998e7553eee53f",
   usdc: "native"
 } as const;
 
@@ -14,18 +15,23 @@ const rawContractAddresses = {
   erc8183Escrow: process.env.NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS ?? defaultContractAddresses.erc8183Escrow,
   erc8183EscrowV2:
     process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultContractAddresses.erc8183EscrowV2,
+  erc8183EscrowV3:
+    process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultContractAddresses.erc8183EscrowV3,
   usdc: process.env.NEXT_PUBLIC_USDC_ADDRESS ?? defaultContractAddresses.usdc
 };
 
 export const contractAddresses = rawContractAddresses;
 export const escrowV2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
+export const escrowV3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 
 export function getArcMode(): ArcMode {
   return process.env.NEXT_PUBLIC_ARC_MODE === "mock" ? "mock" : "onchain";
 }
 
 export function getOnchainReadiness() {
-  const requiredAddresses = Object.entries(rawContractAddresses).filter(([key]) => key !== "erc8183EscrowV2");
+  const requiredAddresses = Object.entries(rawContractAddresses).filter(
+    ([key]) => key !== "erc8183EscrowV2"
+  );
   const missing = requiredAddresses
     .filter(([, value]) => !value)
     .map(([key]) => key);

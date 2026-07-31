@@ -13,7 +13,9 @@ export const maxDuration = 30;
 
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const v2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
+const v3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 const defaultSecondaryRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
 const legacyStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 const v2Statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED", "DISPUTED"];
@@ -106,7 +108,17 @@ function getEscrowV2Address() {
   return address && /^0x[a-fA-F0-9]{40}$/.test(address) ? (address as Address) : null;
 }
 
-function serializeJob(jobId: bigint, job: OnchainJob, isV2: boolean) {
+function getEscrowV3Address() {
+  const address = process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address;
+  return address && /^0x[a-fA-F0-9]{40}$/.test(address) ? (address as Address) : null;
+}
+
+function serializeJob(
+  jobId: bigint,
+  job: OnchainJob,
+  isV2: boolean,
+  execution?: readonly [number, bigint, bigint]
+) {
   const payload = decodeJobPayload(job[6]);
   const status = (isV2 ? v2Statuses : legacyStatuses)[job[8]] ?? "FUNDED";
 
@@ -125,7 +137,9 @@ function serializeJob(jobId: bigint, job: OnchainJob, isV2: boolean) {
     deliverableHash: job[7],
     status,
     createdAt: job[9].toString(),
-    updatedAt: job[10].toString()
+    updatedAt: job[10].toString(),
+    executionVersion: execution ? Number(execution[0]) : undefined,
+    executionBudgetAmount: execution ? execution[1].toString() : undefined
   };
 }
 
@@ -139,7 +153,8 @@ async function loadContractJobs(
   abi: Abi,
   firstPossibleJobId: bigint,
   limit: number,
-  isV2: boolean
+  isV2: boolean,
+  isV3 = false
 ) {
   const nextJobId = await withServerRpcRetry(
     () =>
@@ -171,8 +186,23 @@ async function loadContractJobs(
               }))
             }) as Promise<OnchainJob[]>
         );
+  const executions =
+    !isV3 || jobIds.length === 0
+      ? []
+      : await withServerRpcRetry(
+          () =>
+            rpcClient.multicall({
+              allowFailure: false,
+              contracts: jobIds.map((jobId) => ({
+                address,
+                abi,
+                functionName: "getJobExecution",
+                args: [jobId]
+              }))
+            }) as Promise<Array<readonly [number, bigint, bigint]>>
+        );
   const jobs = jobIds
-    .map((jobId, index) => serializeJob(jobId, onchainJobs[index], isV2))
+    .map((jobId, index) => serializeJob(jobId, onchainJobs[index], isV2, executions[index]))
     .filter((job) => !isInternalSmokeJob(job))
     .reverse();
 
@@ -185,21 +215,34 @@ async function loadJobsSnapshot(
   limit: number
 ) {
   const v2Address = getEscrowV2Address();
-  const [blockNumber, legacy, v2] = await Promise.all([
+  const v3Address = getEscrowV3Address();
+  const [blockNumber, legacy, v2, v3] = await Promise.all([
     withServerRpcRetry(() => rpcClient.getBlockNumber()),
     loadContractJobs(rpcClient, getEscrowAddress(), escrowAbi as Abi, BigInt(1), limit, false),
     v2Address
       ? loadContractJobs(rpcClient, v2Address, escrowV2Abi as Abi, v2InitialJobId, limit, true)
-      : Promise.resolve({ nextJobId: v2InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] })
+      : Promise.resolve({ nextJobId: v2InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] }),
+    v3Address
+      ? loadContractJobs(
+          rpcClient,
+          v3Address,
+          escrowV2Abi as Abi,
+          v3InitialJobId,
+          limit,
+          true,
+          true
+        )
+      : Promise.resolve({ nextJobId: v3InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] })
   ]);
-  const jobs = [...v2.jobs, ...legacy.jobs]
+  const jobs = [...v3.jobs, ...v2.jobs, ...legacy.jobs]
     .sort((left, right) => Number(BigInt(right.createdAt) - BigInt(left.createdAt)))
     .slice(0, limit);
 
   return {
     source,
     blockNumber,
-    nextJobId: v2Address ? v2.nextJobId : legacy.nextJobId,
+    nextJobId: v3Address ? v3.nextJobId : v2Address ? v2.nextJobId : legacy.nextJobId,
+    v2NextJobId: v2.nextJobId,
     legacyNextJobId: legacy.nextJobId,
     jobs,
     terminalJobs: jobs.filter((job) => ["ACCEPTED", "REJECTED", "REFUNDED"].includes(job.status)).length,
@@ -219,6 +262,9 @@ function compareSnapshots(
   }
   if (left.legacyNextJobId !== right.legacyNextJobId) {
     return left.legacyNextJobId > right.legacyNextJobId ? 1 : -1;
+  }
+  if (left.v2NextJobId !== right.v2NextJobId) {
+    return left.v2NextJobId > right.v2NextJobId ? 1 : -1;
   }
   if (left.terminalJobs !== right.terminalJobs) {
     return left.terminalJobs > right.terminalJobs ? 1 : -1;
@@ -334,7 +380,8 @@ export async function GET(request: Request) {
       ok: true,
       source: selectedSnapshot.source,
       blockNumber: selectedSnapshot.blockNumber.toString(),
-      escrowAddress: getEscrowV2Address() ?? getEscrowAddress(),
+      escrowAddress: getEscrowV3Address() ?? getEscrowV2Address() ?? getEscrowAddress(),
+      v2EscrowAddress: getEscrowV2Address(),
       legacyEscrowAddress: getEscrowAddress(),
       nextJobId: selectedSnapshot.nextJobId.toString(),
       legacyNextJobId: selectedSnapshot.legacyNextJobId.toString(),

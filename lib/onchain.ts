@@ -12,7 +12,12 @@ import {
   stringToHex
 } from "viem";
 import { arcTestnet } from "@/lib/arc-chain";
-import { contractAddresses, escrowV2InitialJobId, getOnchainReadiness } from "@/lib/arc-config";
+import {
+  contractAddresses,
+  escrowV2InitialJobId,
+  escrowV3InitialJobId,
+  getOnchainReadiness
+} from "@/lib/arc-config";
 import { getJobDeadlineSeconds } from "@/lib/job-deadline";
 import { createExecutionPlan } from "@/lib/execution-routing.mjs";
 import { getEthereumProvider, requestArcAccount } from "@/lib/wallet";
@@ -40,7 +45,13 @@ type OnchainJob = readonly [
   bigint
 ];
 
-type OnchainEventName = "JobCreated" | "DeliverableSubmitted" | "WorkAccepted" | "WorkRejected" | "JobRefunded";
+type OnchainEventName =
+  | "JobCreated"
+  | "DeliverableSubmitted"
+  | "WorkAccepted"
+  | "WorkRejected"
+  | "JobRefunded"
+  | "RetryFunded";
 
 const agentRegisteredEventAbi = [
   {
@@ -108,11 +119,18 @@ const jobEventConfigs = [
   method: string;
 }>;
 
+const retryFundedEventConfig = {
+  eventName: "RetryFunded",
+  action: "JOB_RETRY_FUNDED",
+  label: "Revised execution funded",
+  method: "fundRetry(uint256,uint256,uint64,string)"
+} as const;
+
 function getEventActor(eventName: OnchainEventName, args: Record<string, unknown>) {
   const candidate =
     eventName === "WorkAccepted"
       ? args.agentOwner
-      : eventName === "DeliverableSubmitted"
+      : eventName === "DeliverableSubmitted" || eventName === "RetryFunded"
         ? undefined
         : args.client;
 
@@ -143,10 +161,16 @@ function getEventSummary(eventName: OnchainEventName, args: Record<string, unkno
     return "Deliverable rejected and a negative reputation event recorded.";
   }
 
+  if (eventName === "RetryFunded" && typeof args.rewardIncrease === "bigint") {
+    return `${formatUnits(args.rewardIncrease, arcTestnet.nativeCurrency.decimals)} USDC added for a new isolated execution.`;
+  }
+
   return undefined;
 }
 
-function getContractAddress(name: "erc8004Registry" | "erc8183Escrow" | "erc8183EscrowV2") {
+function getContractAddress(
+  name: "erc8004Registry" | "erc8183Escrow" | "erc8183EscrowV2" | "erc8183EscrowV3"
+) {
   const readiness = getOnchainReadiness();
   if (readiness.mode !== "onchain") {
     throw new Error("Onchain mode is not enabled.");
@@ -165,12 +189,17 @@ function getContractAddress(name: "erc8004Registry" | "erc8183Escrow" | "erc8183
 }
 
 function getEscrowContext(onchainJobId?: string) {
-  const isV2 = onchainJobId !== undefined && BigInt(onchainJobId) >= escrowV2InitialJobId;
-  const address = getContractAddress(isV2 ? "erc8183EscrowV2" : "erc8183Escrow");
+  const jobId = onchainJobId === undefined ? null : BigInt(onchainJobId);
+  const isV3 = jobId !== null && jobId >= escrowV3InitialJobId;
+  const isV2 = isV3 || (jobId !== null && jobId >= escrowV2InitialJobId);
+  const address = getContractAddress(
+    isV3 ? "erc8183EscrowV3" : isV2 ? "erc8183EscrowV2" : "erc8183Escrow"
+  );
   return {
     address,
     abi: isV2 ? escrowV2Abi : escrowAbi,
-    isV2
+    isV2,
+    isV3
   };
 }
 
@@ -238,6 +267,14 @@ function createJobPayloadUri(input: {
 export async function getJobSnapshotOnchain(onchainJobId: string) {
   const escrow = getEscrowContext(onchainJobId);
   const job = await readOnchainJob(escrow.address, escrow.abi, onchainJobId);
+  const execution = escrow.isV3
+    ? ((await publicClient.readContract({
+        address: escrow.address,
+        abi: escrowV2Abi,
+        functionName: "getJobExecution",
+        args: [BigInt(onchainJobId)]
+      })) as readonly [number, bigint, bigint])
+    : null;
 
   return {
     clientWallet: job[0],
@@ -250,7 +287,9 @@ export async function getJobSnapshotOnchain(onchainJobId: string) {
     deliverableHash: job[7],
     status: job[8],
     createdAt: job[9].toString(),
-    updatedAt: job[10].toString()
+    updatedAt: job[10].toString(),
+    executionVersion: execution ? Number(execution[0]) : undefined,
+    executionBudgetAmount: execution ? execution[1].toString() : undefined
   };
 }
 
@@ -276,7 +315,10 @@ export async function getJobTxHistoryOnchain(onchainJobId: string): Promise<Onch
   const jobId = BigInt(onchainJobId);
   const txs: OnchainJobEventTx[] = [];
 
-  for (const config of jobEventConfigs) {
+  const eventConfigs = escrow.isV3
+    ? [...jobEventConfigs, retryFundedEventConfig]
+    : jobEventConfigs;
+  for (const config of eventConfigs) {
     const events = await publicClient.getContractEvents({
       address: escrow.address,
       abi: escrow.abi,
@@ -358,7 +400,7 @@ export async function createJobOnchain(input: {
   deadline: string;
   evaluatorWallet: Address;
 }) {
-  const escrowAddress = getContractAddress("erc8183EscrowV2");
+  const escrowAddress = getContractAddress("erc8183EscrowV3");
   const { account, walletClient } = await getConnectedWalletClient();
   assertConnectedWallet(account, input.clientWallet, "client wallet");
   const rewardValue = parseUnits(input.rewardAmount.toString(), arcTestnet.nativeCurrency.decimals);
@@ -393,6 +435,69 @@ export async function createJobOnchain(input: {
   return {
     onchainJobId: jobId.toString(),
     jobPayloadUri,
+    txHash,
+    blockNumber: Number(receipt.blockNumber),
+    gasUsed: receipt.gasUsed.toString()
+  };
+}
+
+export async function fundRetryOnchain(input: {
+  onchainJobId: string;
+  title: string;
+  description: string;
+  agentId: string;
+  rewardIncrease: number;
+  deadline: string;
+}) {
+  const escrow = getEscrowContext(input.onchainJobId);
+  if (!escrow.isV3) {
+    throw new Error("Funded retries are available only for current-generation escrow jobs.");
+  }
+  if (!Number.isFinite(input.rewardIncrease) || input.rewardIncrease <= 0) {
+    throw new Error("Retry funding must be greater than zero.");
+  }
+
+  const { account, walletClient } = await getConnectedWalletClient();
+  const job = await readOnchainJob(escrow.address, escrow.abi, input.onchainJobId);
+  assertConnectedWallet(account, job[0], "client wallet");
+  const rewardIncrease = parseUnits(
+    input.rewardIncrease.toString(),
+    arcTestnet.nativeCurrency.decimals
+  );
+  const aggregateReward = Number(
+    formatUnits(job[4] + rewardIncrease, arcTestnet.nativeCurrency.decimals)
+  );
+  const revisedJobURI = createJobPayloadUri({
+    title: input.title,
+    description: input.description,
+    agentId: input.agentId,
+    onchainAgentId: job[1].toString(),
+    clientWallet: job[0],
+    rewardAmount: aggregateReward,
+    deadline: input.deadline,
+    evaluatorWallet: job[3]
+  });
+  const fundingQuote = (await publicClient.readContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "quoteFunding",
+    args: [rewardIncrease]
+  })) as readonly [bigint, bigint, bigint, bigint, bigint];
+  const txHash = await walletClient.writeContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "fundRetry",
+    args: [
+      BigInt(input.onchainJobId),
+      rewardIncrease,
+      getJobDeadlineSeconds(input.deadline),
+      revisedJobURI
+    ],
+    value: fundingQuote[0]
+  });
+  const receipt = await waitForHash(txHash);
+  return {
+    jobPayloadUri: revisedJobURI,
     txHash,
     blockNumber: Number(receipt.blockNumber),
     gasUsed: receipt.gasUsed.toString()

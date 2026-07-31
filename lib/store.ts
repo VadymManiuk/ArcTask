@@ -1,7 +1,7 @@
 "use client";
 
-import { keccak256, stringToHex } from "viem";
-import { createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
+import { formatUnits, keccak256, stringToHex } from "viem";
+import { ARC_TESTNET, createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
 import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
@@ -603,6 +603,33 @@ export async function requestRevisionAction(jobId: string, reason: string) {
   return { tx };
 }
 
+export async function fundRetryAction(
+  jobId: string,
+  input: {
+    title: string;
+    description: string;
+    rewardIncrease: number;
+    deadline: string;
+  }
+) {
+  const state = readState();
+  const job = state.jobs.find((item) => item.id === jobId);
+  if (!job?.onchainJobId) {
+    throw new Error("This job does not have an onchain job ID.");
+  }
+  const { fundRetryOnchain } = await import("@/lib/onchain");
+  const tx = await fundRetryOnchain({
+    onchainJobId: job.onchainJobId,
+    title: input.title,
+    description: input.description,
+    agentId: job.agentId,
+    rewardIncrease: input.rewardIncrease,
+    deadline: input.deadline
+  });
+  await syncOnchainJobStateAction(jobId);
+  return { tx };
+}
+
 export async function finalizeReviewAction(jobId: string) {
   const job = readState().jobs.find((item) => item.id === jobId);
   if (!job?.onchainJobId) {
@@ -672,6 +699,12 @@ export async function syncOnchainJobStateAction(jobId: string) {
           clientWallet: snapshot.clientWallet,
           evaluatorWallet: snapshot.evaluatorWallet,
           jobPayloadUri: snapshot.jobPayloadUri || item.jobPayloadUri,
+          rewardAmount: Number(formatUnits(BigInt(snapshot.rewardAmount), ARC_TESTNET.nativeCurrency.decimals)),
+          deadline: new Date(snapshot.deadline * 1_000).toISOString().slice(0, 10),
+          executionVersion: snapshot.executionVersion,
+          executionBudgetAmount: snapshot.executionBudgetAmount
+            ? Number(formatUnits(BigInt(snapshot.executionBudgetAmount), ARC_TESTNET.nativeCurrency.decimals))
+            : item.executionBudgetAmount,
           deliverableHash: snapshot.deliverableHash === zeroHash ? item.deliverableHash : snapshot.deliverableHash,
           updatedAt: new Date().toISOString(),
           txHistory: syncedJobTxHistory

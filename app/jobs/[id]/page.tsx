@@ -10,10 +10,13 @@ import { StatusBadge } from "@/components/status-badge";
 import { TxList } from "@/components/tx-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   acceptWorkAction,
   finalizeReviewAction,
+  fundRetryAction,
   refundJobAction,
   rejectWorkAction,
   requestRevisionAction,
@@ -73,6 +76,12 @@ interface BlockedWorkerJob {
   usedTokens?: number;
   usedCostUsd?: number;
   requestCount?: number;
+  executionVersion?: number;
+  requiredTier?: string;
+  fundedReward?: number;
+  minimumRecommendedReward?: number;
+  canFundRetry?: boolean;
+  model?: string;
 }
 
 const workerPollSeconds = 15;
@@ -186,6 +195,14 @@ export default function JobDetailsPage() {
   const [nowMs, setNowMs] = useState<number | null>(null);
   const [providerHealth, setProviderHealth] = useState<ProviderHealth | null>(null);
   const [blockedWorkerJob, setBlockedWorkerJob] = useState<BlockedWorkerJob | null>(null);
+  const [retryTitle, setRetryTitle] = useState("");
+  const [retryDescription, setRetryDescription] = useState("");
+  const [retryReward, setRetryReward] = useState("0.05");
+  const [retryDeadline, setRetryDeadline] = useState("");
+  const retryJobId = job?.id;
+  const retryJobTitle = job?.title ?? "";
+  const retryJobDescription = job?.description ?? "";
+  const retryJobDeadline = job?.deadline ?? "";
 
   useEffect(() => {
     setNowMs(Date.now());
@@ -230,6 +247,16 @@ export default function JobDetailsPage() {
       window.clearInterval(timer);
     };
   }, [job?.onchainJobId, job?.status]);
+
+  useEffect(() => {
+    if (!retryJobId) {
+      return;
+    }
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+    setRetryTitle(retryJobTitle);
+    setRetryDescription(retryJobDescription);
+    setRetryDeadline(retryJobDeadline > tomorrow ? retryJobDeadline : tomorrow);
+  }, [retryJobId, retryJobTitle, retryJobDescription, retryJobDeadline]);
 
   const loadWorkerDeliverable = useCallback(async () => {
     if (!job?.onchainJobId) {
@@ -324,6 +351,7 @@ export default function JobDetailsPage() {
   const canSubmit = job.status === "FUNDED";
   const canSettle = job.status === "SUBMITTED";
   const isHybridEscrow = Boolean(job.onchainJobId && BigInt(job.onchainJobId) >= BigInt(1_000_000));
+  const isRetryEscrow = Boolean(job.onchainJobId && BigInt(job.onchainJobId) >= BigInt(2_000_000));
   const canRefund = job.status === "FUNDED" || (!isHybridEscrow && job.status === "SUBMITTED");
   const agentOwnerWallet = agent?.ownerWallet;
   const timeLeft = nowMs === null ? "Calculating" : getTimeLeft(job.deadline, nowMs);
@@ -335,6 +363,38 @@ export default function JobDetailsPage() {
   });
   const providerPaused = providerHealth?.status === "paused";
   const providerRetryAt = providerHealth?.retryAt ? new Date(providerHealth.retryAt).toLocaleString() : null;
+  const retryRewardValue = Number(retryReward);
+  const retryFundingTotal =
+    Number.isFinite(retryRewardValue) && retryRewardValue > 0 ? retryRewardValue * 1.25 : 0;
+  const needsRetryFunding =
+    isRetryEscrow &&
+    job.status === "FUNDED" &&
+    (Boolean(blockedWorkerJob) || job.executionBudgetAmount === 0);
+
+  function submitFundedRetry(event: FormEvent) {
+    event.preventDefault();
+    if (
+      !retryTitle.trim() ||
+      !retryDescription.trim() ||
+      !retryDeadline ||
+      !Number.isFinite(retryRewardValue) ||
+      retryRewardValue <= 0
+    ) {
+      setError("Add a clear revised brief, a future deadline, and a positive retry budget.");
+      return;
+    }
+    void handleAction(
+      "fund-retry",
+      () =>
+        fundRetryAction(jobId, {
+          title: retryTitle.trim(),
+          description: retryDescription.trim(),
+          rewardIncrease: retryRewardValue,
+          deadline: retryDeadline
+        }),
+      "Retry funded. The worker will use a fresh isolated execution budget."
+    );
+  }
 
   function walletMatches(expected?: string) {
     return Boolean(connectedWallet && expected && connectedWallet.toLowerCase() === expected.toLowerCase());
@@ -473,6 +533,99 @@ export default function JobDetailsPage() {
               </div>
 
               <p className="text-sm leading-6 text-muted-foreground">{getStatusText(job.status)}</p>
+              {needsRetryFunding ? (
+                <form
+                  className="space-y-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4"
+                  onSubmit={submitFundedRetry}
+                >
+                  <div>
+                    <p className="font-semibold text-amber-100">Revise and fund a controlled retry</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      The previous execution cannot spend more. This transaction creates execution
+                      version {(job.executionVersion ?? 1) + 1} with a separate AI budget.
+                    </p>
+                  </div>
+                  {blockedWorkerJob ? (
+                    <div className="grid gap-3 text-sm sm:grid-cols-3">
+                      <div>
+                        <p className="text-muted-foreground">Reason</p>
+                        <p className="mt-1 font-semibold">
+                          {blockedWorkerJob.code === "insufficient_compute_budget"
+                            ? "Budget below safe tier"
+                            : "Execution budget exhausted"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Used</p>
+                        <p className="mt-1 font-semibold">
+                          {blockedWorkerJob.usedTokens?.toLocaleString() ?? "No generation"} tokens
+                          {typeof blockedWorkerJob.usedCostUsd === "number"
+                            ? ` · $${blockedWorkerJob.usedCostUsd.toFixed(4)}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Required tier</p>
+                        <p className="mt-1 font-semibold capitalize">
+                          {blockedWorkerJob.requiredTier ?? executionPlan.requiredTier}
+                          {blockedWorkerJob.model ? ` · ${blockedWorkerJob.model}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="retry-title">Revised title</Label>
+                      <Input
+                        id="retry-title"
+                        maxLength={120}
+                        value={retryTitle}
+                        onChange={(event) => setRetryTitle(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="retry-description">Revised instructions and missing evidence</Label>
+                      <Textarea
+                        id="retry-description"
+                        maxLength={2000}
+                        value={retryDescription}
+                        onChange={(event) => setRetryDescription(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="retry-reward">Additional reward (USDC)</Label>
+                      <Input
+                        id="retry-reward"
+                        min="0.001"
+                        step="0.001"
+                        type="number"
+                        value={retryReward}
+                        onChange={(event) => setRetryReward(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="retry-deadline">Extended deadline</Label>
+                      <Input
+                        id="retry-deadline"
+                        min={new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString().slice(0, 10)}
+                        type="date"
+                        value={retryDeadline}
+                        onChange={(event) => setRetryDeadline(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Wallet funds {retryFundingTotal.toFixed(3)} USDC total: reward increase plus
+                      the 20% bond, 3% platform fee, and 2% evaluator fee.
+                    </p>
+                    <Button type="submit" disabled={Boolean(busyAction)}>
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      {busyAction === "fund-retry" ? "Funding..." : "Fund retry"}
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
               {canSettle && isHybridEscrow ? (
                 <Textarea
                   maxLength={1200}
@@ -497,11 +650,11 @@ export default function JobDetailsPage() {
                       <Check className="h-4 w-4" aria-hidden="true" />
                       {busyAction === "accept" ? "Settling..." : "Accept work"}
                     </Button>
-                    {isHybridEscrow ? (
+                    {isRetryEscrow ? (
                       <Button
                         variant="outline"
                         disabled={Boolean(busyAction) || !reviewReason.trim()}
-                        onClick={() => handleAction("revision", () => requestRevisionAction(jobId, reviewReason), "Revision requested. The remaining escrow stays locked.")}
+                        onClick={() => handleAction("revision", () => requestRevisionAction(jobId, reviewReason), "Revision requested. The client must approve and fund the next execution.")}
                       >
                         <RotateCcw className="h-4 w-4" aria-hidden="true" />
                         {busyAction === "revision" ? "Requesting..." : "Request revision"}
@@ -768,11 +921,11 @@ export default function JobDetailsPage() {
                         <Check className="h-4 w-4" aria-hidden="true" />
                         {busyAction === "accept" ? "Settling..." : "Accept"}
                       </Button>
-                      {isHybridEscrow ? (
+                      {isRetryEscrow ? (
                         <Button
                           variant="outline"
                           disabled={!canSettle || Boolean(busyAction) || !reviewReason.trim()}
-                          onClick={() => handleAction("revision", () => requestRevisionAction(jobId, reviewReason), "Revision requested.")}
+                          onClick={() => handleAction("revision", () => requestRevisionAction(jobId, reviewReason), "Revision requested. Fund the next execution to continue.")}
                         >
                           <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           Request revision

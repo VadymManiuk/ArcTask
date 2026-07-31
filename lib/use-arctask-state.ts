@@ -35,6 +35,8 @@ interface NetworkJob {
   status: JobStatus;
   createdAt: string;
   updatedAt: string;
+  executionVersion?: number;
+  executionBudgetAmount?: string;
 }
 
 interface NetworkAgentsResponse {
@@ -153,6 +155,10 @@ function createNetworkState(
       deliverableHash: job.deliverableHash === zeroHash ? localJob?.deliverableHash : job.deliverableHash,
       createdAt: unixSecondsToIso(job.createdAt),
       updatedAt: unixSecondsToIso(job.updatedAt),
+      executionVersion: job.executionVersion,
+      executionBudgetAmount: job.executionBudgetAmount
+        ? Number(formatUnits(BigInt(job.executionBudgetAmount), ARC_TESTNET.nativeCurrency.decimals))
+        : undefined,
       txHistory: localJob?.txHistory ?? []
     };
   });

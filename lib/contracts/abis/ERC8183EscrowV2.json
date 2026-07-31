@@ -352,6 +352,49 @@
         "type": "uint256"
       },
       {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "executionVersion",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rewardIncrease",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "executionBudgetAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "deadline",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "jobURI",
+        "type": "string"
+      }
+    ],
+    "name": "RetryFunded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      },
+      {
         "indexed": false,
         "internalType": "uint8",
         "name": "revisionCount",
@@ -656,6 +699,34 @@
         "internalType": "uint256",
         "name": "jobId",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "rewardIncrease",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "newDeadline",
+        "type": "uint64"
+      },
+      {
+        "internalType": "string",
+        "name": "revisedJobURI",
+        "type": "string"
+      }
+    ],
+    "name": "fundRetry",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
       }
     ],
     "name": "getJobEconomics",
@@ -689,6 +760,35 @@
         "internalType": "bool",
         "name": "evaluatorFeeCredited",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "jobId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getJobExecution",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "executionVersion",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "executionBudgetAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "computeFeeCreditedAmount",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",

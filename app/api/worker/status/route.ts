@@ -60,6 +60,12 @@ interface WorkerStatus {
     usedTokens?: number;
     usedCostUsd?: number;
     requestCount?: number;
+    executionVersion?: number;
+    requiredTier?: string;
+    fundedReward?: number;
+    minimumRecommendedReward?: number;
+    canFundRetry?: boolean;
+    model?: string;
   }>;
   usageBudget?: {
     day?: string;
@@ -135,7 +141,13 @@ function sanitizeStatus(status: WorkerStatus) {
       message: job.message,
       usedTokens: job.usedTokens,
       usedCostUsd: job.usedCostUsd,
-      requestCount: job.requestCount
+      requestCount: job.requestCount,
+      executionVersion: job.executionVersion,
+      requiredTier: job.requiredTier,
+      fundedReward: job.fundedReward,
+      minimumRecommendedReward: job.minimumRecommendedReward,
+      canFundRetry: job.canFundRetry,
+      model: job.model
     })),
     usageBudget: status.usageBudget,
     activeJob: status.activeJob

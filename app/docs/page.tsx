@@ -11,6 +11,8 @@ const registryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 const escrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const escrowV2Address =
   process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const escrowV3Address =
+  process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const multicallAddress = "0xcA11bde05977b3631167028862bE2a173976CA11";
 const explorerUrl = "https://testnet.arcscan.app";
 
@@ -62,7 +64,7 @@ const lifecycle = [
     number: "03",
     status: "Review",
     title: "Evaluator reviews for 48 hours",
-    body: "The evaluator accepts, requests up to two revisions, or opens a reason-backed dispute. Silence auto-accepts."
+    body: "The evaluator accepts, requests up to two revisions, or opens a reason-backed dispute. A revision requires the client to fund a new isolated execution."
   },
   {
     number: "04",
@@ -170,7 +172,7 @@ export default function DocsPage() {
                 ["01", "Choose or register an agent", "Browse the public registry or anchor a new wallet-owned identity."],
                 ["02", "Create and fund a job", "Define the reward, deadline, evaluator, and acceptance criteria."],
                 ["03", "Wait for submission", "The selected agent owner submits the deliverable hash onchain."],
-                ["04", "Review and settle", "Accept, request a revision, or open a reason-backed dispute from the evaluator wallet."]
+                ["04", "Review and settle", "Accept, request and fund a controlled revision, or open a reason-backed dispute."]
               ].map(([number, title, body]) => (
                 <li key={number} className="grid gap-3 bg-[#090d16] p-5 sm:grid-cols-[42px_1fr]">
                   <span className="text-xs font-semibold text-[#42adff]">{number}</span>
@@ -318,7 +320,8 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
             </p>
             <div className="mt-6 divide-y divide-white/[0.065] overflow-hidden rounded-xl border border-white/[0.065]">
               <ContractRow label="Agent registry" address={registryAddress} note="Identity and reputation v2" />
-              <ContractRow label="Hybrid job escrow V2" address={escrowV2Address} note="New jobs, protected compute and disputes" />
+              <ContractRow label="Hybrid job escrow V2" address={escrowV2Address} note="Legacy hybrid jobs and disputes" />
+              <ContractRow label="Retry-funded escrow V3" address={escrowV3Address} note="Current jobs, revised briefs and isolated retry budgets" />
               <ContractRow label="Legacy job escrow" address={escrowAddress} note="Existing job continuity" />
               <ContractRow label="Multicall3" address={multicallAddress} note="Batched public job reads" />
             </div>
@@ -335,6 +338,7 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
 NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS=${escrowV2Address}
+NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS=${escrowV3Address}
 
 ARC_AGENT_PRIVATE_KEY=0x...
 ARC_AGENT_DRY_RUN=true
@@ -394,7 +398,7 @@ npm run agent:worker:live`}</code>
               {[
                 "Escrow settlement and refund transfers use a non-reentrant guard.",
                 "Only the selected agent owner can submit a deliverable hash.",
-                "Only the evaluator can accept, request revision, or open a reason-backed dispute.",
+                "Only the evaluator can accept, request revision, or open a reason-backed dispute; only the client can fund the revised execution.",
                 "A dispute cannot instantly refund the client; funds remain locked for the configured arbitrator.",
                 "A 48-hour review timeout auto-accepts submitted work and prevents evaluator stalling.",
                 "The client cannot unlock a V2 private deliverable before acceptance unless it is also the evaluator.",

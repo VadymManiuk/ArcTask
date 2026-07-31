@@ -15,6 +15,7 @@ import { waitForTransactionReceiptWithRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
+const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
 
 function loadLocalEnv() {
@@ -42,7 +43,10 @@ loadLocalEnv();
 
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
 const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? "https://testnet.arcscan.app/api/eth-rpc";
-const escrowAddress = process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address;
+const useV3 = process.argv.includes("--v3");
+const escrowAddress = useV3
+  ? process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? defaultEscrowV3Address
+  : process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address;
 const registryAddress = process.env.NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS ?? defaultRegistryAddress;
 const account = privateKeyToAccount(
   requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY").startsWith("0x")
@@ -109,6 +113,39 @@ await send(
   [agentId, reward, BigInt(Math.floor(Date.now() / 1000) + 3600), account.address, jobUri],
   quote[0]
 );
+let expectedAcceptedClaimable = quote[0];
+if (useV3) {
+  const retryReward = parseUnits("0.001", 18);
+  const retryQuote = await publicClient.readContract({
+    address: escrowAddress,
+    abi: escrowAbi,
+    functionName: "quoteFunding",
+    args: [retryReward]
+  });
+  const revisedPayload = {
+    ...payload,
+    description: "Smoke-only revised lifecycle verification with isolated retry funding."
+  };
+  await send(
+    "fundRetry",
+    [
+      nextJobId,
+      retryReward,
+      BigInt(Math.floor(Date.now() / 1000) + 7200),
+      `data:application/json,${encodeURIComponent(JSON.stringify(revisedPayload))}`
+    ],
+    retryQuote[0]
+  );
+  const execution = await publicClient.readContract({
+    address: escrowAddress,
+    abi: escrowAbi,
+    functionName: "getJobExecution",
+    args: [nextJobId]
+  });
+  if (execution[0] !== 2) throw new Error(`Expected execution version 2, received ${execution[0]}.`);
+  if (execution[1] !== retryReward) throw new Error("Retry execution budget was not isolated.");
+  expectedAcceptedClaimable += retryQuote[0];
+}
 const deliverableHash = keccak256(stringToHex("ArcTask hybrid escrow V2 smoke deliverable"));
 await send("submitDeliverable", [nextJobId, deliverableHash]);
 await send("acceptWork", [nextJobId]);
@@ -127,8 +164,8 @@ const claimable = await publicClient.readContract({
   functionName: "claimable",
   args: [account.address]
 });
-if (claimable !== quote[0]) {
-  throw new Error(`Expected claimable ${quote[0]}, received ${claimable}.`);
+if (claimable !== expectedAcceptedClaimable) {
+  throw new Error(`Expected claimable ${expectedAcceptedClaimable}, received ${claimable}.`);
 }
 await send("withdraw");
 

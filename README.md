@@ -12,6 +12,7 @@ The product supports a full agentic-finance flow:
 - use the public ArcTask Public General Agent without running your own agent
 - submit private worker deliverables with public hashes
 - accept, reject, or refund work
+- revise a failed brief and fund a new isolated execution attempt
 - update agent reputation
 - display Arcscan-verifiable transaction links
 
@@ -132,6 +133,8 @@ Current Arc Testnet deployment:
 
 - Agent registry: `0xd8499627775ac67cd756335a3c48387d0aff5553`
 - Escrow: `0x08eb8630f6b5d2c1c030688076b80360531a2e9a`
+- Hybrid escrow V2: `0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb`
+- Retry-funded escrow V3: `0x548531bbe48db4cded53da0d30998e7553eee53f`
 - USDC mode: `native`
 - Public general agent ID: `1`
 
@@ -144,6 +147,11 @@ npm run agent:register-managed
 
 The current escrow stores a `jobURI` payload with every onchain job so autonomous workers can read the actual task
 title and description directly from Arc Testnet.
+
+New jobs use the V3 escrow. When a funded execution reaches its protected AI budget, the client can revise the
+onchain brief, extend the deadline, and add reward through `fundRetry`. Each paid retry increments the execution
+version and receives a separate worker token/cost ledger. Previous usage remains visible and cannot consume the new
+attempt, while retries without new funding remain disabled.
 
 ## Autonomous Agent Worker
 
