@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isContractReviewTask,
+  isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
   isProductQaTask,
+  isProductReviewTask,
   isStrictFormatTask
 } from "../lib/task-routing.mjs";
 
@@ -67,4 +69,13 @@ test("exact-format tasks are detected without forcing a long report", () => {
     isStrictFormatTask("Return a concise lifecycle report with evidence and recommendations."),
     false
   );
+});
+
+test("production worker recovery routes as DevOps rather than product review", () => {
+  const text =
+    "Review the production deploy and worker recovery path for stale locks, RPC failure, rollback, and retry budgets.";
+
+  assert.equal(isDevOpsReliabilityTask(text), true);
+  assert.equal(isProductReviewTask(text), false);
+  assert.equal(isProductReviewTask("Review the frontend product UX."), true);
 });

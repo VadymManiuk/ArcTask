@@ -45,8 +45,10 @@ import {
 } from "../lib/usage-budget.mjs";
 import {
   isContractReviewTask,
+  isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
   isProductQaTask,
+  isProductReviewTask,
   isStrictFormatTask
 } from "../lib/task-routing.mjs";
 import {
@@ -588,15 +590,7 @@ function getTaskProfile(payload) {
     };
   }
 
-  if (
-    text.includes("devops") ||
-    text.includes("deployment") ||
-    text.includes("incident") ||
-    text.includes("monitoring") ||
-    text.includes("observability") ||
-    text.includes("rpc reliability") ||
-    text.includes("production readiness")
-  ) {
+  if (isDevOpsReliabilityTask(text)) {
     return {
       kind: "devops_reliability",
       instruction:
@@ -635,7 +629,7 @@ function getTaskProfile(payload) {
     };
   }
 
-  if (text.includes("ui") || text.includes("ux") || text.includes("design") || text.includes("frontend") || text.includes("product")) {
+  if (isProductReviewTask(text)) {
     return {
       kind: "product_review",
       instruction:
