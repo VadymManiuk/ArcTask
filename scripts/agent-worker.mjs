@@ -448,6 +448,9 @@ async function buildAgentResult(
       executionKey
     );
   } catch (caught) {
+    if (caught instanceof UsageBudgetExceededError) {
+      throw caught;
+    }
     const message = caught instanceof Error ? caught.message : "OpenAI executor failed.";
     if (allowDeterministicFallback) {
       return {
