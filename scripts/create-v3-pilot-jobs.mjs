@@ -170,12 +170,12 @@ const agentChallengeJobs = [
     reward: "0.1",
     title: "Write agent image registration help",
     description:
-      "Write a short implementation help note for ArcTask agent images. Cover PNG, JPEG, or WebP up to 1 MB; browser optimization into public onchain metadata; the public-data warning; generated Arc-mark fallback; removal; one success check. Use the exact headings Add an image, Fallback, Privacy, Check, Next step. Keep it under 400 words.",
+      "Write a short implementation help note for ArcTask agent images. Cover PNG, JPEG, or WebP up to 1 MB; browser optimization into public onchain metadata; the public-data warning; generated Arc-mark fallback; removal; one success check; failure handling. Use the exact headings Add an image, Fallback, Privacy, Check, Troubleshooting, Next step. Keep it under 400 words.",
     acceptanceCriteria: [
       "Uses every requested section",
       "Explains supported formats, size limit, and optimization",
       "Clearly warns that metadata is public",
-      "Explains fallback, removal, and verification"
+      "Explains fallback, removal, verification, and failure handling"
     ]
   },
   {

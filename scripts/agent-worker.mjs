@@ -49,6 +49,7 @@ import {
   isContractReviewTask,
   isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
+  isProtocolIntegrationTask,
   isProductQaTask,
   isProductReviewTask,
   isStrictFormatTask
@@ -564,6 +565,16 @@ function getTaskProfile(payload) {
     };
   }
 
+  if (isProtocolIntegrationTask({ title, text })) {
+    return {
+      kind: "protocol_integration",
+      instruction:
+        "For integration engineering tasks, verify external protocol behavior from current primary sources, then define systems and data flow, authentication and trust boundaries, interfaces, validation, retries and idempotency, finality, failure handling, monitoring, testing, rollout, and acceptance criteria. Return implementation-ready steps and clearly flag missing technical inputs.",
+      minimumLength: 1_200,
+      requiredTopics: ["data flow", "authentication", "idempotency", "finality", "retry", "monitoring", "test", "rollout", "risk"]
+    };
+  }
+
   if (/\b(schema|dataset|metrics?|analytics|normalize|normalization|performance report|anomaly dashboard)\b/i.test(text)) {
     const schemaTask = /\b(schema|normalize|normalization)\b/i.test(text);
     return {
@@ -605,23 +616,6 @@ function getTaskProfile(payload) {
         "For DevOps and reliability tasks, use the supplied deployed-code artifacts and current primary sources. Separate implemented controls from proposed controls. Produce detection, provider failover, retry budgets, degraded mode, alerts, rollback, ownership, recovery verification, severity-ranked risks, and a production-readiness decision.",
       minimumLength: 1_100,
       requiredTopics: ["detection", "failover", "retry", "degraded", "alert", "rollback", "owner", "recovery verification", "readiness"]
-    };
-  }
-
-  if (
-    text.includes("integration") ||
-    text.includes("api") ||
-    text.includes("indexer") ||
-    text.includes("sdk") ||
-    text.includes("webhook") ||
-    text.includes("cross-chain")
-  ) {
-    return {
-      kind: "protocol_integration",
-      instruction:
-        "For integration engineering tasks, verify external protocol behavior from current primary sources, then define systems and data flow, authentication and trust boundaries, interfaces, validation, retries and idempotency, finality, failure handling, monitoring, testing, rollout, and acceptance criteria. Return implementation-ready steps and clearly flag missing technical inputs.",
-      minimumLength: 1_200,
-      requiredTopics: ["data flow", "authentication", "idempotency", "finality", "retry", "monitoring", "test", "rollout", "risk"]
     };
   }
 
@@ -1028,7 +1022,8 @@ async function runOpenAiExecutor(
             escrowAddress: escrowContext.address,
             registryAddress,
             escrowAbi: escrowContext.abi,
-            registryAbi
+            registryAbi,
+            minimumJobId: escrowContext.firstJobId
           })
       : undefined;
   const evidenceValues =

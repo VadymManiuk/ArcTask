@@ -43,6 +43,7 @@ export async function collectMarketplaceEvidence({
   registryAddress,
   escrowAbi,
   registryAbi,
+  minimumJobId = 1n,
   maximumJobs = 50,
   maximumAgents = 50
 }) {
@@ -64,7 +65,9 @@ export async function collectMarketplaceEvidence({
       })
     )
   ]);
-  const firstJobId = nextJobId > BigInt(maximumJobs) ? nextJobId - BigInt(maximumJobs) : 1n;
+  const windowFirstJobId =
+    nextJobId > BigInt(maximumJobs) ? nextJobId - BigInt(maximumJobs) : minimumJobId;
+  const firstJobId = windowFirstJobId > minimumJobId ? windowFirstJobId : minimumJobId;
   const firstAgentId = nextAgentId > BigInt(maximumAgents) ? nextAgentId - BigInt(maximumAgents) : 1n;
   const jobIds = [];
   const agentIds = [];

@@ -6,6 +6,7 @@ import {
   isContractReviewTask,
   isDevOpsReliabilityTask,
   isGovernanceComplianceTask,
+  isProtocolIntegrationTask,
   isProductQaTask,
   isProductReviewTask,
   isStrictFormatTask
@@ -23,6 +24,23 @@ test("CCTP contract boundaries route as integration rather than contract review"
       "Perform a critical Solidity security review of the escrow upgrade path and reentrancy invariants."
     ),
     true
+  );
+});
+
+test("metadata ingestion routes as integration before generic schema analysis", () => {
+  assert.equal(
+    isProtocolIntegrationTask({
+      title: "Design resilient agent image metadata ingestion",
+      text: "Define the metadata schema, validation, caching, fallback, and rollout."
+    }),
+    true
+  );
+  assert.equal(
+    isProtocolIntegrationTask({
+      title: "Define agent avatar adoption metrics",
+      text: "Define a canonical dataset, formulas, and cohort metrics."
+    }),
+    false
   );
 });
 
