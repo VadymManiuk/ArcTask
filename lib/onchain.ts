@@ -4,13 +4,16 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  fallback,
   formatUnits,
   http,
   keccak256,
   parseEventLogs,
   parseUnits,
-  stringToHex
+  stringToHex,
+  type Abi
 } from "viem";
+import { ARC_TESTNET } from "@/lib/arc";
 import { arcTestnet } from "@/lib/arc-chain";
 import {
   contractAddresses,
@@ -29,7 +32,15 @@ import type { Address, OnchainJobEventTx, TxAction } from "@/lib/types";
 
 const publicClient = createPublicClient({
   chain: arcTestnet,
-  transport: http(arcTestnet.rpcUrls.default.http[0])
+  transport: fallback(
+    ARC_TESTNET.readRpcUrls.map((rpcUrl) =>
+      http(rpcUrl, {
+        retryCount: 3,
+        retryDelay: 750,
+        timeout: 12_000
+      })
+    )
+  )
 });
 
 export type HybridEscrowVersion = "v2" | "v3" | "v4";
@@ -244,16 +255,15 @@ function getHybridEscrowContext(version: HybridEscrowVersion) {
 
 export async function getEscrowCreditBalancesOnchain(account: Address) {
   const contexts = (["v4", "v3", "v2"] as const).map(getHybridEscrowContext);
-  const amounts = (await Promise.all(
-    contexts.map((context) =>
-      publicClient.readContract({
-        address: context.address,
-        abi: escrowV2Abi,
-        functionName: "claimable",
-        args: [account]
-      })
-    )
-  )) as bigint[];
+  const amounts = (await publicClient.multicall({
+    allowFailure: false,
+    contracts: contexts.map((context) => ({
+      address: context.address,
+      abi: escrowV2Abi as Abi,
+      functionName: "claimable",
+      args: [account]
+    }))
+  })) as bigint[];
 
   return contexts.map((context, index): EscrowCreditBalance => {
     const amount = amounts[index];

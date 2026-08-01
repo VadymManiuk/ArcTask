@@ -16,5 +16,10 @@ export const arcTestnet = defineChain({
       url: ARC_TESTNET.explorerUrl
     }
   },
+  contracts: {
+    multicall3: {
+      address: ARC_TESTNET.multicall3Address
+    }
+  },
   testnet: true
 });

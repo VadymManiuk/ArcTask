@@ -2,6 +2,10 @@ export const ARC_TESTNET = {
   chainName: "Arc Testnet",
   chainId: 5042002,
   rpcUrl: "https://rpc.testnet.arc.network",
+  readRpcUrls: [
+    "https://testnet.arcscan.app/api/eth-rpc",
+    "https://rpc.testnet.arc.network"
+  ],
   explorerUrl: "https://testnet.arcscan.app",
   multicall3Address: "0xcA11bde05977b3631167028862bE2a173976CA11",
   nativeCurrency: {
