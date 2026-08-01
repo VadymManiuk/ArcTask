@@ -6,19 +6,23 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  http
+  http,
+  keccak256,
+  stringToHex
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { validateReviewDecision } from "../lib/evaluator-policy.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 
 const defaultRpcUrl = "https://rpc.testnet.arc.network";
+const defaultReadRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
 const defaultExplorerUrl = "https://testnet.arcscan.app";
 const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
 const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
 const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
 const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const submittedStatus = 1;
+const disputedStatus = 5;
 
 function loadLocalEnv(rootDir) {
   const envPath = path.join(rootDir, ".env.local");
@@ -54,6 +58,7 @@ export async function settleReviewedJobs({
 }) {
   loadLocalEnv(rootDir);
   const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
+  const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? defaultReadRpcUrl;
   const explorerUrl = (process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl).replace(/\/+$/, "");
   const escrowV1Abi = JSON.parse(
     fs.readFileSync(path.join(rootDir, "lib/contracts/abis/ERC8183Escrow.json"), "utf8")
@@ -112,7 +117,7 @@ export async function settleReviewedJobs({
   });
   const publicClient = createPublicClient({
     chain,
-    transport: http(rpcUrl)
+    transport: http(readRpcUrl)
   });
   const account = live ? privateKeyToAccount(normalizePrivateKey(privateKey)) : undefined;
   const walletClient = live
@@ -131,11 +136,6 @@ export async function settleReviewedJobs({
     if (!escrowContext) {
       throw new Error(`Review ${decision.jobId} has unsupported escrowVersion ${escrowVersion}.`);
     }
-    if (decision.action === "reject" && escrowVersion !== "v1") {
-      throw new Error(
-        `Review ${decision.jobId} cannot use legacy reject settlement on ${escrowVersion}; use revision or dispute flow.`
-      );
-    }
     const job = await withRpcRetry(() =>
       publicClient.readContract({
         address: escrowContext.address,
@@ -145,13 +145,17 @@ export async function settleReviewedJobs({
       })
     );
 
-    if (Number(job[8]) !== submittedStatus) {
+    const onchainStatus = Number(job[8]);
+    const usesDisputeRejection = decision.action === "reject" && escrowVersion !== "v1";
+    const eligibleStatus =
+      onchainStatus === submittedStatus || (usesDisputeRejection && onchainStatus === disputedStatus);
+    if (!eligibleStatus) {
       outcomes.push({
         jobId: decision.jobId,
         escrowVersion,
         action: decision.action,
         status: "skipped",
-        reason: `onchain status is ${Number(job[8])}, not SUBMITTED`
+        reason: `onchain status is ${onchainStatus}, not eligible for ${decision.action}`
       });
       continue;
     }
@@ -162,26 +166,101 @@ export async function settleReviewedJobs({
       throw new Error(`Review ${decision.jobId} evaluator does not match the settlement account.`);
     }
 
+    let disputeReasonHash;
+    if (usesDisputeRejection) {
+      disputeReasonHash = keccak256(stringToHex(decision.rationale));
+      const [arbitrator, resolution, block] = await Promise.all([
+        withRpcRetry(() =>
+          publicClient.readContract({
+            address: escrowContext.address,
+            abi: escrowContext.abi,
+            functionName: "arbitrator"
+          })
+        ),
+        withRpcRetry(() =>
+          publicClient.readContract({
+            address: escrowContext.address,
+            abi: escrowContext.abi,
+            functionName: "getJobResolution",
+            args: [jobId]
+          })
+        ),
+        withRpcRetry(() => publicClient.getBlock())
+      ]);
+
+      if (live && !sameHex(arbitrator, account.address)) {
+        throw new Error(`Review ${decision.jobId} arbitrator does not match the settlement account.`);
+      }
+      if (onchainStatus === submittedStatus && block.timestamp > resolution[0]) {
+        throw new Error(`Review ${decision.jobId} review window has expired; a dispute can no longer be opened.`);
+      }
+      if (onchainStatus === disputedStatus) {
+        if (!sameHex(resolution[4], disputeReasonHash)) {
+          throw new Error(`Review ${decision.jobId} is already disputed for a different reason.`);
+        }
+        if (block.timestamp > resolution[1]) {
+          throw new Error(`Review ${decision.jobId} dispute window has expired.`);
+        }
+      }
+    }
+
     if (!live) {
       outcomes.push({
         jobId: decision.jobId,
         escrowVersion,
         action: decision.action,
-        status: "verified"
+        status: "verified",
+        settlementPath: usesDisputeRejection ? "dispute-reject" : "direct"
       });
       continue;
     }
 
-    const functionName = decision.action === "accept" ? "acceptWork" : "rejectWork";
-    const txHash = await walletClient.writeContract({
-      address: escrowContext.address,
-      abi: escrowContext.abi,
-      functionName,
-      args: [jobId]
-    });
-    const receipt = await waitForTransactionReceiptWithRetry(publicClient, txHash);
-    if (receipt.status !== "success") {
-      throw new Error(`Review ${decision.jobId} settlement reverted: ${txHash}`);
+    const txHashes = [];
+    if (usesDisputeRejection) {
+      if (onchainStatus === submittedStatus) {
+        const openDisputeTxHash = await walletClient.writeContract({
+          address: escrowContext.address,
+          abi: escrowContext.abi,
+          functionName: "openDispute",
+          args: [jobId, disputeReasonHash]
+        });
+        const openDisputeReceipt = await waitForTransactionReceiptWithRetry(
+          publicClient,
+          openDisputeTxHash
+        );
+        if (openDisputeReceipt.status !== "success") {
+          throw new Error(`Review ${decision.jobId} dispute opening reverted: ${openDisputeTxHash}`);
+        }
+        txHashes.push(openDisputeTxHash);
+      }
+
+      const resolveDisputeTxHash = await walletClient.writeContract({
+        address: escrowContext.address,
+        abi: escrowContext.abi,
+        functionName: "resolveDispute",
+        args: [jobId, 0, disputeReasonHash]
+      });
+      const resolveDisputeReceipt = await waitForTransactionReceiptWithRetry(
+        publicClient,
+        resolveDisputeTxHash
+      );
+      if (resolveDisputeReceipt.status !== "success") {
+        throw new Error(`Review ${decision.jobId} dispute resolution reverted: ${resolveDisputeTxHash}`);
+      }
+      txHashes.push(resolveDisputeTxHash);
+    } else {
+      const functionName = decision.action === "accept" ? "acceptWork" : "rejectWork";
+      const txHash = await walletClient.writeContract({
+        address: escrowContext.address,
+        abi: escrowContext.abi,
+        functionName,
+        args: [jobId]
+      });
+      const receipt = await waitForTransactionReceiptWithRetry(publicClient, txHash);
+      if (receipt.status !== "success") {
+        throw new Error(`Review ${decision.jobId} settlement reverted: ${txHash}`);
+      }
+      txHashes.push(txHash);
     }
 
     outcomes.push({
@@ -189,8 +268,9 @@ export async function settleReviewedJobs({
       escrowVersion,
       action: decision.action,
       status: "settled",
-      txHash,
-      txUrl: `${explorerUrl}/tx/${txHash}`
+      settlementPath: usesDisputeRejection ? "dispute-reject" : "direct",
+      txHashes,
+      txUrls: txHashes.map((txHash) => `${explorerUrl}/tx/${txHash}`)
     });
   }
 

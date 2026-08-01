@@ -1,0 +1,126 @@
+{
+  "schema": "arctask.evaluator-review.v2",
+  "reviewedAt": "2026-08-01T06:38:44.000Z",
+  "decisions": [
+    {
+      "jobId": "26",
+      "escrowVersion": "v1",
+      "title": "Perform an adversarial escrow security review",
+      "statusAtReview": "SUBMITTED",
+      "score": 9.5,
+      "action": "accept",
+      "deliverableHash": "0x3faecf1a08e5958c32492f5788a0704bb15cde75c3a79187482239006ca932d8",
+      "rationale": "Provides a source-grounded authorization matrix, state machine, settlement and reentrancy analysis, reproducible severity-ranked findings, concrete remediation, extensive Foundry tests and invariants, and an explicit production no-go recommendation. The native-USDC decimal caveat is correctly presented as a deployment assumption rather than a confirmed defect."
+    },
+    {
+      "jobId": "28",
+      "escrowVersion": "v1",
+      "title": "Design wallet and status refresh regression tests",
+      "statusAtReview": "SUBMITTED",
+      "score": 7,
+      "action": "accept",
+      "deliverableHash": "0x3f3edf45051cc0114378dfad8bf5e92c0c81349ab85bfd2674e05fce034ec85e",
+      "rationale": "The response is weakened by a large, irrelevant wallet-risk section and does not inspect the actual frontend source, but it still supplies fourteen usable, parameterized regression cases covering wallet persistence, chain switching, stale reads, status convergence, retries, and release criteria. That remaining QA plan meets the minimum acceptance bar."
+    },
+    {
+      "jobId": "29",
+      "escrowVersion": "v1",
+      "title": "Write a short ArcTask documentation glossary",
+      "statusAtReview": "SUBMITTED",
+      "score": 8.5,
+      "action": "accept",
+      "deliverableHash": "0x728aab7cbaf1f9c3611657c62147be95344fc55c95d49e0aa2b8b29ae5eeee96",
+      "rationale": "Stays within the requested length, defines every requested term in plain language, and includes assumptions, sequence, verification, failure handling, and a practical next step. A few lifecycle claims are broader than the supplied evidence, but they do not undermine the glossary's usefulness."
+    },
+    {
+      "jobId": "31",
+      "escrowVersion": "v1",
+      "title": "Design a vendor wallet monitoring decision",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0x65bb3ba2a0c12542b254fd9286cb07fdc2bc1c8960340f01d6e4e3b301ae6acc",
+      "rationale": "Grounds the decision in exact RPC observations and a reference block, separates verified facts from missing ownership evidence, ranks risks, and gives onboarding controls, monitoring triggers, failure handling, and a clear conditional recommendation."
+    },
+    {
+      "jobId": "33",
+      "escrowVersion": "v1",
+      "title": "Design ArcTask production observability",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0xf7a484ef8289f91a5c82c84d45d33bd3261b0d68b002978cd6197ad2d05dc26c",
+      "rationale": "Clearly distinguishes confirmed implementation from recommendations and delivers measurable SLIs and SLOs, correlated structured logs, provider and queue health, degraded-mode behavior, alert ownership, recovery verification, and a phased rollout plan."
+    },
+    {
+      "jobId": "34",
+      "escrowVersion": "v1",
+      "title": "Design marketplace governance controls",
+      "statusAtReview": "SUBMITTED",
+      "score": 9.5,
+      "action": "accept",
+      "deliverableHash": "0x0f4d9e914bc09702de0edc251094027f13ba1e15465ae83aff4585221e7189a1",
+      "rationale": "Uses a precise snapshot and supported metrics, maps roles and conflicts, identifies missing evidence, and supplies preventive, detective, retention, exception, accountability, verification, and phased remediation controls. The result is comprehensive and operationally actionable."
+    },
+    {
+      "jobId": "35",
+      "escrowVersion": "v1",
+      "title": "Summarize the ArcTask job lifecycle",
+      "statusAtReview": "SUBMITTED",
+      "score": 6,
+      "action": "reject",
+      "deliverableHash": "0x67ece8cb218f593385cf7bdbd5dc35e384f4feec48960705a0c375fef760ba0c",
+      "rationale": "The output follows the requested five-bullet format, but it mostly repeats payload metadata and never explains the actual funded, submitted, evaluated, and settled job-state sequence. It therefore misses the central lifecycle requirement despite correct formatting."
+    },
+    {
+      "jobId": "2000002",
+      "escrowVersion": "v3",
+      "title": "Format a four-step checklist",
+      "statusAtReview": "SUBMITTED",
+      "score": 10,
+      "action": "accept",
+      "deliverableHash": "0x9cef48d83523acc08c35695451c2bcfac900e5943e6857def2646fc0afb3ea05",
+      "rationale": "Returns exactly four bullets with the required Input, Action, Output, and Check headings in the correct order, with concise and relevant content and no extra text."
+    },
+    {
+      "jobId": "2000003",
+      "escrowVersion": "v3",
+      "title": "Write an ArcTask V3 terminology page",
+      "statusAtReview": "SUBMITTED",
+      "score": 6.5,
+      "action": "reject",
+      "deliverableHash": "0xac0d9d18f2ae94ce8aafe659b4c599dab52219190fa3377dd8bc5ba1fda832ea",
+      "rationale": "The page is well structured and covers all requested terms, but it materially confuses payload schema version with onchain executionVersion, defines execution budget as generic AI spend instead of the funded per-attempt onchain budget, and oversimplifies claimable-credit settlement. These terminology errors make the documentation unsafe to publish."
+    },
+    {
+      "jobId": "2000004",
+      "escrowVersion": "v3",
+      "title": "Analyze V3 funded-retry QA scenarios",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0xb960f8f73801ef7820668829284b7a1022878285820db3d1623bd8051c84e417",
+      "rationale": "Delivers a detailed frontend QA plan for budget exhaustion, retry funding, new execution versions, usage preservation, stale state, and failure handling, with exact expected fields, priorities, evidence limitations, and release criteria."
+    },
+    {
+      "jobId": "2000005",
+      "escrowVersion": "v3",
+      "title": "Review secure V3 worker recovery operations",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0x0ce6c077715d833b4b9b2c7638f2cf4388fac2d9ed165eb39d1e921f20bfa97d",
+      "rationale": "Separates implemented controls from proposals and provides source-grounded findings, duplicate-execution and stale-lock analysis, RPC and restart recovery, measurable alerts, owner actions, failure-injection tests, rollback, and recovery verification."
+    },
+    {
+      "jobId": "2000006",
+      "escrowVersion": "v3",
+      "title": "Perform a critical V3 funded-retry escrow audit",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0xd056de87ed55925003633cc6e6d1f0c8d2b2e06ac3179453baf21de11c266c41",
+      "rationale": "Provides a complete authorization matrix and state machine, conservation analysis, concrete high-severity funded-retry and settlement findings, exploit sequences, tests, minimal patches, blockers, and a justified do-not-ship conclusion. One native-decimal criticism is incorrect for Arc, but the core audit remains strong and independently useful."
+    }
+  ]
+}
