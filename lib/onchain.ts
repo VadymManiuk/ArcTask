@@ -32,6 +32,16 @@ const publicClient = createPublicClient({
   transport: http(arcTestnet.rpcUrls.default.http[0])
 });
 
+export type HybridEscrowVersion = "v2" | "v3" | "v4";
+
+export interface EscrowCreditBalance {
+  version: HybridEscrowVersion;
+  label: string;
+  address: Address;
+  amount: bigint;
+  amountUsdc: string;
+}
+
 type OnchainJob = readonly [
   Address,
   bigint,
@@ -215,6 +225,44 @@ function getEscrowContext(onchainJobId?: string) {
     isV3,
     isV4
   };
+}
+
+function getHybridEscrowContext(version: HybridEscrowVersion) {
+  const contractName =
+    version === "v4"
+      ? "erc8183EscrowV4"
+      : version === "v3"
+        ? "erc8183EscrowV3"
+        : "erc8183EscrowV2";
+
+  return {
+    version,
+    label: version === "v4" ? "V4 current" : `${version.toUpperCase()} legacy`,
+    address: getContractAddress(contractName)
+  };
+}
+
+export async function getEscrowCreditBalancesOnchain(account: Address) {
+  const contexts = (["v4", "v3", "v2"] as const).map(getHybridEscrowContext);
+  const amounts = (await Promise.all(
+    contexts.map((context) =>
+      publicClient.readContract({
+        address: context.address,
+        abi: escrowV2Abi,
+        functionName: "claimable",
+        args: [account]
+      })
+    )
+  )) as bigint[];
+
+  return contexts.map((context, index): EscrowCreditBalance => {
+    const amount = amounts[index];
+    return {
+      ...context,
+      amount,
+      amountUsdc: formatUnits(amount, arcTestnet.nativeCurrency.decimals)
+    };
+  });
 }
 
 async function getConnectedWalletClient() {
@@ -617,14 +665,48 @@ export async function withdrawEscrowCreditOnchain(onchainJobId: string) {
   if (!escrow.isV2) {
     throw new Error("Pull-payment withdrawals are available only for hybrid escrow jobs.");
   }
-  const { walletClient } = await getConnectedWalletClient();
+
+  const version: HybridEscrowVersion = escrow.isV4 ? "v4" : escrow.isV3 ? "v3" : "v2";
+  return withdrawEscrowCreditVersionOnchain(version);
+}
+
+export async function withdrawEscrowCreditVersionOnchain(version: HybridEscrowVersion) {
+  const escrow = getHybridEscrowContext(version);
+  const { account, walletClient } = await getConnectedWalletClient();
+  const amount = (await publicClient.readContract({
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "claimable",
+    args: [account]
+  })) as bigint;
+
+  if (amount === BigInt(0)) {
+    throw new Error(
+      `No withdrawable USDC for ${account} in ${version.toUpperCase()} escrow. Switch to the wallet that owns the credit.`
+    );
+  }
+
+  await publicClient.simulateContract({
+    account,
+    address: escrow.address,
+    abi: escrowV2Abi,
+    functionName: "withdraw"
+  });
+
   const txHash = await walletClient.writeContract({
     address: escrow.address,
     abi: escrowV2Abi,
     functionName: "withdraw"
   });
   const receipt = await waitForHash(txHash);
-  return { txHash, blockNumber: Number(receipt.blockNumber), gasUsed: receipt.gasUsed.toString() };
+  return {
+    txHash,
+    blockNumber: Number(receipt.blockNumber),
+    gasUsed: receipt.gasUsed.toString(),
+    version,
+    amount: amount.toString(),
+    amountUsdc: formatUnits(amount, arcTestnet.nativeCurrency.decimals)
+  };
 }
 
 async function settleJobOnchain(functionName: "acceptWork" | "rejectWork" | "refundExpired", onchainJobId: string) {

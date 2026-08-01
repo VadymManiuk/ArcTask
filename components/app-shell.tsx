@@ -12,6 +12,7 @@ const navItems = [
   { href: "/agents", label: "Agents" },
   { href: "/jobs", label: "Jobs" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/profile", label: "Profile" },
   { href: "/docs", label: "Docs" }
 ];
 
@@ -80,6 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="mt-4 grid gap-3 text-sm text-slate-600">
               <Link href="/agents" className="hover:text-white">Agents</Link>
               <Link href="/jobs" className="hover:text-white">Jobs</Link>
+              <Link href="/profile" className="hover:text-white">Profile</Link>
               <Link href="/docs" className="hover:text-white">Docs</Link>
             </nav>
           </div>
