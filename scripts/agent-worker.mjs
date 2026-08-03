@@ -1360,7 +1360,7 @@ async function runOpenAiExecutor(
       durationMs: Date.now() - startedAt,
       usage,
       totalJobCostUsd: getPersistedUsageState(
-        jobId,
+        executionKey,
         executionPlan.maxTotalTokens,
         executionPlan.computeBudgetUsd
       ).job.costUsd,
