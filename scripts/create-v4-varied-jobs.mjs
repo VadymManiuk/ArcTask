@@ -17,7 +17,10 @@ import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs"
 
 const rootDir = process.cwd();
 const execute = process.argv.includes("--execute");
-const retryStandard = process.argv.includes("--retry-standard");
+const retryStandardTargetVersion = process.argv.includes("--retry-standard-v3") ? 3 : 2;
+const retryStandard =
+  process.argv.includes("--retry-standard") ||
+  process.argv.includes("--retry-standard-v3");
 const batchId = "arctask.v4.varied-jobs.2026-08-03";
 const defaultEscrowAddress = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
@@ -263,9 +266,14 @@ if (retryStandard) {
       args: [existing.jobId]
     })
   );
-  if (Number(execution[0]) >= 2) {
+  if (Number(execution[0]) >= retryStandardTargetVersion) {
     console.log(`Standard V4 job #${existing.jobId} already uses execution version ${execution[0]}.`);
     process.exit(0);
+  }
+  if (Number(execution[0]) !== retryStandardTargetVersion - 1) {
+    throw new Error(
+      `Standard V4 job #${existing.jobId} must be on execution version ${retryStandardTargetVersion - 1} before funding v${retryStandardTargetVersion}.`
+    );
   }
   if (Number(existing.job[8]) !== 0) {
     throw new Error(`Standard V4 job #${existing.jobId} is not FUNDED.`);
@@ -285,10 +293,8 @@ if (retryStandard) {
   }
   const revisedDescription = [
     definition.description,
-    "Inside Before you start, include a line beginning Prerequisites: and explicitly state assumptions.",
-    "Inside Setup, use numbered steps.",
-    "Inside Final check, include verification and failure recovery.",
-    "Inside Recommendations, include a line beginning Next steps: and give concrete next actions."
+    "Keep the four requested headings and include these exact labeled lines inside them: Prerequisites:, Assumptions:, Step 1:, Verification:, Failure handling:, and Next steps:.",
+    "Do not replace those six labels with synonyms."
   ].join(" ");
   const revisedPlan = createExecutionPlan({
     title: definition.title,
@@ -306,7 +312,7 @@ if (retryStandard) {
     executionEstimate: revisedPlan,
     revisedAt: new Date().toISOString(),
     revisionReason:
-      "Controlled retry after the first draft used reader-friendly headings that the legacy quality gate interpreted too literally."
+      `Controlled retry v${retryStandardTargetVersion} after the previous draft used reader-friendly wording that the legacy quality gate interpreted too literally.`
   };
   const hash = await walletClient.writeContract({
     address: escrowAddress,
@@ -325,7 +331,7 @@ if (retryStandard) {
     throw new Error(`fundRetry failed for Standard V4 job #${existing.jobId}: ${hash}`);
   }
   console.log(
-    `Funded Standard V4 retry #${existing.jobId} v2 with ${definition.reward} USDC (${formatUnits(quote[0], 18)} total): ${hash}`
+    `Funded Standard V4 retry #${existing.jobId} v${retryStandardTargetVersion} with ${definition.reward} USDC (${formatUnits(quote[0], 18)} total): ${hash}`
   );
   process.exit(0);
 }
