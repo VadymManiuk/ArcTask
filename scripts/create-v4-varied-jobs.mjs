@@ -285,10 +285,10 @@ if (retryStandard) {
   }
   const revisedDescription = [
     definition.description,
-    "Inside Before you start, explicitly state requirements and assumptions.",
+    "Inside Before you start, include a line beginning Prerequisites: and explicitly state assumptions.",
     "Inside Setup, use numbered steps.",
     "Inside Final check, include verification and failure recovery.",
-    "Inside Recommendations, give concrete next actions."
+    "Inside Recommendations, include a line beginning Next steps: and give concrete next actions."
   ].join(" ");
   const revisedPlan = createExecutionPlan({
     title: definition.title,
