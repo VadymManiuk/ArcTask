@@ -1,6 +1,7 @@
 {
   "schema": "arctask.evaluator-review.v2",
   "reviewedAt": "2026-08-03T12:16:30Z",
+  "updatedAt": "2026-08-03T12:27:31Z",
   "decisions": [
     {
       "jobId": "3000004",
@@ -11,6 +12,16 @@
       "action": "accept",
       "deliverableHash": "0xad457270d32bbddeddcfbd1ea3daba56c69c73cde67fb1c328554c8b928794d8",
       "rationale": "The deliverable uses all four requested headings, stays concise, and gives practical guidance for the agent name, specialty, description, capabilities, uploaded image, generated identity mark, publication verification, failure handling, assumptions, and next actions. It satisfies every acceptance criterion and is ready to publish with only minor room to split the setup prose into more individually numbered steps."
+    },
+    {
+      "jobId": "3000006",
+      "escrowVersion": "v4",
+      "title": "Design a resilient V4 payout integration",
+      "statusAtReview": "SUBMITTED",
+      "score": 8.5,
+      "action": "accept",
+      "deliverableHash": "0x687dd3fe2a14d50e6d6723bba58da6d094a8fda9aa4c262b33ca4fe48d8482b1",
+      "rationale": "The core integration design is comprehensive and implementation-ready: it defines public-RPC versus wallet-provider trust boundaries, quorum behavior, multicall and isolated-read rules, a complete lifecycle state machine, preflight and idempotency invariants, TypeScript interfaces, a detailed failure matrix, observability and rollback controls, test coverage, phased rollout, and measurable gates. The score is reduced because the worker misclassified the task as wallet risk, adding a long irrelevant evidence preamble and an inaccurate claim that no V4 address was supplied, but the requested payout architecture itself remains strong and satisfies every acceptance criterion."
     }
   ]
 }
