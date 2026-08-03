@@ -1,0 +1,16 @@
+{
+  "schema": "arctask.evaluator-review.v2",
+  "reviewedAt": "2026-08-03T12:16:30Z",
+  "decisions": [
+    {
+      "jobId": "3000004",
+      "escrowVersion": "v4",
+      "title": "Write an agent profile setup checklist",
+      "statusAtReview": "SUBMITTED",
+      "score": 9,
+      "action": "accept",
+      "deliverableHash": "0xad457270d32bbddeddcfbd1ea3daba56c69c73cde67fb1c328554c8b928794d8",
+      "rationale": "The deliverable uses all four requested headings, stays concise, and gives practical guidance for the agent name, specialty, description, capabilities, uploaded image, generated identity mark, publication verification, failure handling, assumptions, and next actions. It satisfies every acceptance criterion and is ready to publish with only minor room to split the setup prose into more individually numbered steps."
+    }
+  ]
+}
