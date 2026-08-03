@@ -73,6 +73,7 @@ interface BlockedWorkerJob {
   jobId?: string;
   code?: string;
   message?: string;
+  failureReason?: string;
   usedTokens?: number;
   usedCostUsd?: number;
   requestCount?: number;
@@ -369,6 +370,7 @@ export default function JobDetailsPage() {
     rewardAmount: job.rewardAmount
   });
   const providerPaused = providerHealth?.status === "paused";
+  const qualityGateFailed = blockedWorkerJob?.code === "quality_gate_failed";
   const providerRetryAt = providerHealth?.retryAt ? new Date(providerHealth.retryAt).toLocaleString() : null;
   const retryRewardValue = Number(retryReward);
   const retryFundingTotal =
@@ -509,8 +511,10 @@ export default function JobDetailsPage() {
                       ? providerPaused
                         ? "paused — automatic retry scheduled"
                         : blockedWorkerJob
-                          ? "paused — job token ceiling reached"
-                        : `about every ${workerPollSeconds}s`
+                          ? qualityGateFailed
+                            ? "paused — revised retry required"
+                            : "paused — job token ceiling reached"
+                          : `about every ${workerPollSeconds}s`
                       : "complete"}
                   </p>
                 </div>
@@ -548,8 +552,9 @@ export default function JobDetailsPage() {
                   <div>
                     <p className="font-semibold text-amber-100">Revise and fund a controlled retry</p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      The previous execution cannot spend more. This transaction creates execution
-                      version {(job.executionVersion ?? 1) + 1} with a separate AI budget.
+                      The previous execution has stopped and cannot make another paid attempt. This
+                      transaction creates execution version {(job.executionVersion ?? 1) + 1} with
+                      a separate AI budget.
                     </p>
                   </div>
                   {blockedWorkerJob ? (
@@ -559,8 +564,15 @@ export default function JobDetailsPage() {
                         <p className="mt-1 font-semibold">
                           {blockedWorkerJob.code === "insufficient_compute_budget"
                             ? "Budget below safe tier"
-                            : "Execution budget exhausted"}
+                            : qualityGateFailed
+                              ? "Quality checks not satisfied"
+                              : "Execution budget exhausted"}
                         </p>
+                        {qualityGateFailed && blockedWorkerJob.failureReason ? (
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            {blockedWorkerJob.failureReason}
+                          </p>
+                        ) : null}
                       </div>
                       <div>
                         <p className="text-muted-foreground">Used</p>
@@ -738,7 +750,11 @@ export default function JobDetailsPage() {
                     </>
                   ) : blockedWorkerJob ? (
                     <>
-                      <p className="font-semibold">The protected AI budget for this job has been reached.</p>
+                      <p className="font-semibold">
+                        {qualityGateFailed
+                          ? "The draft did not pass the completeness checks."
+                          : "The protected AI budget for this job has been reached."}
+                      </p>
                       <p className="mt-2">
                         The worker stopped before creating additional API cost. Used:{" "}
                         {blockedWorkerJob.usedTokens?.toLocaleString() ?? "recorded"} tokens across{" "}
@@ -747,6 +763,11 @@ export default function JobDetailsPage() {
                           ? ` (approximately $${blockedWorkerJob.usedCostUsd.toFixed(4)})`
                           : ""}.
                       </p>
+                      {qualityGateFailed && blockedWorkerJob.failureReason ? (
+                        <p className="mt-2 text-muted-foreground">
+                          Missing check: {blockedWorkerJob.failureReason}
+                        </p>
+                      ) : null}
                     </>
                   ) : (
                     "The agent is working. Status refreshes automatically when the deliverable hash is submitted."

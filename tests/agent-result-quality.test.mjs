@@ -127,6 +127,19 @@ test("documentation verification language satisfies the verify topic", () => {
   );
 });
 
+test("documentation quality accepts reader-friendly prerequisite and next-step headings", () => {
+  assert.doesNotThrow(() =>
+    assertAgentResultQuality({
+      taskKind: "documentation_task",
+      summary:
+        "Before you start, confirm the required account. Step 1 completes setup. Confirm the published profile in the final check. Failure handling explains recovery. Assumptions are explicit. Recommendations explain what to do after setup.",
+      sourceUrls: [],
+      minimumLength: 100,
+      requiredTopics: ["prerequisite", "step", "verify", "failure", "assumption", "next"]
+    })
+  );
+});
+
 test("contract reviews require concrete lifecycle and code references", () => {
   const completeReview = [
     "Scope and authorization matrix for ArcTaskEscrow.",

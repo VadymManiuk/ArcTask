@@ -106,6 +106,19 @@ export function assertAgentResultQuality({
   const topicAliases = {
     "data source": ["data source", "source field", "marketplace snapshot", "evidence source"],
     limitation: ["limitation", "limited", "unavailable history", "data gap", "constraint"],
+    prerequisite: [
+      "prerequisite",
+      "before you start",
+      "requirement",
+      "what you need"
+    ],
+    next: [
+      "next",
+      "recommendation",
+      "follow up",
+      "after setup",
+      "what to do"
+    ],
     verify: ["verify", "verification", "success check", "confirm"],
     "settlement risk": [
       "settlement risk",

@@ -17,6 +17,7 @@ import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs"
 
 const rootDir = process.cwd();
 const execute = process.argv.includes("--execute");
+const retryStandard = process.argv.includes("--retry-standard");
 const batchId = "arctask.v4.varied-jobs.2026-08-03";
 const defaultEscrowAddress = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
 const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
@@ -197,6 +198,7 @@ const nextJobId = await withRpcRetry(() =>
   })
 );
 const existingKeys = new Set();
+const existingJobs = new Map();
 for (let jobId = firstV4JobId; jobId < nextJobId; jobId += 1n) {
   const job = await withRpcRetry(() =>
     publicClient.readContract({
@@ -209,6 +211,7 @@ for (let jobId = firstV4JobId; jobId < nextJobId; jobId += 1n) {
   const payload = decodePayload(job[6]);
   if (payload?.batchId === batchId && typeof payload.batchKey === "string") {
     existingKeys.add(payload.batchKey);
+    existingJobs.set(payload.batchKey, { jobId, job, payload });
   }
 }
 
@@ -241,6 +244,90 @@ for (const { job, plan } of plans) {
   console.log(
     `${job.expectedTier.padEnd(8)} ${job.reward.padStart(4)} USDC · agent ${job.agentId} ${job.agentName} · score ${plan.complexity.score} · ${plan.model}`
   );
+}
+
+if (retryStandard) {
+  if (!execute) {
+    throw new Error("--retry-standard requires --execute.");
+  }
+  const definition = jobDefinitions.find((job) => job.expectedTier === "standard");
+  const existing = definition ? existingJobs.get(definition.batchKey) : undefined;
+  if (!definition || !existing) {
+    throw new Error("The Standard V4 job does not exist.");
+  }
+  const execution = await withRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "getJobExecution",
+      args: [existing.jobId]
+    })
+  );
+  if (Number(execution[0]) >= 2) {
+    console.log(`Standard V4 job #${existing.jobId} already uses execution version ${execution[0]}.`);
+    process.exit(0);
+  }
+  if (Number(existing.job[8]) !== 0) {
+    throw new Error(`Standard V4 job #${existing.jobId} is not FUNDED.`);
+  }
+
+  const rewardIncrease = parseUnits(definition.reward, 18);
+  const quote = await withRpcRetry(() =>
+    publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "quoteFunding",
+      args: [rewardIncrease]
+    })
+  );
+  if (balance < quote[0]) {
+    throw new Error("Insufficient testnet USDC balance for the Standard controlled retry.");
+  }
+  const revisedDescription = [
+    definition.description,
+    "Inside Before you start, explicitly state requirements and assumptions.",
+    "Inside Setup, use numbered steps.",
+    "Inside Final check, include verification and failure recovery.",
+    "Inside Recommendations, give concrete next actions."
+  ].join(" ");
+  const revisedPlan = createExecutionPlan({
+    title: definition.title,
+    description: revisedDescription,
+    rewardAmount: Number(definition.reward)
+  });
+  const revisedPayload = {
+    ...existing.payload,
+    title: definition.title,
+    description: revisedDescription,
+    rewardAmount: Number(formatUnits(existing.job[4] + rewardIncrease, 18)),
+    deadline: new Date(Number(deadline) * 1000).toISOString(),
+    difficulty: definition.expectedTier,
+    acceptanceCriteria: definition.acceptanceCriteria,
+    executionEstimate: revisedPlan,
+    revisedAt: new Date().toISOString(),
+    revisionReason:
+      "Controlled retry after the first draft used reader-friendly headings that the legacy quality gate interpreted too literally."
+  };
+  const hash = await walletClient.writeContract({
+    address: escrowAddress,
+    abi: escrowAbi,
+    functionName: "fundRetry",
+    args: [
+      existing.jobId,
+      rewardIncrease,
+      deadline,
+      encodePayload(revisedPayload)
+    ],
+    value: quote[0]
+  });
+  const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
+  if (receipt.status !== "success") {
+    throw new Error(`fundRetry failed for Standard V4 job #${existing.jobId}: ${hash}`);
+  }
+  console.log(
+    `Funded Standard V4 retry #${existing.jobId} v2 with ${definition.reward} USDC (${formatUnits(quote[0], 18)} total): ${hash}`
+  );
+  process.exit(0);
 }
 
 if (!execute) {

@@ -95,6 +95,16 @@ class UsageBudgetExceededError extends Error {
   }
 }
 
+class QualityGateFailedError extends Error {
+  constructor(state, executionPlan, validationError) {
+    super(`QUALITY_GATE_FAILED: ${validationError.message}`, { cause: validationError });
+    this.name = "QualityGateFailedError";
+    this.state = state;
+    this.executionPlan = executionPlan;
+    this.validationMessage = validationError.message;
+  }
+}
+
 function loadLocalEnv() {
   const envPath = path.join(rootDir, ".env.local");
   if (!fs.existsSync(envPath)) {
@@ -476,7 +486,7 @@ async function buildAgentResult(
       executionKey
     );
   } catch (caught) {
-    if (caught instanceof UsageBudgetExceededError) {
+    if (caught instanceof UsageBudgetExceededError || caught instanceof QualityGateFailedError) {
       throw caught;
     }
     const message = caught instanceof Error ? caught.message : "OpenAI executor failed.";
@@ -1089,7 +1099,7 @@ async function runOpenAiExecutor(
         : "Use the supplied payload as primary evidence and clearly identify any input that is genuinely absent.",
     `Keep the complete deliverable under approximately ${targetMaximumChars} characters so the conclusion is never truncated.`,
     taskProfile.kind === "documentation_task"
-      ? "Use no more than 650 words and prioritize the requested publish-ready content over commentary."
+      ? "Use no more than 650 words and prioritize the requested publish-ready content over commentary. Keep the task's requested headings. Within them, explicitly cover prerequisites or requirements, numbered steps, a verification or success check, failure handling, assumptions, and next actions."
       : "",
     `End the response with the exact standalone line ${completionMarker}. A response without this final marker is incomplete and must not be submitted.`,
     "Return only the complete evaluator-ready deliverable. Do not include hidden reasoning, generic filler, or an unfinished section."
@@ -1226,6 +1236,16 @@ async function runOpenAiExecutor(
   }
 
   if (lastError || !summary) {
+    if (lastError) {
+      const usageState = getPersistedUsageState(
+        executionKey,
+        executionPlan.maxTotalTokens,
+        executionPlan.computeBudgetUsd
+      );
+      if (usageState.job.requestKinds.generation >= executionPlan.maxAttempts) {
+        throw new QualityGateFailedError(usageState, executionPlan, lastError);
+      }
+    }
     throw lastError ?? new Error("OpenAI execution failed to produce a valid deliverable.");
   }
 
@@ -1826,6 +1846,16 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
     if (attempted >= maxJobsPerTick) {
       break;
     }
+    const currentExecutionVersion = Number(job.executionVersion ?? 1);
+    const existingBlock = blockedJobs.find(
+      (item) =>
+        item.jobId === jobId.toString() &&
+        Number(item.executionVersion ?? 1) === currentExecutionVersion
+    );
+    if (existingBlock) {
+      skipped += 1;
+      continue;
+    }
     attempted += 1;
     const lock = acquireJobLock(lockDir, jobId, workerAccount.account.address);
     if (!lock) {
@@ -1896,6 +1926,37 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
           ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
         ].slice(0, 100);
         console.log(`defer job ${jobId}: ${caught.message}`);
+        continue;
+      }
+
+      if (caught instanceof QualityGateFailedError) {
+        attempted -= 1;
+        skipped += 1;
+        blockedJobs = [
+          {
+            jobId: jobId.toString(),
+            code: "quality_gate_failed",
+            message: "The generated draft did not satisfy the required completeness checks.",
+            failureReason: caught.validationMessage,
+            usedTokens: caught.state.job.totalTokens,
+            usedCostUsd: caught.state.job.costUsd,
+            requestCount: caught.state.job.requestKinds.generation,
+            model: caught.state.job.lastModel,
+            executionVersion: job.executionVersion,
+            requiredTier: caught.executionPlan?.requiredTier,
+            minimumRecommendedReward: caught.executionPlan?.minimumRecommendedReward,
+            canFundRetry: escrowContext.version === "v4"
+          },
+          ...blockedJobs.filter((item) => item.jobId !== jobId.toString())
+        ].slice(0, 100);
+        appendStatusEvent({
+          type: "job_quality_gate_failed",
+          jobId: jobId.toString(),
+          failureReason: caught.validationMessage,
+          usedTokens: caught.state.job.totalTokens,
+          usedCostUsd: caught.state.job.costUsd,
+          requestCount: caught.state.job.requestKinds.generation
+        });
         continue;
       }
 

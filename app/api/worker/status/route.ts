@@ -57,6 +57,7 @@ interface WorkerStatus {
     jobId?: string;
     code?: string;
     message?: string;
+    failureReason?: string;
     usedTokens?: number;
     usedCostUsd?: number;
     requestCount?: number;
@@ -139,6 +140,7 @@ function sanitizeStatus(status: WorkerStatus) {
       jobId: job.jobId,
       code: job.code,
       message: job.message,
+      failureReason: job.failureReason,
       usedTokens: job.usedTokens,
       usedCostUsd: job.usedCostUsd,
       requestCount: job.requestCount,
