@@ -1,15 +1,8 @@
-import { isAddressLike } from "@/lib/utils";
+import { defaultContractAddresses, getDeploymentScope, isMainnetContractAddress } from "@/lib/arc-network.mjs";
+export { defaultContractAddresses } from "@/lib/arc-network.mjs";
 
 export type ArcMode = "mock" | "onchain";
 
-export const defaultContractAddresses = {
-  erc8004Registry: "0xd8499627775ac67cd756335a3c48387d0aff5553",
-  erc8183Escrow: "0x08eb8630f6b5d2c1c030688076b80360531a2e9a",
-  erc8183EscrowV2: "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb",
-  erc8183EscrowV3: "0x548531bbe48db4cded53da0d30998e7553eee53f",
-  erc8183EscrowV4: "0xb4791ed947067daf445c936ee44cedec949bdbb4",
-  usdc: "native"
-} as const;
 
 const rawContractAddresses = {
   erc8004Registry: process.env.NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS ?? defaultContractAddresses.erc8004Registry,
@@ -34,13 +27,13 @@ export function getArcMode(): ArcMode {
 
 export function getOnchainReadiness() {
   const requiredAddresses = Object.entries(rawContractAddresses).filter(
-    ([key]) => key !== "erc8183EscrowV2"
+    ([key]) => ["erc8004Registry", "erc8183EscrowV4", "usdc"].includes(key)
   );
   const missing = requiredAddresses
     .filter(([, value]) => !value)
     .map(([key]) => key);
   const invalid = Object.entries(rawContractAddresses)
-    .filter(([key, value]) => value && !(key === "usdc" && value === "native") && !isAddressLike(value))
+    .filter(([key, value]) => value && (key === "usdc" ? value !== "native" : !isMainnetContractAddress(value)))
     .map(([key]) => key);
 
   return {
@@ -50,3 +43,5 @@ export function getOnchainReadiness() {
     invalid
   };
 }
+
+export const deploymentScope = getDeploymentScope(contractAddresses.erc8004Registry, contractAddresses.erc8183EscrowV4);

@@ -1,10 +1,10 @@
+import { ARC_MAINNET, defaultContractAddresses, getArcChain, getDeploymentScope, assertArcMainnet, assertArcContracts } from "../lib/arc-network.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
   createPublicClient,
   createWalletClient,
-  defineChain,
   formatUnits,
   http,
   keccak256,
@@ -62,13 +62,13 @@ import {
 } from "../lib/openai-background.mjs";
 
 const rootDir = process.cwd();
-const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
-const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
-const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
-const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
-const defaultRpcUrl = "https://rpc.testnet.arc.network";
-const defaultExplorerUrl = "https://testnet.arcscan.app";
+const defaultRegistryAddress = defaultContractAddresses.erc8004Registry;
+const defaultEscrowAddress = defaultContractAddresses.erc8183Escrow;
+const defaultEscrowV2Address = defaultContractAddresses.erc8183EscrowV2;
+const defaultEscrowV3Address = defaultContractAddresses.erc8183EscrowV3;
+const defaultEscrowV4Address = defaultContractAddresses.erc8183EscrowV4;
+const defaultRpcUrl = ARC_MAINNET.rpcUrl;
+const defaultExplorerUrl = ARC_MAINNET.explorerUrl;
 const fundedStatus = 0;
 const statusVersion = 3;
 const defaultMaxJobPayloadChars = 8_000;
@@ -106,7 +106,7 @@ class QualityGateFailedError extends Error {
 }
 
 function loadLocalEnv() {
-  const envPath = path.join(rootDir, ".env.local");
+  const envPath = path.resolve(rootDir, process.env.ARCTASK_ENV_FILE || ".env.local");
   if (!fs.existsSync(envPath)) {
     return;
   }
@@ -119,7 +119,7 @@ function loadLocalEnv() {
     }
 
     const [key, ...parts] = trimmed.split("=");
-    if (!process.env[key]) {
+    if (process.env[key] === undefined) {
       process.env[key] = parts.join("=").replace(/^["']|["']$/g, "");
     }
   }
@@ -136,6 +136,7 @@ function requiredEnv(name) {
 
 function optionalAddress(name, fallback) {
   const value = process.env[name] ?? fallback;
+  if (!value) return null;
   if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
     throw new Error(`${name} must be a valid 0x address.`);
   }
@@ -242,7 +243,7 @@ function parsePrivateKeys() {
   const allowDeployerFallback = getBooleanEnv("ARC_AGENT_ALLOW_DEPLOYER_FALLBACK", false);
   const fallbackKey =
     process.env.ARC_AGENT_PRIVATE_KEY ??
-    (allowDeployerFallback ? process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY : undefined);
+    (allowDeployerFallback ? process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY : undefined);
   const keys = uniq(rawKeys.length > 0 ? rawKeys : fallbackKey ? [fallbackKey] : []);
 
   if (keys.length === 0) {
@@ -554,7 +555,7 @@ function getTaskProfile(payload) {
     return {
       kind: "wallet_or_counterparty_risk",
       instruction:
-        "For wallet or counterparty risk tasks, use the verified Arc RPC and Arcscan evidence snapshot. Required sections: Decision, Verified onchain facts, Recent transaction sample, Ownership and role evidence, Severity-ranked findings, Evidence limitations, Required onboarding controls, and Recommendation. Distinguish confirmed facts, risk indicators, and evidence gaps. Do not claim that the network, balance, nonce, bytecode, account type, or transaction history is unavailable when the evidence contains it. Arc Testnet native USDC uses 18 decimals; do not misclassify correct native-USDC formatting as an unresolved ERC-20 decimal issue.",
+        "For wallet or counterparty risk tasks, use the verified Arc RPC and Arcscan evidence snapshot. Required sections: Decision, Verified onchain facts, Recent transaction sample, Ownership and role evidence, Severity-ranked findings, Evidence limitations, Required onboarding controls, and Recommendation. Distinguish confirmed facts, risk indicators, and evidence gaps. Do not claim that the network, balance, nonce, bytecode, account type, or transaction history is unavailable when the evidence contains it. Arc Mainnet native USDC uses 18 decimals; do not misclassify correct native-USDC formatting as an unresolved ERC-20 decimal issue.",
       minimumLength: 900,
       requiredTopics: ["decision", "verified", "transaction", "ownership", "severity", "limitation", "recommendation"]
     };
@@ -1453,14 +1454,14 @@ function buildResultSummary(jobId, payload) {
 }
 
 function ensureOutputDir() {
-  const outputDir = process.env.ARC_AGENT_OUTPUT_DIR ?? path.join(rootDir, ".agent-worker", "deliverables");
+  const outputDir = process.env.ARC_AGENT_OUTPUT_DIR ?? path.join(rootDir, ".agent-worker", deploymentScope, "deliverables");
   fs.mkdirSync(outputDir, { recursive: true });
   return outputDir;
 }
 
 function ensureRuntimeDirs() {
-  const stateDir = process.env.ARC_AGENT_STATE_DIR ?? path.join(rootDir, ".agent-worker", "state");
-  const lockDir = process.env.ARC_AGENT_LOCK_DIR ?? path.join(rootDir, ".agent-worker", "locks");
+  const stateDir = process.env.ARC_AGENT_STATE_DIR ?? path.join(rootDir, ".agent-worker", deploymentScope, "state");
+  const lockDir = process.env.ARC_AGENT_LOCK_DIR ?? path.join(rootDir, ".agent-worker", deploymentScope, "locks");
   fs.mkdirSync(stateDir, { recursive: true });
   fs.mkdirSync(lockDir, { recursive: true });
   return {
@@ -1489,6 +1490,8 @@ function createInitialStatus() {
   return {
     version: statusVersion,
     service: "arctask-worker",
+    chainId: ARC_MAINNET.chainId,
+    deploymentScope,
     startedAt: now,
     updatedAt: now,
     lastHeartbeatAt: now,
@@ -1738,6 +1741,8 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount, escrowCon
 }
 
 async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
+  await assertArcContracts(publicClient, [registryAddress, escrowV4Address, ...escrowContexts.map((context) => context.address)]);
+  await withRpcRetry(() => assertArcMainnet(writePublicClient), { maxAttempts: 3 });
   let handled = 0;
   let scanned = 0;
   let skipped = 0;
@@ -2090,7 +2095,7 @@ function sleep(ms) {
 loadLocalEnv();
 
 const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? defaultRpcUrl;
-const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? "https://testnet.arcscan.app/api/eth-rpc";
+const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? ARC_MAINNET.rpcUrl;
 const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? defaultExplorerUrl;
 const escrowAddress = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS", defaultEscrowAddress);
 const escrowV2Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS", defaultEscrowV2Address);
@@ -2100,6 +2105,7 @@ const escrowV3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JO
 const escrowV4Address = optionalAddress("NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS", defaultEscrowV4Address);
 const escrowV4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?? "3000000");
 const registryAddress = optionalAddress("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS", defaultRegistryAddress);
+const deploymentScope = getDeploymentScope(registryAddress, escrowV4Address);
 const dryRun = getBooleanEnv("ARC_AGENT_DRY_RUN", true);
 const once = getBooleanEnv("ARC_AGENT_ONCE", false);
 const pollIntervalMs = getPositiveIntegerEnv("ARC_AGENT_POLL_INTERVAL_MS", 15_000);
@@ -2122,7 +2128,10 @@ const openAiWebSearchContext = getOpenAiSearchContext();
 const allowDeterministicFallback = getBooleanEnv("ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK", dryRun);
 const maxJobPayloadChars = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_JOB_PAYLOAD_CHARS", defaultMaxJobPayloadChars);
 const routingMode = getRoutingMode();
-const routingSubsidyEnabled = getBooleanEnv("ARC_AGENT_DEMO_SUBSIDY", false);
+const routingSubsidyEnabled = false;
+if (getBooleanEnv("ARC_AGENT_DEMO_SUBSIDY", false) || process.env.ARC_AGENT_RECOVERY_JOB_IDS?.trim()) {
+  throw new Error("Testnet subsidy and recovery overrides must be cleared before starting the mainnet worker.");
+}
 const recoveryJobIds = getJobIdSetEnv("ARC_AGENT_RECOVERY_JOB_IDS");
 const routingMaxRuntimeMs = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_RUNTIME_MS", 900_000);
 const routingMaxOutputTokens = getOptionalPositiveIntegerEnv("ARC_AGENT_MAX_OUTPUT_TOKENS", 24_000);
@@ -2137,32 +2146,7 @@ const emergencyMonthlySpendLimitUsd = getPositiveNumberEnv(
 const providerQuotaBaseCooldownMs = getPositiveIntegerEnv("ARC_AGENT_PROVIDER_QUOTA_COOLDOWN_MS", 5 * 60_000);
 const providerQuotaMaxCooldownMs = getPositiveIntegerEnv("ARC_AGENT_PROVIDER_QUOTA_MAX_COOLDOWN_MS", 60 * 60_000);
 
-const arcTestnet = defineChain({
-  id: 5042002,
-  name: "Arc Testnet",
-  nativeCurrency: {
-    name: "testnet USDC",
-    symbol: "USDC",
-    decimals: 18
-  },
-  rpcUrls: {
-    default: {
-      http: [rpcUrl]
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: "Arcscan",
-      url: explorerUrl
-    }
-  },
-  contracts: {
-    multicall3: {
-      address: "0xcA11bde05977b3631167028862bE2a173976CA11"
-    }
-  },
-  testnet: true
-});
+const arcMainnet = getArcChain(process.env);
 
 const escrowAbi = readAbi("ERC8183Escrow.json");
 const escrowV2Abi = readAbi("ERC8183EscrowV2.json");
@@ -2172,9 +2156,10 @@ const escrowContexts = [
   { address: escrowV2Address, abi: escrowV2Abi, firstJobId: escrowV2InitialJobId, version: "v2" },
   { address: escrowV3Address, abi: escrowV2Abi, firstJobId: escrowV3InitialJobId, version: "v3" },
   { address: escrowV4Address, abi: escrowV2Abi, firstJobId: escrowV4InitialJobId, version: "v4" }
-];
+].filter((context) => context.address);
+const writePublicClient = createPublicClient({ chain: arcMainnet, transport: http(rpcUrl) });
 const publicClient = createPublicClient({
-  chain: arcTestnet,
+  chain: arcMainnet,
   transport: http(readRpcUrl)
 });
 const workerAccounts = parsePrivateKeys().map((privateKey) => {
@@ -2183,11 +2168,13 @@ const workerAccounts = parsePrivateKeys().map((privateKey) => {
     account,
     walletClient: createWalletClient({
       account,
-      chain: arcTestnet,
+      chain: arcMainnet,
       transport: http(rpcUrl)
     })
   };
 });
+await withRpcRetry(() => assertArcContracts(publicClient, [registryAddress, escrowV4Address]), { maxAttempts: 3 });
+await withRpcRetry(() => assertArcMainnet(writePublicClient), { maxAttempts: 3 });
 const outputDir = ensureOutputDir();
 const { stateDir, lockDir, statusPath } = ensureRuntimeDirs();
 const usagePath = path.join(stateDir, "usage.json");
@@ -2218,9 +2205,9 @@ if (
   !process.env.ARC_AGENT_PRIVATE_KEY &&
   !process.env.ARC_AGENT_PRIVATE_KEYS &&
   getBooleanEnv("ARC_AGENT_ALLOW_DEPLOYER_FALLBACK", false) &&
-  process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY
+  process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY
 ) {
-  console.log("warning: using ARC_TESTNET_DEPLOYER_PRIVATE_KEY fallback because ARC_AGENT_ALLOW_DEPLOYER_FALLBACK=true.");
+  console.log("warning: using ARC_MAINNET_DEPLOYER_PRIVATE_KEY fallback because ARC_AGENT_ALLOW_DEPLOYER_FALLBACK=true.");
 }
 
 atomicWriteJson(statusPath, createInitialStatus());

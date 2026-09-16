@@ -1,11 +1,11 @@
 "use client";
 
 import { getOnchainReadiness } from "@/lib/arc-config";
-export function TestnetStatus() {
+export function NetworkStatus() {
   const readiness = getOnchainReadiness();
   const isMock = readiness.mode === "mock";
   const isReady = readiness.isReady;
-  const label = isMock ? "Mock" : isReady ? "Testnet" : "Config missing";
+  const label = isMock ? "Mock" : isReady ? "Mainnet" : "Config missing";
 
   return (
     <span

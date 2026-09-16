@@ -86,7 +86,7 @@ export function loadTaskArtifacts({
         abi: readJson(rootDir, "lib/contracts/abis/ERC8004AgentRegistry.json")
       },
       verificationNote:
-        "These are the repository sources and generated ABIs used by the deployed ArcTask testnet configuration. Review concrete code paths and clearly distinguish source-confirmed findings from deployment assumptions."
+        "These are the repository sources and generated ABIs used by the ArcTask mainnet build. Review concrete code paths and clearly distinguish source-confirmed findings from deployment assumptions."
     };
   }
 

@@ -9,16 +9,19 @@
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
     "lint": "next lint",
     "typecheck": "node -e \"require('fs').rmSync('tsconfig.tsbuildinfo',{force:true})\" && tsc --noEmit",
-    "contracts:compile": "node scripts/deploy-arc-testnet.mjs --compile-only",
-    "contracts:deploy:arc": "node scripts/deploy-arc-testnet.mjs",
-    "contracts:smoke:arc": "node scripts/smoke-arc-testnet.mjs",
+    "contracts:compile": "node scripts/deploy-arc-mainnet.mjs --compile-only",
+    "contracts:deploy:arc": "node scripts/deploy-arc-mainnet.mjs",
+    "contracts:smoke:arc": "node scripts/smoke-escrow-v2.mjs --v4",
     "agent:worker": "node scripts/agent-worker.mjs",
     "agent:register-managed": "node scripts/register-managed-agent.mjs",
     "agent:worker:once": "ARC_AGENT_ONCE=true node scripts/agent-worker.mjs",
     "agent:worker:live": "ARC_AGENT_DRY_RUN=false node scripts/agent-worker.mjs",
     "jobs:create-v3-pilot": "node scripts/create-v3-pilot-jobs.mjs",
     "jobs:create-agent-challenge": "node scripts/create-v3-pilot-jobs.mjs --agent-challenge",
-    "jobs:create-v4-varied": "node scripts/create-v4-varied-jobs.mjs"
+    "jobs:create-v4-varied": "node scripts/create-v4-varied-jobs.mjs",
+    "contracts:deploy:arc:execute": "node scripts/deploy-arc-mainnet.mjs --execute",
+    "mainnet:preflight": "node scripts/mainnet-preflight.mjs",
+    "mainnet:launch-check": "node scripts/mainnet-launch-check.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

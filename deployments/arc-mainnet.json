@@ -1,0 +1,30 @@
+{
+  "chainId": 5042,
+  "registry": "0xE69E88cb35a831fcA783Ac56405831478FDbAa41",
+  "escrowV4": "0x2B3e0b7a7D96F8199fE31b2867358990430b5181",
+  "treasury": "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
+  "arbitrator": "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
+  "initialJobId": "3000000",
+  "deployer": "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
+  "registryCodeHash": "0xc929443e3399682ba288ffb1733919bb11d9649ffb38af1d0f29db7745240834",
+  "escrowCodeHash": "0x4ab06c47f2bc195cbec73b886f1cf9267737cd6b93ddf93b95234f9470034912",
+  "transactions": {
+    "registry": {
+      "hash": "0x50e19e55ca0037c7aaedf61932d02d1f2461d257c232c4e5daf96178305c4ae0",
+      "blockNumber": "21132339"
+    },
+    "escrowV4": {
+      "hash": "0x4c4a34534faa9b245bdb842d4516cacec0b0450b6f9aaee873123dc77e180738",
+      "blockNumber": "21132356"
+    },
+    "authorize": {
+      "hash": "0x71432aff7e13234b086be60697fbb156d95f0afbc7f63e988348311c3e3a638d",
+      "blockNumber": "21132372"
+    }
+  },
+  "managedAgent": {
+    "id": "1",
+    "owner": "0x7B42ED8165710a86684a54E8B02ec0f61Da8C897",
+    "registrationTx": "0x32fd8641fb3579cda0d0ad84c1396f11c3902186dc178dd1153a566a14708869"
+  }
+}

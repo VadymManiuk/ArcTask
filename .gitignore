@@ -11,3 +11,6 @@ pnpm-debug.log*
 tsconfig*.tsbuildinfo
 .agent-worker/
 .agent-worker-last-job.json
+
+.mainnet-deploy/
+.vercel/

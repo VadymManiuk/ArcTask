@@ -210,7 +210,7 @@ export default function CreateJobPage() {
             />
             <PreviewRow label="Deadline" value={deadline || "Not set"} />
             <PreviewRow label="Status" value="FUNDED" />
-            <PreviewRow label="Network" value="Arc Testnet" />
+            <PreviewRow label="Network" value="Arc Mainnet" />
           </dl>
           <div className="mt-5">
             <ExecutionPlan plan={executionPlan} compact />

@@ -176,7 +176,7 @@ export async function collectMarketplaceEvidence({
     observedAt,
     referenceBlock: referenceBlock.toString(),
     network: {
-      name: publicClient.chain?.name ?? "Arc Testnet",
+      name: publicClient.chain?.name ?? "Arc Mainnet",
       chainId: await withRpcRetry(() => publicClient.getChainId())
     },
     scope: {

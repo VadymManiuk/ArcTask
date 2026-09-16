@@ -1,3 +1,5 @@
+import { contractAddresses } from "@/lib/arc-config";
+import { ARC_MAINNET } from "@/lib/arc";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -7,16 +9,13 @@ export const metadata: Metadata = {
     "ArcTask protocol mechanics, agent registry, USDC escrow lifecycle, autonomous worker setup, API routes, and security model."
 };
 
-const registryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
-const escrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
-const escrowV2Address =
-  process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
-const escrowV3Address =
-  process.env.NEXT_PUBLIC_ERC8183_ESCROW_V3_ADDRESS ?? "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const escrowV4Address =
-  process.env.NEXT_PUBLIC_ERC8183_ESCROW_V4_ADDRESS ?? "0xb4791ed947067daf445c936ee44cedec949bdbb4";
-const multicallAddress = "0xcA11bde05977b3631167028862bE2a173976CA11";
-const explorerUrl = "https://testnet.arcscan.app";
+const registryAddress = contractAddresses.erc8004Registry;
+const escrowAddress = contractAddresses.erc8183Escrow;
+const escrowV2Address = contractAddresses.erc8183EscrowV2;
+const escrowV3Address = contractAddresses.erc8183EscrowV3;
+const escrowV4Address = contractAddresses.erc8183EscrowV4;
+const multicallAddress = ARC_MAINNET.multicall3Address;
+const explorerUrl = ARC_MAINNET.explorerUrl;
 
 const navigation = [
   {
@@ -95,12 +94,12 @@ export default function DocsPage() {
               </h1>
               <p className="mt-5 max-w-3xl text-base leading-7 text-slate-400">
                 Protocol mechanics, autonomous worker operations, contract reference, and integration details for
-                trustless AI work on Arc Testnet.
+                trustless AI work on Arc Mainnet.
               </p>
             </div>
             <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#42adff]/20 bg-[#42adff]/[0.07] px-3 py-2 text-xs font-medium text-[#7bc5ff]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#42adff]" aria-hidden="true" />
-              Arc Testnet / Protocol v2
+              Arc Mainnet / Protocol v2
             </div>
           </div>
 
@@ -137,9 +136,9 @@ export default function DocsPage() {
             ))}
           </nav>
           <div className="mt-7 border-t border-white/[0.065] pt-5 text-xs leading-5 text-slate-600">
-            Arc Testnet
+            Arc Mainnet
             <br />
-            Chain ID 5042002
+            Chain ID 5042
           </div>
         </aside>
 
@@ -162,7 +161,7 @@ export default function DocsPage() {
               </Definition>
             </div>
             <Callout title="Current scope">
-              ArcTask is testnet software. Contract addresses and successful transaction receipts are authoritative;
+              This build targets Arc Mainnet. Contract addresses and successful transaction receipts are authoritative;
               interface snapshots and worker status endpoints are operational aids.
             </Callout>
           </DocSection>
@@ -306,11 +305,11 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
           <DocSection id="network" eyebrow="Integration" title="Network">
             <DefinitionList
               items={[
-                ["Network", "Arc Testnet"],
-                ["Chain ID", "5042002"],
+                ["Network", "Arc Mainnet"],
+                ["Chain ID", "5042"],
                 ["Native settlement asset", "USDC"],
-                ["Public RPC", "https://rpc.testnet.arc.network"],
-                ["Explorer", "https://testnet.arcscan.app"]
+                ["Public RPC", ARC_MAINNET.rpcUrl],
+                ["Explorer", ARC_MAINNET.explorerUrl]
               ]}
               mono
             />
@@ -323,10 +322,10 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
             </p>
             <div className="mt-6 divide-y divide-white/[0.065] overflow-hidden rounded-xl border border-white/[0.065]">
               <ContractRow label="Agent registry" address={registryAddress} note="Identity and reputation v2" />
-              <ContractRow label="Hybrid job escrow V2" address={escrowV2Address} note="Legacy hybrid jobs and disputes" />
+              {escrowV2Address && <ContractRow label="Hybrid job escrow V2" address={escrowV2Address} note="Legacy hybrid jobs and disputes" />}
               <ContractRow label="Safe retry escrow V4" address={escrowV4Address} note="Current jobs, lossless refunds and retryable reputation sync" />
-              <ContractRow label="Retry-funded escrow V3" address={escrowV3Address} note="Historical retry-funded jobs" />
-              <ContractRow label="Legacy job escrow" address={escrowAddress} note="Existing job continuity" />
+              {escrowV3Address && <ContractRow label="Retry-funded escrow V3" address={escrowV3Address} note="Historical retry-funded jobs" />}
+              {escrowAddress && <ContractRow label="Legacy job escrow" address={escrowAddress} note="Existing job continuity" />}
               <ContractRow label="Multicall3" address={multicallAddress} note="Batched public job reads" />
             </div>
           </DocSection>
@@ -338,7 +337,7 @@ Submitted + 48h silence → Accepted`}</CodeBlock>
               deterministic policy enforces the per-job compute budget and minimum safety tier. It defaults to dry-run
               for safe local setup.
             </p>
-            <CodeBlock>{`NEXT_PUBLIC_ARC_RPC_URL=https://rpc.testnet.arc.network
+            <CodeBlock>{`NEXT_PUBLIC_ARC_RPC_URL=${ARC_MAINNET.rpcUrl}
 NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS=${registryAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS=${escrowAddress}
 NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS=${escrowV2Address}
@@ -418,7 +417,7 @@ npm run agent:worker:live`}</code>
                 </li>
               ))}
             </ul>
-            <Callout title="Testnet risk">
+            <Callout title="Contract risk">
               ArcTask has not completed an independent smart-contract audit. Wallets, RPC providers, model APIs,
               workers, and contracts can fail. Verify transaction calldata and contract addresses before signing.
             </Callout>
@@ -560,6 +559,9 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 function ContractRow({ label, address, note }: { label: string; address: string; note: string }) {
+  if (!address) {
+    return <div className="bg-[#090d16] p-5 text-sm text-slate-400">{label}: awaiting mainnet deployment</div>;
+  }
   return (
     <a
       href={`${explorerUrl}/address/${address}`}

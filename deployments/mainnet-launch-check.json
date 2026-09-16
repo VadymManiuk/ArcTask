@@ -1,0 +1,24 @@
+{
+  "chainId": 5042,
+  "jobId": "3000000",
+  "escrow": "0x2B3e0b7a7D96F8199fE31b2867358990430b5181",
+  "deliverableHash": "0x9c5cff574fc9883edba7d005ac28fdbcb6e077769f72f6cd6d3063cb49caa680",
+  "workerSubmitTx": "0xde470e93f1aba62b72eb7e8529e994fd4299a3ecd6b24dda3a3ef4c401580972",
+  "transactions": {
+    "create": {
+      "hash": "0xdfc4691438ed11987320969d493ed066e445d99a7665c4e465dc0ddb07efe8ce",
+      "blockNumber": "21133727",
+      "gasCost": "16166290975219125"
+    },
+    "accept": {
+      "hash": "0x073e97457c7216e7ff1c3c7208b7a6becdc8900f27806221deebdc6943dac975",
+      "blockNumber": "21134039",
+      "gasCost": "4596014742510814"
+    },
+    "withdraw": {
+      "hash": "0xe1ac8561e3ff23fbd8a02a477cfaa8727225059bc0a5553b82f90a4362e3b352",
+      "blockNumber": "21134131",
+      "gasCost": "1273244028938588"
+    }
+  }
+}

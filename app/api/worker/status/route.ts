@@ -1,3 +1,4 @@
+import { deploymentScope } from "@/lib/arc-config";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 interface WorkerStatus {
+  chainId?: number;
+  deploymentScope?: string;
   service?: string;
   startedAt?: string;
   updatedAt?: string;
@@ -81,7 +84,7 @@ interface WorkerStatus {
 }
 
 function getStatusPath() {
-  const stateDir = process.env.ARC_AGENT_STATE_DIR ?? path.join(process.cwd(), ".agent-worker", "state");
+  const stateDir = process.env.ARC_AGENT_STATE_DIR ?? path.join(process.cwd(), ".agent-worker", deploymentScope, "state");
   return path.join(stateDir, "status.json");
 }
 
@@ -105,6 +108,8 @@ function isAdminRequest(request: Request) {
 
 function sanitizeStatus(status: WorkerStatus) {
   return {
+    chainId: status.chainId,
+    deploymentScope: status.deploymentScope,
     service: status.service,
     updatedAt: status.updatedAt,
     lastHeartbeatAt: status.lastHeartbeatAt,
@@ -166,7 +171,9 @@ function sanitizeStatus(status: WorkerStatus) {
 
 async function readLocalStatus() {
   const raw = await fs.readFile(getStatusPath(), "utf8");
-  return JSON.parse(raw) as WorkerStatus;
+  const status = JSON.parse(raw) as WorkerStatus;
+  if (status.deploymentScope !== deploymentScope) throw new Error("Worker deployment does not match this app.");
+  return status;
 }
 
 async function fetchRemoteStatus(request: Request) {
@@ -214,7 +221,7 @@ export async function GET(request: Request) {
       const remoteStatus = (await fetchRemoteStatus(request)) as
         | { ok?: boolean; source?: string; live?: boolean; ageMs?: number | null; status?: WorkerStatus; error?: string }
         | null;
-      if (remoteStatus) {
+      if (remoteStatus?.status?.deploymentScope === deploymentScope) {
         return NextResponse.json(
           includePrivateDetails || !remoteStatus.status
             ? remoteStatus

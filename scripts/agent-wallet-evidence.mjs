@@ -187,12 +187,12 @@ export async function collectWalletRiskEvidence({
     subjectWallet,
     observedAt,
     network: {
-      name: publicClient.chain?.name ?? "Arc Testnet",
+      name: publicClient.chain?.name ?? "Arc Mainnet",
       chainId,
       rpcUrl,
       explorerUrl: normalizedExplorerUrl,
       nativeCurrency: {
-        name: publicClient.chain?.nativeCurrency?.name ?? "testnet USDC",
+        name: publicClient.chain?.nativeCurrency?.name ?? "USDC",
         symbol: publicClient.chain?.nativeCurrency?.symbol ?? "USDC",
         decimals: publicClient.chain?.nativeCurrency?.decimals ?? 18
       }

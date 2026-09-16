@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, RefreshCw, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ARC_TESTNET, getArcscanTxUrl } from "@/lib/arc";
+import { ARC_MAINNET, getArcscanTxUrl } from "@/lib/arc";
 import {
   getEscrowCreditBalancesOnchain,
   withdrawEscrowCreditVersionOnchain,
@@ -115,7 +115,7 @@ export function EscrowCreditPanel() {
                     <div className="flex items-center gap-2">
                       <p className="font-semibold">{balance.label}</p>
                       <a
-                        href={`${ARC_TESTNET.explorerUrl}/address/${balance.address}`}
+                        href={`${ARC_MAINNET.explorerUrl}/address/${balance.address}`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"

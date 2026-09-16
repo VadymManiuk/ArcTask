@@ -1,6 +1,9 @@
+import { arcMainnet } from "@/lib/arc-chain";
+import { contractAddresses, getOnchainReadiness, deploymentScope } from "@/lib/arc-config";
+import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import { NextResponse } from "next/server";
-import { createPublicClient, defineChain, formatUnits, http, type Abi } from "viem";
-import { ARC_TESTNET } from "@/lib/arc";
+import { createPublicClient, formatUnits, http, type Abi } from "viem";
+import { ARC_MAINNET } from "@/lib/arc";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { withServerRpcRetry } from "@/lib/server-rpc-retry";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
@@ -11,46 +14,24 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
-const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
-const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
+const defaultEscrowAddress = contractAddresses.erc8183Escrow;
+const defaultEscrowV2Address = contractAddresses.erc8183EscrowV2;
+const defaultEscrowV3Address = contractAddresses.erc8183EscrowV3;
+const defaultEscrowV4Address = contractAddresses.erc8183EscrowV4;
 const v2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
 const v3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 const v4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?? "3000000");
-const defaultSecondaryRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
+const defaultSecondaryRpcUrl = ARC_MAINNET.rpcUrl;
 const legacyStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED"];
 const v2Statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED", "DISPUTED"];
 const freshCacheMs = 2_000;
 const staleCacheMs = 15 * 60_000;
 const cachedJobsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
 
-const arcTestnet = defineChain({
-  id: ARC_TESTNET.chainId,
-  name: ARC_TESTNET.chainName,
-  nativeCurrency: ARC_TESTNET.nativeCurrency,
-  rpcUrls: {
-    default: {
-      http: [process.env.NEXT_PUBLIC_ARC_RPC_URL ?? ARC_TESTNET.rpcUrl]
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: "Arcscan",
-      url: ARC_TESTNET.explorerUrl
-    }
-  },
-  contracts: {
-    multicall3: {
-      address: ARC_TESTNET.multicall3Address
-    }
-  },
-  testnet: true
-});
 
 function createRpcClient(url: string) {
   return createPublicClient({
-    chain: arcTestnet,
+    chain: arcMainnet,
     transport: http(url)
   });
 }
@@ -58,7 +39,7 @@ function createRpcClient(url: string) {
 const rpcClients = [
   {
     source: "primary",
-    url: arcTestnet.rpcUrls.default.http[0]
+    url: arcMainnet.rpcUrls.default.http[0]
   },
   {
     source: "arcscan",
@@ -139,7 +120,7 @@ function serializeJob(
     agentOwnerWallet: job[2],
     evaluatorWallet: job[3],
     rewardAmount: job[4].toString(),
-    rewardDisplay: `${formatUnits(job[4], arcTestnet.nativeCurrency.decimals)} USDC`,
+    rewardDisplay: `${formatUnits(job[4], arcMainnet.nativeCurrency.decimals)} USDC`,
     deadline: Number(job[5]),
     deliverableHash: job[7],
     status,
@@ -221,12 +202,15 @@ async function loadJobsSnapshot(
   source: string,
   limit: number
 ) {
+  await assertArcMainnet(rpcClient);
   const v2Address = getEscrowV2Address();
   const v3Address = getEscrowV3Address();
   const v4Address = getEscrowV4Address();
   const [blockNumber, legacy, v2, v3, v4] = await Promise.all([
     withServerRpcRetry(() => rpcClient.getBlockNumber()),
-    loadContractJobs(rpcClient, getEscrowAddress(), escrowAbi as Abi, BigInt(1), limit, false),
+    getEscrowAddress()
+      ? loadContractJobs(rpcClient, getEscrowAddress(), escrowAbi as Abi, BigInt(1), limit, false)
+      : Promise.resolve({ nextJobId: BigInt(1), jobs: [] as ReturnType<typeof serializeJob>[] }),
     v2Address
       ? loadContractJobs(rpcClient, v2Address, escrowV2Abi as Abi, v2InitialJobId, limit, true)
       : Promise.resolve({ nextJobId: v2InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] }),
@@ -338,6 +322,7 @@ function preserveMonotonicJobs(
 }
 
 export async function GET(request: Request) {
+  if (!getOnchainReadiness().isReady) return NextResponse.json({ error: "Arc mainnet contracts are not configured." }, { status: 503 });
   const rateLimitResponse = rateLimit(request, { keyPrefix: "network-jobs", limit: 60, windowMs: 60_000 });
   if (rateLimitResponse) {
     return rateLimitResponse;
@@ -386,7 +371,7 @@ export async function GET(request: Request) {
         {
           ...cachedJobsResponse.payload,
           stale: true,
-          warning: "Preserved a newer confirmed Arc Testnet snapshot while RPC providers converged."
+          warning: "Preserved a newer confirmed Arc Mainnet snapshot while RPC providers converged."
         },
         {
           headers: {
@@ -407,6 +392,7 @@ export async function GET(request: Request) {
 
     const payload = {
       ok: true,
+      deploymentScope,
       source: selectedSnapshot.source,
       blockNumber: selectedSnapshot.blockNumber.toString(),
       escrowAddress:
@@ -433,7 +419,7 @@ export async function GET(request: Request) {
         {
           ...cachedJobsResponse.payload,
           stale: true,
-          warning: "Showing the last confirmed Arc Testnet snapshot."
+          warning: "Showing the last confirmed Arc Mainnet snapshot."
         },
         {
           headers: {
@@ -445,7 +431,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-      { ok: false, error: "Unable to read Arc Testnet jobs" },
+      { ok: false, error: "Unable to read Arc Mainnet jobs" },
       {
         status: 503,
         headers: {

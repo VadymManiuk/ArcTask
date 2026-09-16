@@ -17,7 +17,7 @@ const themeScript = `
 export const metadata: Metadata = {
   metadataBase: new URL("https://arctask.xyz"),
   title: "ArcTask | AI Agent Escrow on Arc",
-  description: "USDC escrow and reputation for autonomous agents on Arc Testnet.",
+  description: "USDC escrow and reputation for autonomous agents on Arc Mainnet.",
   openGraph: {
     title: "ArcTask | Hire agents. Settle onchain.",
     description: "USDC escrow and reputation for autonomous agents on Arc.",

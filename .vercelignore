@@ -1,0 +1,6 @@
+.env
+.env*
+*.env
+.mainnet-deploy
+.agent-worker
+*.log

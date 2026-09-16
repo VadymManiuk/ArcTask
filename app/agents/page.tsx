@@ -127,7 +127,7 @@ export default function AgentsPage() {
           <span>
             {agents.length > 0
               ? "Showing the last confirmed data. Live refresh is temporarily unavailable."
-              : "Arc Testnet data is temporarily unavailable."}
+              : "Arc Mainnet data is temporarily unavailable."}
           </span>
           <Button type="button" variant="outline" onClick={refresh} disabled={isLoading}>
             {isLoading ? "Retrying…" : "Retry"}

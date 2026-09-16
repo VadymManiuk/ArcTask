@@ -1,22 +1,18 @@
-export const ARC_TESTNET = {
-  chainName: "Arc Testnet",
-  chainId: 5042002,
-  rpcUrl: "https://rpc.testnet.arc.network",
-  readRpcUrls: [
-    "https://testnet.arcscan.app/api/eth-rpc",
-    "https://rpc.testnet.arc.network"
-  ],
-  explorerUrl: "https://testnet.arcscan.app",
-  multicall3Address: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  nativeCurrency: {
-    name: "testnet USDC",
-    symbol: "USDC",
-    decimals: 18
-  }
-} as const;
+import { ARC_MAINNET as defaults, getArcChain } from "@/lib/arc-network.mjs";
+
+const chain = getArcChain({
+  NEXT_PUBLIC_ARC_RPC_URL: process.env.NEXT_PUBLIC_ARC_RPC_URL,
+  NEXT_PUBLIC_ARC_EXPLORER_URL: process.env.NEXT_PUBLIC_ARC_EXPLORER_URL
+});
+export const ARC_MAINNET = {
+  ...defaults,
+  rpcUrl: chain.rpcUrls.default.http[0],
+  readRpcUrls: [chain.rpcUrls.default.http[0]],
+  explorerUrl: chain.blockExplorers.default.url
+};
 
 export function getArcscanTxUrl(txHash: string) {
-  return `${ARC_TESTNET.explorerUrl}/tx/${txHash}`;
+  return `${ARC_MAINNET.explorerUrl}/tx/${txHash}`;
 }
 
 export function createMockTxHash() {

@@ -1,10 +1,10 @@
+import { ARC_MAINNET, getArcChain, assertArcContracts } from "../lib/arc-network.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
   createPublicClient,
   createWalletClient,
-  defineChain,
   formatUnits,
   http,
   parseEventLogs,
@@ -19,7 +19,7 @@ const seedNamespace = "arctask.live-marketplace.v1";
 const execute = process.argv.includes("--execute");
 
 function loadLocalEnv() {
-  const envPath = path.join(rootDir, ".env.local");
+  const envPath = path.resolve(rootDir, process.env.ARCTASK_ENV_FILE || ".env.local");
   if (!fs.existsSync(envPath)) {
     return;
   }
@@ -31,7 +31,7 @@ function loadLocalEnv() {
     }
 
     const [key, ...parts] = trimmed.split("=");
-    if (!process.env[key]) {
+    if (process.env[key] === undefined) {
       process.env[key] = parts.join("=").replace(/^["']|["']$/g, "");
     }
   }
@@ -104,7 +104,7 @@ const agentDefinitions = [
         key: "arc-rpc-resilience",
         title: "Assess Arc RPC provider resilience",
         description:
-          "Research Arc Testnet RPC reliability patterns, verify primary sources, compare provider and fallback options, and deliver an evidence-backed opportunity and operational risk map.",
+          "Research Arc Mainnet RPC reliability patterns, verify primary sources, compare provider and fallback options, and deliver an evidence-backed opportunity and operational risk map.",
         reward: "2"
       },
       {
@@ -257,7 +257,7 @@ const agentDefinitions = [
         key: "integration-guide",
         title: "Write ArcTask integration guide",
         description:
-          "Write a concise integration guide covering Arc Testnet configuration, contracts, agent discovery, jobs, and deliverable verification."
+          "Write a concise integration guide covering Arc Mainnet configuration, contracts, agent discovery, jobs, and deliverable verification."
       },
       {
         key: "evaluator-runbook",
@@ -389,7 +389,7 @@ const agentDefinitions = [
         key: "rpc-outage-runbook",
         title: "Create an Arc RPC outage response plan",
         description:
-          "For an ArcTask stack using Vercel web/API, a PM2 worker on VPS, and the public Arc Testnet RPC, create a concrete outage plan covering detection, provider failover, retry budgets, degraded mode, alerts, rollback, ownership, recovery verification, and readiness gaps.",
+          "For an ArcTask stack using Vercel web/API, a PM2 worker on VPS, and the public Arc Mainnet RPC, create a concrete outage plan covering detection, provider failover, retry budgets, degraded mode, alerts, rollback, ownership, recovery verification, and readiness gaps.",
         reward: "2"
       },
       {
@@ -467,40 +467,21 @@ const standaloneJobDefinitions = [
 
 loadLocalEnv();
 
-const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
+const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? ARC_MAINNET.rpcUrl;
 const readRpcUrl = process.env.ARC_SEED_READ_RPC_URL ?? rpcUrl;
 const writeRpcUrl = process.env.ARC_SEED_WRITE_RPC_URL ?? rpcUrl;
-const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
+const explorerUrl = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? ARC_MAINNET.explorerUrl;
 const registryAddress = requiredEnv("NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS");
 const escrowAddress = requiredEnv("NEXT_PUBLIC_ERC8183_ESCROW_ADDRESS");
-const account = privateKeyToAccount(normalizePrivateKey(requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY")));
+const account = privateKeyToAccount(normalizePrivateKey(requiredEnv("ARC_MAINNET_DEPLOYER_PRIVATE_KEY")));
 const registryAbi = readAbi("ERC8004AgentRegistry.json");
 const escrowAbi = readAbi("ERC8183Escrow.json");
 const deadline = BigInt(Math.floor(Date.now() / 1_000) + 30 * 24 * 60 * 60);
 
-const arcTestnet = defineChain({
-  id: 5042002,
-  name: "Arc Testnet",
-  nativeCurrency: {
-    name: "testnet USDC",
-    symbol: "USDC",
-    decimals: 18
-  },
-  rpcUrls: {
-    default: {
-      http: [rpcUrl]
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: "Arcscan",
-      url: explorerUrl
-    }
-  },
-  testnet: true
-});
-const publicClient = createPublicClient({ chain: arcTestnet, transport: http(readRpcUrl) });
-const walletClient = createWalletClient({ account, chain: arcTestnet, transport: http(writeRpcUrl) });
+const arcMainnet = getArcChain(process.env);
+const publicClient = createPublicClient({ chain: arcMainnet, transport: http(readRpcUrl) });
+await assertArcContracts(publicClient, [registryAddress, escrowAddress]);
+const walletClient = createWalletClient({ account, chain: arcMainnet, transport: http(writeRpcUrl) });
 
 const retryOptions = { maxAttempts: 10, baseDelayMs: 3_000 };
 const nextAgentId = await withRpcRetry(
@@ -639,7 +620,7 @@ async function createJobForAgent(agentId, jobDefinition) {
         args: [agentId, jobRewardAmount, deadline, account.address, jobUri],
         value: jobRewardAmount
       }),
-    { maxAttempts: 8, baseDelayMs: 4_000 }
+    { maxAttempts: 1 }
   );
   const receipt = await waitForSuccess(publicClient, hash, `Create ${jobDefinition.title}`);
   const event = parseEventLogs({
@@ -685,7 +666,7 @@ for (const definition of agentDefinitions) {
           functionName: "registerAgent",
           args: [account.address, metadataUri]
         }),
-      { maxAttempts: 8, baseDelayMs: 4_000 }
+      { maxAttempts: 1 }
     );
     const receipt = await waitForSuccess(publicClient, hash, `Register ${definition.name}`);
     const event = parseEventLogs({

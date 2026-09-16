@@ -1,25 +1,7 @@
 import { defineChain } from "viem";
-import { ARC_TESTNET } from "@/lib/arc";
+import { getArcChain } from "@/lib/arc-network.mjs";
 
-export const arcTestnet = defineChain({
-  id: ARC_TESTNET.chainId,
-  name: ARC_TESTNET.chainName,
-  nativeCurrency: ARC_TESTNET.nativeCurrency,
-  rpcUrls: {
-    default: {
-      http: [ARC_TESTNET.rpcUrl]
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: "Arcscan",
-      url: ARC_TESTNET.explorerUrl
-    }
-  },
-  contracts: {
-    multicall3: {
-      address: ARC_TESTNET.multicall3Address
-    }
-  },
-  testnet: true
-});
+export const arcMainnet = defineChain(getArcChain({
+  NEXT_PUBLIC_ARC_RPC_URL: process.env.NEXT_PUBLIC_ARC_RPC_URL,
+  NEXT_PUBLIC_ARC_EXPLORER_URL: process.env.NEXT_PUBLIC_ARC_EXPLORER_URL
+}));

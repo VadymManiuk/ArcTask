@@ -1,5 +1,6 @@
 "use client";
 
+import { assertArcContracts } from "@/lib/arc-network.mjs";
 import {
   createPublicClient,
   createWalletClient,
@@ -13,8 +14,8 @@ import {
   stringToHex,
   type Abi
 } from "viem";
-import { ARC_TESTNET } from "@/lib/arc";
-import { arcTestnet } from "@/lib/arc-chain";
+import { ARC_MAINNET } from "@/lib/arc";
+import { arcMainnet } from "@/lib/arc-chain";
 import {
   contractAddresses,
   escrowV2InitialJobId,
@@ -31,9 +32,9 @@ import escrowV2Abi from "@/lib/contracts/abis/ERC8183EscrowV2.json";
 import type { Address, OnchainJobEventTx, TxAction } from "@/lib/types";
 
 const publicClient = createPublicClient({
-  chain: arcTestnet,
+  chain: arcMainnet,
   transport: fallback(
-    ARC_TESTNET.readRpcUrls.map((rpcUrl) =>
+    ARC_MAINNET.readRpcUrls.map((rpcUrl) =>
       http(rpcUrl, {
         retryCount: 3,
         retryDelay: 750,
@@ -107,7 +108,7 @@ const jobEventConfigs = [
   {
     eventName: "JobCreated",
     action: "JOB_FUNDED",
-    label: "ERC-8183 style escrow funded with testnet USDC",
+    label: "ERC-8183 style escrow funded with USDC",
     method: "createJob(uint256,uint256,uint64,address,string)"
   },
   {
@@ -161,7 +162,7 @@ function getEventActor(eventName: OnchainEventName, args: Record<string, unknown
 
 function getEventSummary(eventName: OnchainEventName, args: Record<string, unknown>) {
   if (typeof args.rewardAmount === "bigint") {
-    const amount = `${formatUnits(args.rewardAmount, arcTestnet.nativeCurrency.decimals)} USDC`;
+    const amount = `${formatUnits(args.rewardAmount, arcMainnet.nativeCurrency.decimals)} USDC`;
     if (eventName === "JobCreated") {
       return `${amount} locked for evaluator-controlled settlement.`;
     }
@@ -184,7 +185,7 @@ function getEventSummary(eventName: OnchainEventName, args: Record<string, unkno
   }
 
   if (eventName === "RetryFunded" && typeof args.rewardIncrease === "bigint") {
-    return `${formatUnits(args.rewardIncrease, arcTestnet.nativeCurrency.decimals)} USDC added for a new isolated execution.`;
+    return `${formatUnits(args.rewardIncrease, arcMainnet.nativeCurrency.decimals)} USDC added for a new isolated execution.`;
   }
 
   return undefined;
@@ -254,7 +255,9 @@ function getHybridEscrowContext(version: HybridEscrowVersion) {
 }
 
 export async function getEscrowCreditBalancesOnchain(account: Address) {
-  const contexts = (["v4", "v3", "v2"] as const).map(getHybridEscrowContext);
+  const contexts = (["v4", "v3", "v2"] as const)
+    .filter((version) => contractAddresses[version === "v4" ? "erc8183EscrowV4" : version === "v3" ? "erc8183EscrowV3" : "erc8183EscrowV2"])
+    .map(getHybridEscrowContext);
   const amounts = (await publicClient.multicall({
     allowFailure: false,
     contracts: contexts.map((context) => ({
@@ -270,16 +273,17 @@ export async function getEscrowCreditBalancesOnchain(account: Address) {
     return {
       ...context,
       amount,
-      amountUsdc: formatUnits(amount, arcTestnet.nativeCurrency.decimals)
+      amountUsdc: formatUnits(amount, arcMainnet.nativeCurrency.decimals)
     };
   });
 }
 
 async function getConnectedWalletClient() {
+  await assertArcContracts(publicClient, [contractAddresses.erc8004Registry, contractAddresses.erc8183EscrowV4]);
   const account = await requestArcAccount();
   const walletClient = createWalletClient({
     account,
-    chain: arcTestnet,
+    chain: arcMainnet,
     transport: custom(getEthereumProvider())
   });
 
@@ -378,7 +382,7 @@ export async function getAgentReputationOnchain(onchainAgentId: string) {
     reputation: Number(result[0]),
     completedJobs: Number(result[1]),
     rejectedJobs: Number(result[2]),
-    totalEarned: Number(formatUnits(result[3], arcTestnet.nativeCurrency.decimals))
+    totalEarned: Number(formatUnits(result[3], arcMainnet.nativeCurrency.decimals))
   };
 }
 
@@ -475,7 +479,7 @@ export async function createJobOnchain(input: {
   const escrowAddress = getContractAddress("erc8183EscrowV4");
   const { account, walletClient } = await getConnectedWalletClient();
   assertConnectedWallet(account, input.clientWallet, "client wallet");
-  const rewardValue = parseUnits(input.rewardAmount.toString(), arcTestnet.nativeCurrency.decimals);
+  const rewardValue = parseUnits(input.rewardAmount.toString(), arcMainnet.nativeCurrency.decimals);
   const deadlineSeconds = getJobDeadlineSeconds(input.deadline);
   const jobPayloadUri = createJobPayloadUri(input);
   const fundingQuote = (await publicClient.readContract({
@@ -534,10 +538,10 @@ export async function fundRetryOnchain(input: {
   assertConnectedWallet(account, job[0], "client wallet");
   const rewardIncrease = parseUnits(
     input.rewardIncrease.toString(),
-    arcTestnet.nativeCurrency.decimals
+    arcMainnet.nativeCurrency.decimals
   );
   const aggregateReward = Number(
-    formatUnits(job[4] + rewardIncrease, arcTestnet.nativeCurrency.decimals)
+    formatUnits(job[4] + rewardIncrease, arcMainnet.nativeCurrency.decimals)
   );
   const revisedJobURI = createJobPayloadUri({
     title: input.title,
@@ -715,7 +719,7 @@ export async function withdrawEscrowCreditVersionOnchain(version: HybridEscrowVe
     gasUsed: receipt.gasUsed.toString(),
     version,
     amount: amount.toString(),
-    amountUsdc: formatUnits(amount, arcTestnet.nativeCurrency.decimals)
+    amountUsdc: formatUnits(amount, arcMainnet.nativeCurrency.decimals)
   };
 }
 

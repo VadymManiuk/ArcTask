@@ -1,3 +1,4 @@
+import { ARC_MAINNET, defaultContractAddresses, getArcChain, assertArcMainnet, assertArcContracts } from "../lib/arc-network.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -5,7 +6,6 @@ import { pathToFileURL } from "node:url";
 import {
   createPublicClient,
   createWalletClient,
-  defineChain,
   http,
   keccak256,
   stringToHex
@@ -14,18 +14,18 @@ import { privateKeyToAccount } from "viem/accounts";
 import { validateReviewDecision } from "../lib/evaluator-policy.mjs";
 import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
 
-const defaultRpcUrl = "https://rpc.testnet.arc.network";
-const defaultReadRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
-const defaultExplorerUrl = "https://testnet.arcscan.app";
-const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
-const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
-const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
+const defaultRpcUrl = ARC_MAINNET.rpcUrl;
+const defaultReadRpcUrl = ARC_MAINNET.rpcUrl;
+const defaultExplorerUrl = ARC_MAINNET.explorerUrl;
+const defaultEscrowAddress = defaultContractAddresses.erc8183Escrow;
+const defaultEscrowV2Address = defaultContractAddresses.erc8183EscrowV2;
+const defaultEscrowV3Address = defaultContractAddresses.erc8183EscrowV3;
+const defaultEscrowV4Address = defaultContractAddresses.erc8183EscrowV4;
 const submittedStatus = 1;
 const disputedStatus = 5;
 
 function loadLocalEnv(rootDir) {
-  const envPath = path.join(rootDir, ".env.local");
+  const envPath = path.resolve(rootDir, process.env.ARCTASK_ENV_FILE || ".env.local");
   if (!fs.existsSync(envPath)) {
     return;
   }
@@ -37,7 +37,7 @@ function loadLocalEnv(rootDir) {
     }
 
     const [key, ...parts] = trimmed.split("=");
-    if (!process.env[key]) {
+    if (process.env[key] === undefined) {
       process.env[key] = parts.join("=").replace(/^["']|["']$/g, "");
     }
   }
@@ -85,40 +85,22 @@ export async function settleReviewedJobs({
     }
   };
   const reviewDocument = JSON.parse(fs.readFileSync(reviewPath, "utf8"));
+  if (reviewDocument.chainId !== ARC_MAINNET.chainId) throw new Error("Review must explicitly target Arc mainnet chainId 5042.");
   const decisions = (reviewDocument.decisions ?? [])
     .filter((review) => review.statusAtReview === "SUBMITTED")
     .map(validateReviewDecision);
-  const privateKey = live ? process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY : undefined;
+  const privateKey = live ? process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY : undefined;
 
   if (live && !privateKey) {
-    throw new Error("ARC_TESTNET_DEPLOYER_PRIVATE_KEY is required for --live settlement.");
+    throw new Error("ARC_MAINNET_DEPLOYER_PRIVATE_KEY is required for --live settlement.");
   }
 
-  const chain = defineChain({
-    id: 5_042_002,
-    name: "Arc Testnet",
-    nativeCurrency: {
-      name: "testnet USDC",
-      symbol: "USDC",
-      decimals: 18
-    },
-    rpcUrls: {
-      default: {
-        http: [rpcUrl]
-      }
-    },
-    blockExplorers: {
-      default: {
-        name: "Arcscan",
-        url: explorerUrl
-      }
-    },
-    testnet: true
-  });
+  const chain = getArcChain(process.env);
   const publicClient = createPublicClient({
     chain,
     transport: http(readRpcUrl)
   });
+  await assertArcMainnet(publicClient);
   const account = live ? privateKeyToAccount(normalizePrivateKey(privateKey)) : undefined;
   const walletClient = live
     ? createWalletClient({
@@ -136,6 +118,7 @@ export async function settleReviewedJobs({
     if (!escrowContext) {
       throw new Error(`Review ${decision.jobId} has unsupported escrowVersion ${escrowVersion}.`);
     }
+    await assertArcContracts(publicClient, [escrowContext.address]);
     const job = await withRpcRetry(() =>
       publicClient.readContract({
         address: escrowContext.address,

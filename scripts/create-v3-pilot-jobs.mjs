@@ -1,10 +1,10 @@
+import { ARC_MAINNET, defaultContractAddresses, getArcChain, assertArcContracts } from "../lib/arc-network.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
   createPublicClient,
   createWalletClient,
-  defineChain,
   formatUnits,
   http,
   parseEventLogs,
@@ -19,20 +19,20 @@ const challengeMode = process.argv.includes("--agent-challenge");
 const pilotBatch = challengeMode
   ? "arctask.v3.agent-challenge.2026-07-31"
   : "arctask.v3.five-level-pilot.2026-07-31";
-const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
-const defaultRpcUrl = "https://rpc.testnet.arc.network";
-const defaultReadRpcUrl = "https://testnet.arcscan.app/api/eth-rpc";
+const defaultEscrowV3Address = defaultContractAddresses.erc8183EscrowV3;
+const defaultRegistryAddress = defaultContractAddresses.erc8004Registry;
+const defaultRpcUrl = ARC_MAINNET.rpcUrl;
+const defaultReadRpcUrl = ARC_MAINNET.rpcUrl;
 const firstV3JobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 
 function loadLocalEnv() {
-  const envPath = path.join(rootDir, ".env.local");
+  const envPath = path.resolve(rootDir, process.env.ARCTASK_ENV_FILE || ".env.local");
   if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
     const [key, ...parts] = trimmed.split("=");
-    if (!process.env[key]) {
+    if (process.env[key] === undefined) {
       process.env[key] = parts.join("=").replace(/^["']|["']$/g, "");
     }
   }
@@ -254,18 +254,13 @@ const escrowAddress =
 const registryAddress =
   process.env.NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS ?? defaultRegistryAddress;
 const privateKey = normalizePrivateKey(
-  process.env.ARC_TESTNET_DEPLOYER_PRIVATE_KEY ??
+  process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY ??
     requiredEnv("ARC_AGENT_PRIVATE_KEY")
 );
 const account = privateKeyToAccount(privateKey);
-const chain = defineChain({
-  id: 5042002,
-  name: "Arc Testnet",
-  nativeCurrency: { name: "testnet USDC", symbol: "USDC", decimals: 18 },
-  rpcUrls: { default: { http: [rpcUrl] } },
-  testnet: true
-});
+const chain = getArcChain(process.env);
 const publicClient = createPublicClient({ chain, transport: http(readRpcUrl) });
+await assertArcContracts(publicClient, [registryAddress, escrowAddress]);
 const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
 const escrowAbi = readAbi("ERC8183EscrowV2.json");
 const registryAbi = readAbi("ERC8004AgentRegistry.json");
@@ -353,8 +348,8 @@ console.log(`V3 escrow: ${escrowAddress}`);
 console.log(`Client/evaluator/worker: ${account.address}`);
 console.log(`Existing pilot jobs: ${existingKeys.size}`);
 console.log(`Jobs to create: ${missing.length}`);
-console.log(`Required funding: ${formatUnits(requiredFunding, 18)} testnet USDC`);
-console.log(`Wallet balance: ${formatUnits(balance, 18)} testnet USDC`);
+console.log(`Required funding: ${formatUnits(requiredFunding, 18)} USDC`);
+console.log(`Wallet balance: ${formatUnits(balance, 18)} USDC`);
 for (const { job, plan } of plans) {
   console.log(
     `${job.expectedTier.padEnd(8)} ${job.reward.padStart(5)} USDC · agent ${job.agentId} ${job.agentName} · score ${plan.complexity.score}`
@@ -638,7 +633,7 @@ if (!execute) {
   process.exit(0);
 }
 if (balance < requiredFunding) {
-  throw new Error("Insufficient testnet USDC balance for the five-job pilot.");
+  throw new Error("Insufficient USDC balance for the five-job pilot.");
 }
 
 const created = [];

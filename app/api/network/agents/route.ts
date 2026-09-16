@@ -1,6 +1,8 @@
+import { arcMainnet } from "@/lib/arc-chain";
+import { contractAddresses, getOnchainReadiness, deploymentScope } from "@/lib/arc-config";
+import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import { NextResponse } from "next/server";
-import { createPublicClient, defineChain, formatUnits, http, type Abi } from "viem";
-import { ARC_TESTNET } from "@/lib/arc";
+import { createPublicClient, formatUnits, http, type Abi } from "viem";
 import { isEmbeddedAgentImage } from "@/lib/agent-image";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { withServerRpcRetry } from "@/lib/server-rpc-retry";
@@ -11,37 +13,15 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
+const defaultRegistryAddress = contractAddresses.erc8004Registry;
 const freshCacheMs = 15_000;
 const staleCacheMs = 15 * 60_000;
 const cachedAgentsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
 
-const arcTestnet = defineChain({
-  id: ARC_TESTNET.chainId,
-  name: ARC_TESTNET.chainName,
-  nativeCurrency: ARC_TESTNET.nativeCurrency,
-  rpcUrls: {
-    default: {
-      http: [process.env.NEXT_PUBLIC_ARC_RPC_URL ?? ARC_TESTNET.rpcUrl]
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: "Arcscan",
-      url: ARC_TESTNET.explorerUrl
-    }
-  },
-  contracts: {
-    multicall3: {
-      address: ARC_TESTNET.multicall3Address
-    }
-  },
-  testnet: true
-});
 
 const publicClient = createPublicClient({
-  chain: arcTestnet,
-  transport: http(arcTestnet.rpcUrls.default.http[0])
+  chain: arcMainnet,
+  transport: http(arcMainnet.rpcUrls.default.http[0])
 });
 
 type OnchainAgent = readonly [
@@ -99,7 +79,7 @@ function serializeAgent(agentId: bigint, agent: OnchainAgent) {
     reputation: Number(agent[4]),
     completedJobs: Number(agent[5]),
     rejectedJobs: Number(agent[6]),
-    totalEarned: Number(formatUnits(agent[7], arcTestnet.nativeCurrency.decimals)),
+    totalEarned: Number(formatUnits(agent[7], arcMainnet.nativeCurrency.decimals)),
     name: metadata?.name || `Agent #${agentId.toString()}`,
     description: metadata?.description || "Autonomous agent registered on ArcTask.",
     avatarUrl: metadata?.avatarUrl,
@@ -112,6 +92,7 @@ function isInternalTestAgent(agent: ReturnType<typeof serializeAgent>) {
 }
 
 export async function GET(request: Request) {
+  if (!getOnchainReadiness().isReady) return NextResponse.json({ error: "Arc mainnet contracts are not configured." }, { status: 503 });
   const rateLimitResponse = rateLimit(request, { keyPrefix: "network-agents", limit: 60, windowMs: 60_000 });
   if (rateLimitResponse) {
     return rateLimitResponse;
@@ -131,6 +112,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await assertArcMainnet(publicClient);
     const nextAgentId = await withServerRpcRetry(
       () =>
         publicClient.readContract({
@@ -183,6 +165,7 @@ export async function GET(request: Request) {
 
     const payload = {
       ok: true,
+      deploymentScope,
       registryAddress: getRegistryAddress(),
       nextAgentId: nextAgentId.toString(),
       count: agents.length,
@@ -201,7 +184,7 @@ export async function GET(request: Request) {
         {
           ...cachedAgentsResponse.payload,
           stale: true,
-          warning: "Showing the last confirmed Arc Testnet snapshot."
+          warning: "Showing the last confirmed Arc Mainnet snapshot."
         },
         {
           headers: {
@@ -213,7 +196,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-      { ok: false, error: "Unable to read Arc Testnet agents" },
+      { ok: false, error: "Unable to read Arc Mainnet agents" },
       {
         status: 503,
         headers: {

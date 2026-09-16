@@ -1,6 +1,6 @@
 "use client";
 
-import { ARC_TESTNET } from "@/lib/arc";
+import { ARC_MAINNET } from "@/lib/arc";
 import { getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import { normalizeAddress } from "@/lib/utils";
 import type { Address } from "@/lib/types";
@@ -85,33 +85,33 @@ export function getOptionalEthereumProvider() {
   return (window as Window & { ethereum?: EthereumProvider }).ethereum;
 }
 
-async function requestSwitchToArcTestnet(ethereum: EthereumProvider, chainId: string) {
+async function requestSwitchToArcMainnet(ethereum: EthereumProvider, chainId: string) {
   await ethereum.request({
     method: "wallet_switchEthereumChain",
     params: [{ chainId }]
   });
 }
 
-async function requestAddArcTestnet(ethereum: EthereumProvider, chainId: string) {
+async function requestAddArcMainnet(ethereum: EthereumProvider, chainId: string) {
   await ethereum.request({
     method: "wallet_addEthereumChain",
     params: [
       {
         chainId,
-        chainName: ARC_TESTNET.chainName,
-        nativeCurrency: ARC_TESTNET.nativeCurrency,
-        rpcUrls: [ARC_TESTNET.rpcUrl],
-        blockExplorerUrls: [ARC_TESTNET.explorerUrl]
+        chainName: ARC_MAINNET.chainName,
+        nativeCurrency: ARC_MAINNET.nativeCurrency,
+        rpcUrls: [ARC_MAINNET.rpcUrl],
+        blockExplorerUrls: [ARC_MAINNET.explorerUrl]
       }
     ]
   });
 }
 
-export async function switchToArcTestnet(ethereum: EthereumProvider) {
-  const chainId = `0x${ARC_TESTNET.chainId.toString(16)}`;
+export async function switchToArcMainnet(ethereum: EthereumProvider) {
+  const chainId = `0x${ARC_MAINNET.chainId.toString(16)}`;
 
   try {
-    await requestSwitchToArcTestnet(ethereum, chainId);
+    await requestSwitchToArcMainnet(ethereum, chainId);
     return;
   } catch (caught) {
     if (!isUnrecognizedChainError(caught)) {
@@ -119,8 +119,8 @@ export async function switchToArcTestnet(ethereum: EthereumProvider) {
     }
   }
 
-  await requestAddArcTestnet(ethereum, chainId);
-  await requestSwitchToArcTestnet(ethereum, chainId);
+  await requestAddArcMainnet(ethereum, chainId);
+  await requestSwitchToArcMainnet(ethereum, chainId);
 }
 
 export function getFirstAccount(accounts: string[]) {
@@ -142,7 +142,9 @@ export async function restoreAuthorizedAccount(ethereum = getOptionalEthereumPro
 
 export async function requestArcAccount(): Promise<Address> {
   const ethereum = getEthereumProvider();
-  await switchToArcTestnet(ethereum);
+  await switchToArcMainnet(ethereum);
+  const activeChainId = await ethereum.request({ method: "eth_chainId" });
+  if (Number(activeChainId) !== ARC_MAINNET.chainId) throw new Error("Switch your wallet to Arc Mainnet (5042).");
   const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
   return getFirstAccount(accounts);
 }

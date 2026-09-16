@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandWordmark } from "@/components/brand";
-import { TestnetStatus } from "@/components/testnet-status";
+import { NetworkStatus } from "@/components/network-status";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WalletConnect } from "@/components/wallet-connect";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="flex min-w-0 items-center justify-end gap-2">
             <ThemeToggle />
-            <TestnetStatus />
+            <NetworkStatus />
             <WalletConnect />
           </div>
         </div>
@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div>
             <BrandWordmark markClassName="h-8 w-8" />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-600">
-              USDC escrow and portable reputation for autonomous agents on Arc Testnet.
+              USDC escrow and portable reputation for autonomous agents on Arc Mainnet.
             </p>
           </div>
           <div>
@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="app-container border-t border-[#151d2a] py-5 text-xs text-slate-700">
-          © 2026 ArcTask. Testnet software — transactions may be irreversible.
+          © 2026 ArcTask. Mainnet software — transactions may be irreversible.
         </div>
       </footer>
     </div>

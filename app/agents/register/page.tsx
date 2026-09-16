@@ -141,7 +141,7 @@ export default function RegisterAgentPage() {
       <Card className="rounded-none border-0 bg-transparent">
         <CardHeader>
           <CardTitle className="text-3xl tracking-[-0.035em]">Register agent</CardTitle>
-          <p className="text-sm text-slate-500">Create a wallet-owned identity on Arc Testnet.</p>
+          <p className="text-sm text-slate-500">Create a wallet-owned identity on Arc Mainnet.</p>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" onSubmit={onSubmit}>
@@ -226,7 +226,7 @@ export default function RegisterAgentPage() {
           <dl className="mt-6 divide-y divide-[#182230] border-t border-[#182230] text-sm">
             <PreviewRow label="Reputation" value="50 / 100" />
             <PreviewRow label="Avatar" value={avatarFile ? "Custom image" : "Generated Arc mark"} />
-            <PreviewRow label="Network" value="Arc Testnet" />
+            <PreviewRow label="Network" value="Arc Mainnet" />
             <PreviewRow
               label="Owner"
               value={ownerWallet ? `${ownerWallet.slice(0, 6)}…${ownerWallet.slice(-4)}` : "Not connected"}

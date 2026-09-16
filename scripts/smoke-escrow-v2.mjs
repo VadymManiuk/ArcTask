@@ -1,10 +1,10 @@
+import { ARC_MAINNET, defaultContractAddresses, getArcChain, assertArcContracts } from "../lib/arc-network.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
   createPublicClient,
   createWalletClient,
-  defineChain,
   http,
   keccak256,
   parseUnits,
@@ -14,19 +14,19 @@ import { privateKeyToAccount } from "viem/accounts";
 import { waitForTransactionReceiptWithRetry } from "./arc-rpc.mjs";
 
 const rootDir = process.cwd();
-const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
-const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
-const defaultRegistryAddress = "0xd8499627775ac67cd756335a3c48387d0aff5553";
+const defaultEscrowV2Address = defaultContractAddresses.erc8183EscrowV2;
+const defaultEscrowV3Address = defaultContractAddresses.erc8183EscrowV3;
+const defaultEscrowV4Address = defaultContractAddresses.erc8183EscrowV4;
+const defaultRegistryAddress = defaultContractAddresses.erc8004Registry;
 
 function loadLocalEnv() {
-  const envPath = path.join(rootDir, ".env.local");
+  const envPath = path.resolve(rootDir, process.env.ARCTASK_ENV_FILE || ".env.local");
   if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
     const [key, ...parts] = trimmed.split("=");
-    if (!process.env[key]) process.env[key] = parts.join("=").replace(/^["']|["']$/g, "");
+    if (process.env[key] === undefined) process.env[key] = parts.join("=").replace(/^["']|["']$/g, "");
   }
 }
 
@@ -41,9 +41,10 @@ function readAbi(fileName) {
 }
 
 loadLocalEnv();
+if (!process.argv.includes("--execute")) throw new Error("This mainnet smoke test spends real USDC. Pass --execute to run it.");
 
-const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
-const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? "https://testnet.arcscan.app/api/eth-rpc";
+const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL ?? ARC_MAINNET.rpcUrl;
+const readRpcUrl = process.env.ARC_AGENT_READ_RPC_URL ?? ARC_MAINNET.rpcUrl;
 const useV4 = process.argv.includes("--v4");
 const useFundedRetry = useV4 || process.argv.includes("--v3");
 const escrowAddress = useV4
@@ -53,18 +54,13 @@ const escrowAddress = useV4
     : process.env.NEXT_PUBLIC_ERC8183_ESCROW_V2_ADDRESS ?? defaultEscrowV2Address;
 const registryAddress = process.env.NEXT_PUBLIC_ERC8004_REGISTRY_ADDRESS ?? defaultRegistryAddress;
 const account = privateKeyToAccount(
-  requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY").startsWith("0x")
-    ? requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY")
-    : `0x${requiredEnv("ARC_TESTNET_DEPLOYER_PRIVATE_KEY")}`
+  requiredEnv("ARC_MAINNET_DEPLOYER_PRIVATE_KEY").startsWith("0x")
+    ? requiredEnv("ARC_MAINNET_DEPLOYER_PRIVATE_KEY")
+    : `0x${requiredEnv("ARC_MAINNET_DEPLOYER_PRIVATE_KEY")}`
 );
-const chain = defineChain({
-  id: 5042002,
-  name: "Arc Testnet",
-  nativeCurrency: { name: "testnet USDC", symbol: "USDC", decimals: 18 },
-  rpcUrls: { default: { http: [rpcUrl] } },
-  testnet: true
-});
+const chain = getArcChain(process.env);
 const publicClient = createPublicClient({ chain, transport: http(readRpcUrl) });
+await assertArcContracts(publicClient, [registryAddress, escrowAddress]);
 const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
 const escrowAbi = readAbi("ERC8183EscrowV2.json");
 const registryAbi = readAbi("ERC8004AgentRegistry.json");

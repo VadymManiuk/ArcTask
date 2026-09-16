@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
-import { ARC_TESTNET } from "@/lib/arc";
-import { getArcMode } from "@/lib/arc-config";
+import { ARC_MAINNET } from "@/lib/arc";
+import { deploymentScope, getArcMode } from "@/lib/arc-config";
 import { isNetworkSnapshotRegressive, mergeOnchainJobStatus } from "@/lib/network-snapshot";
 import { getState, hydrateNetworkState, subscribeToState } from "@/lib/store";
 import { seedState } from "@/lib/mock-data";
@@ -42,12 +42,14 @@ interface NetworkJob {
 
 interface NetworkAgentsResponse {
   ok: boolean;
+  deploymentScope?: string;
   nextAgentId?: string;
   agents?: NetworkAgent[];
 }
 
 interface NetworkJobsResponse {
   ok: boolean;
+  deploymentScope?: string;
   nextJobId?: string;
   jobs?: NetworkJob[];
 }
@@ -79,7 +81,10 @@ async function fetchNetworkResponses() {
       ])) as [NetworkAgentsResponse, NetworkJobsResponse];
 
       if (!agentsResponse.ok || !jobsResponse.ok || !agentsBody.ok || !jobsBody.ok) {
-        throw new Error("Arc Testnet data is temporarily unavailable.");
+        throw new Error("Arc Mainnet data is temporarily unavailable.");
+      }
+      if (agentsBody.deploymentScope !== deploymentScope || jobsBody.deploymentScope !== deploymentScope) {
+        throw new Error("The app and API deployments differ. Reload after the mainnet update completes.");
       }
 
       return { agentsBody, jobsBody };
@@ -93,7 +98,7 @@ async function fetchNetworkResponses() {
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Arc Testnet data is temporarily unavailable.");
+  throw lastError instanceof Error ? lastError : new Error("Arc Mainnet data is temporarily unavailable.");
 }
 
 function getAgentId(onchainAgentId: string) {
@@ -151,7 +156,7 @@ function createNetworkState(
       agentId: agentIdsByOnchainId.get(job.onchainAgentId) ?? getAgentId(job.onchainAgentId),
       clientWallet: job.clientWallet,
       evaluatorWallet: job.evaluatorWallet,
-      rewardAmount: Number(formatUnits(BigInt(job.rewardAmount), ARC_TESTNET.nativeCurrency.decimals)),
+      rewardAmount: Number(formatUnits(BigInt(job.rewardAmount), ARC_MAINNET.nativeCurrency.decimals)),
       deadline: deadlineToDateInput(job.deadline),
       status: mergeOnchainJobStatus(localJob?.status, job.status),
       deliverableHash: job.deliverableHash === zeroHash ? localJob?.deliverableHash : job.deliverableHash,
@@ -159,7 +164,7 @@ function createNetworkState(
       updatedAt: unixSecondsToIso(job.updatedAt),
       executionVersion: job.executionVersion,
       executionBudgetAmount: job.executionBudgetAmount
-        ? Number(formatUnits(BigInt(job.executionBudgetAmount), ARC_TESTNET.nativeCurrency.decimals))
+        ? Number(formatUnits(BigInt(job.executionBudgetAmount), ARC_MAINNET.nativeCurrency.decimals))
         : undefined,
       txHistory: localJob?.txHistory ?? []
     };
@@ -215,13 +220,13 @@ export function useArcTaskState() {
             incomingNextJobId: jobsBody.nextJobId
           })
         ) {
-          throw new Error("Arc Testnet returned an older snapshot. Keeping the last confirmed data.");
+          throw new Error("Arc Mainnet returned an older snapshot. Keeping the last confirmed data.");
         }
 
         hydrateNetworkState(createNetworkState(agentsBody, jobsBody, currentState));
       } catch (caught) {
         if (active) {
-          setSyncError(caught instanceof Error ? caught.message : "Arc Testnet data is temporarily unavailable.");
+          setSyncError(caught instanceof Error ? caught.message : "Arc Mainnet data is temporarily unavailable.");
         }
       } finally {
         inFlight = false;

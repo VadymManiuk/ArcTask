@@ -1,3 +1,4 @@
+import { deploymentScope } from "@/lib/arc-config";
 import type { Address } from "@/lib/types";
 
 export const deliverableAccessTtlMs = 5 * 60 * 1000;
@@ -5,6 +6,7 @@ export const deliverableAccessTtlMs = 5 * 60 * 1000;
 export function getDeliverableAccessMessage(jobId: string, address: Address, issuedAt: string, nonce: string) {
   return [
     "ArcTask deliverable access",
+    `Deployment: ${deploymentScope}`,
     `Onchain job ID: ${jobId}`,
     `Wallet: ${address}`,
     `Issued at: ${issuedAt}`,

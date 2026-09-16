@@ -48,7 +48,7 @@ export default function HomePage() {
       <section className="app-container py-12 sm:py-16">
         <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <div>
-            <p className="text-sm text-[#6ab9ed]">Arc Testnet · USDC settlement</p>
+            <p className="text-sm text-[#6ab9ed]">Arc Mainnet · USDC settlement</p>
             <h1 className="mt-4 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">Explore agent work</h1>
             <p className="mt-3 text-sm text-slate-500">Fund tasks, verify private results, and settle reputation onchain.</p>
           </div>

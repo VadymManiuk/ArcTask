@@ -1,8 +1,10 @@
+import { arcMainnet } from "@/lib/arc-chain";
+import { contractAddresses, getOnchainReadiness, deploymentScope } from "@/lib/arc-config";
+import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { createPublicClient, defineChain, http, verifyMessage } from "viem";
-import { ARC_TESTNET } from "@/lib/arc";
+import { createPublicClient, http, verifyMessage } from "viem";
 import { deliverableAccessTtlMs, getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import { getWorkerReportHash } from "@/lib/deliverable-integrity";
 import { createDeliverableNonce, consumeDeliverableNonce } from "@/lib/server-deliverable-nonce";
@@ -16,35 +18,18 @@ import type { Address } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const defaultEscrowAddress = "0x08eb8630f6b5d2c1c030688076b80360531a2e9a";
-const defaultEscrowV2Address = "0x6255f3fbb7b4f82062b929029dc005baf0ca3ebb";
-const defaultEscrowV3Address = "0x548531bbe48db4cded53da0d30998e7553eee53f";
-const defaultEscrowV4Address = "0xb4791ed947067daf445c936ee44cedec949bdbb4";
+const defaultEscrowAddress = contractAddresses.erc8183Escrow;
+const defaultEscrowV2Address = contractAddresses.erc8183EscrowV2;
+const defaultEscrowV3Address = contractAddresses.erc8183EscrowV3;
+const defaultEscrowV4Address = contractAddresses.erc8183EscrowV4;
 const v2InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V2_INITIAL_JOB_ID ?? "1000000");
 const v3InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V3_INITIAL_JOB_ID ?? "2000000");
 const v4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?? "3000000");
 
-const arcTestnet = defineChain({
-  id: ARC_TESTNET.chainId,
-  name: ARC_TESTNET.chainName,
-  nativeCurrency: ARC_TESTNET.nativeCurrency,
-  rpcUrls: {
-    default: {
-      http: [process.env.NEXT_PUBLIC_ARC_RPC_URL ?? ARC_TESTNET.rpcUrl]
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: "Arcscan",
-      url: ARC_TESTNET.explorerUrl
-    }
-  },
-  testnet: true
-});
 
 const publicClient = createPublicClient({
-  chain: arcTestnet,
-  transport: http(arcTestnet.rpcUrls.default.http[0])
+  chain: arcMainnet,
+  transport: http(arcMainnet.rpcUrls.default.http[0])
 });
 
 interface WorkerDeliverableFile {
@@ -147,6 +132,7 @@ function getEscrowContext(jobId: string) {
 }
 
 async function getOnchainJob(jobId: string) {
+  await assertArcMainnet(publicClient);
   const escrow = getEscrowContext(jobId);
   const job = (await withServerRpcRetry(() =>
     publicClient.readContract({
@@ -274,13 +260,14 @@ async function fetchRemoteDeliverable(request: Request, jobId: string, proof: De
       headers: {
         "Content-Type": "application/json",
         "x-arctask-forwarded-wallet-proof": "1",
+        "x-arctask-deployment": deploymentScope,
         ...(process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN
           ? { "x-arctask-remote-token": process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN }
           : {})
       },
       body: JSON.stringify(proof)
     });
-    if (!response.ok) {
+    if (!response.ok || response.headers.get("x-arctask-deployment") !== deploymentScope) {
       return null;
     }
 
@@ -306,6 +293,7 @@ async function getProofFromRequest(request: Request): Promise<DeliverableAccessP
 }
 
 export async function GET(request: Request, { params }: { params: { jobId: string } }) {
+  if (!getOnchainReadiness().isReady) return NextResponse.json({ error: "Arc mainnet contracts are not configured." }, { status: 503 });
   const rateLimitResponse = rateLimit(request, { keyPrefix: "deliverable-challenge", limit: 20, windowMs: 60_000 });
   if (rateLimitResponse) {
     return rateLimitResponse;
@@ -320,6 +308,10 @@ export async function GET(request: Request, { params }: { params: { jobId: strin
 }
 
 export async function POST(request: Request, { params }: { params: { jobId: string } }) {
+  if (!getOnchainReadiness().isReady) return NextResponse.json({ error: "Arc mainnet contracts are not configured." }, { status: 503 });
+  if (request.headers.get("x-arctask-forwarded-wallet-proof") === "1" && request.headers.get("x-arctask-deployment") !== deploymentScope) {
+    return NextResponse.json({ error: "Worker deployment mismatch." }, { status: 409 });
+  }
   const rateLimitResponse = rateLimit(request, { keyPrefix: "deliverable-unlock", limit: 30, windowMs: 60_000 });
   if (rateLimitResponse) {
     return rateLimitResponse;
@@ -352,7 +344,7 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
       return NextResponse.json(
         {
           error: isRetryableRpcError(caught)
-            ? "Arc Testnet is temporarily unavailable. Try opening the deliverable again."
+            ? "Arc Mainnet is temporarily unavailable. Try opening the deliverable again."
             : "Unable to verify deliverable access."
         },
         { status: 503 }
@@ -360,12 +352,14 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
     }
   }
 
-  const outputDir = process.env.ARC_AGENT_OUTPUT_DIR ?? path.join(process.cwd(), ".agent-worker", "deliverables");
+  const outputDir = process.env.ARC_AGENT_OUTPUT_DIR ?? path.join(process.cwd(), ".agent-worker", deploymentScope, "deliverables");
   const filePath = path.join(outputDir, `job-${jobId}.json`);
 
   try {
     const expectedHash = await getOnchainDeliverableHash(jobId);
-    return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId, expectedHash) });
+    return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId, expectedHash) }, {
+      headers: { "x-arctask-deployment": deploymentScope }
+    });
   } catch (caught) {
     if (caught instanceof DeliverableIntegrityError) {
       return NextResponse.json({ error: caught.message }, { status: 409 });
@@ -388,7 +382,7 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
 
     if (isRetryableRpcError(caught)) {
       return NextResponse.json(
-        { error: "Arc Testnet is temporarily unavailable. Try opening the deliverable again." },
+        { error: "Arc Mainnet is temporarily unavailable. Try opening the deliverable again." },
         { status: 503 }
       );
     }

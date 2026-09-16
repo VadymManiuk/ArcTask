@@ -157,7 +157,7 @@ function getStepState(status: JobStatus, step: (typeof statusSteps)[number]["key
 function getStatusText(status: JobStatus) {
   switch (status) {
     case "FUNDED":
-      return "The job is funded. The autonomous worker scans Arc Testnet and should pick it up shortly.";
+      return "The job is funded. The autonomous worker scans Arc Mainnet and should pick it up shortly.";
     case "SUBMITTED":
       return "The agent submitted a deliverable hash. Review it within 48 hours: accept, request a revision, or open a dispute.";
     case "ACCEPTED":
@@ -658,7 +658,7 @@ export default function JobDetailsPage() {
                   type="button"
                   variant={job.status === "FUNDED" ? "primary" : "outline"}
                   disabled={!job.onchainJobId || Boolean(busyAction)}
-                  onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Status refreshed from Arc Testnet.")}
+                  onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Status refreshed from Arc Mainnet.")}
                 >
                   <RefreshCw className={`h-4 w-4 ${busyAction === "sync" ? "animate-spin" : ""}`} aria-hidden="true" />
                   {busyAction === "sync" ? "Refreshing..." : "Refresh status"}
@@ -730,7 +730,7 @@ export default function JobDetailsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {!job.onchainJobId ? (
-                <p className="text-sm text-muted-foreground">This is a local demo job. Onchain worker results are available for Arc Testnet jobs.</p>
+                <p className="text-sm text-muted-foreground">This is a local demo job. Onchain worker results are available for Arc Mainnet jobs.</p>
               ) : job.status === "FUNDED" ? (
                 <div
                   className={`rounded-md border px-4 py-4 text-sm ${
@@ -896,7 +896,7 @@ export default function JobDetailsPage() {
                       <Button
                         variant="outline"
                         disabled={!job.onchainJobId || Boolean(busyAction)}
-                        onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Status refreshed from Arc Testnet.")}
+                        onClick={() => handleAction("sync", () => syncOnchainJobStateAction(jobId), "Status refreshed from Arc Mainnet.")}
                       >
                         {busyAction === "sync" ? "Refreshing..." : "Refresh onchain"}
                       </Button>

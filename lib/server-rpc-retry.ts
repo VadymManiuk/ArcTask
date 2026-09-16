@@ -15,7 +15,8 @@ export function isRetryableRpcError(caught: unknown) {
     message.includes("rate limit") ||
     message.includes("too many requests") ||
     message.includes("timeout") ||
-    message.includes("temporarily unavailable")
+    message.includes("temporarily unavailable") ||
+    message.includes("no answer was obtained")
   );
 }
 

@@ -1,13 +1,14 @@
 "use client";
 
+import { deploymentScope } from "@/lib/arc-config";
 import { formatUnits, keccak256, stringToHex } from "viem";
-import { ARC_TESTNET, createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
+import { ARC_MAINNET, createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
 import { getArcMode } from "@/lib/arc-config";
 import { seedState } from "@/lib/mock-data";
 import type { Address, Agent, ArcTaskState, DashboardMetrics, Job, JobStatus, OnchainJobEventTx, TxRecord } from "@/lib/types";
 import { assertMaxLength, isPastDateInputValue, normalizeAddress } from "@/lib/utils";
 
-const STORAGE_KEY = "arctask.state.v2";
+const STORAGE_KEY = `arctask.state.v3.${getArcMode()}.${deploymentScope}`;
 const maxAgentNameLength = 80;
 const maxAgentDescriptionLength = 1_000;
 const maxCapabilityLength = 60;
@@ -270,7 +271,7 @@ export function createJob(input: {
     throw new Error("Deadline cannot be in the past.");
   }
 
-  const tx = createRecordedTx("JOB_FUNDED", "ERC-8183 style escrow funded with testnet USDC", {
+  const tx = createRecordedTx("JOB_FUNDED", "ERC-8183 style escrow funded with USDC", {
     actor: clientWallet,
     contractLabel: "ERC-8183 Escrow",
     method: "createJob(uint256,uint256,uint64,address,string)",
@@ -702,11 +703,11 @@ export async function syncOnchainJobStateAction(jobId: string) {
           clientWallet: snapshot.clientWallet,
           evaluatorWallet: snapshot.evaluatorWallet,
           jobPayloadUri: snapshot.jobPayloadUri || item.jobPayloadUri,
-          rewardAmount: Number(formatUnits(BigInt(snapshot.rewardAmount), ARC_TESTNET.nativeCurrency.decimals)),
+          rewardAmount: Number(formatUnits(BigInt(snapshot.rewardAmount), ARC_MAINNET.nativeCurrency.decimals)),
           deadline: new Date(snapshot.deadline * 1_000).toISOString().slice(0, 10),
           executionVersion: snapshot.executionVersion,
           executionBudgetAmount: snapshot.executionBudgetAmount
-            ? Number(formatUnits(BigInt(snapshot.executionBudgetAmount), ARC_TESTNET.nativeCurrency.decimals))
+            ? Number(formatUnits(BigInt(snapshot.executionBudgetAmount), ARC_MAINNET.nativeCurrency.decimals))
             : item.executionBudgetAmount,
           deliverableHash: snapshot.deliverableHash === zeroHash ? item.deliverableHash : snapshot.deliverableHash,
           updatedAt: new Date().toISOString(),
