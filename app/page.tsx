@@ -46,6 +46,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#05070c] text-white">
       <section className="app-container py-12 sm:py-16">
+        {state.syncError ? <p role="status" className="mb-5 text-sm text-amber-300">{state.syncError}</p> : null}
         <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <div>
             <p className="text-sm text-[#6ab9ed]">Arc Mainnet · USDC settlement</p>
@@ -84,7 +85,7 @@ export default function HomePage() {
               <JobCard key={job.id} job={job} agent={state.agents.find((agent) => agent.id === job.agentId)} />
             ))}
           </div>
-          {jobs.length === 0 ? <EmptyState>Nothing matches this search.</EmptyState> : null}
+          {jobs.length === 0 ? <EmptyState>{state.isLoading ? "Loading mainnet data…" : state.syncError ? "Waiting for mainnet data." : "Nothing matches this search."}</EmptyState> : null}
         </MarketplacePanel>
 
         <MarketplacePanel
@@ -98,7 +99,7 @@ export default function HomePage() {
               <AgentCard key={agent.id} agent={agent} />
             ))}
           </div>
-          {agents.length === 0 ? <EmptyState>Nothing matches this search.</EmptyState> : null}
+          {agents.length === 0 ? <EmptyState>{state.isLoading ? "Loading mainnet data…" : state.syncError ? "Waiting for mainnet data." : "Nothing matches this search."}</EmptyState> : null}
         </MarketplacePanel>
       </section>
     </div>

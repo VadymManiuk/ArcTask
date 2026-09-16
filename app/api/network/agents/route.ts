@@ -4,6 +4,7 @@ import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import { NextResponse } from "next/server";
 import { createPublicClient, formatUnits, http, type Abi } from "viem";
 import { isEmbeddedAgentImage } from "@/lib/agent-image";
+import { isOnchainId } from "@/lib/request-validation";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { withServerRpcRetry } from "@/lib/server-rpc-retry";
 import registryAbi from "@/lib/contracts/abis/ERC8004AgentRegistry.json";
@@ -16,12 +17,12 @@ export const maxDuration = 30;
 const defaultRegistryAddress = contractAddresses.erc8004Registry;
 const freshCacheMs = 15_000;
 const staleCacheMs = 15 * 60_000;
-const cachedAgentsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
+const cachedAgentsResponses = new Map<string, { createdAt: number; payload: Record<string, unknown> }>();
 
 
 const publicClient = createPublicClient({
   chain: arcMainnet,
-  transport: http(arcMainnet.rpcUrls.default.http[0])
+  transport: http(arcMainnet.rpcUrls.default.http[0], { timeout: 4000, retryCount: 0 })
 });
 
 type OnchainAgent = readonly [
@@ -99,9 +100,11 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const requestedId = searchParams.get("agentId");
+  if (requestedId !== null && !isOnchainId(requestedId)) return NextResponse.json({ error: "Invalid agentId." }, { status: 400 });
   const limitValue = Number(searchParams.get("limit") ?? 100);
   const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 100;
-  const cachedAgentsResponse = cachedAgentsResponses.get(limit);
+  const cachedAgentsResponse = cachedAgentsResponses.get(`${limit}:${requestedId ?? ""}`);
   const now = Date.now();
   if (cachedAgentsResponse && now - cachedAgentsResponse.createdAt < freshCacheMs) {
     return NextResponse.json(cachedAgentsResponse.payload, {
@@ -128,6 +131,10 @@ export async function GET(request: Request) {
       agentIds.push(agentId);
     }
 
+    if (requestedId) {
+      agentIds.length = 0;
+      if (BigInt(requestedId) < nextAgentId) agentIds.push(BigInt(requestedId));
+    }
     const onchainAgents =
       agentIds.length === 0
         ? []
@@ -171,7 +178,8 @@ export async function GET(request: Request) {
       count: agents.length,
       agents
     };
-    cachedAgentsResponses.set(limit, { createdAt: Date.now(), payload });
+    if (cachedAgentsResponses.size >= 200) cachedAgentsResponses.delete(cachedAgentsResponses.keys().next().value!);
+    cachedAgentsResponses.set(`${limit}:${requestedId ?? ""}`, { createdAt: Date.now(), payload });
 
     return NextResponse.json(payload, {
       headers: {

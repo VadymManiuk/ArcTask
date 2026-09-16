@@ -4,11 +4,13 @@ import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { createPublicClient, http, verifyMessage } from "viem";
+import { createPublicClient, http } from "viem";
 import { deliverableAccessTtlMs, getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import { getWorkerReportHash } from "@/lib/deliverable-integrity";
-import { createDeliverableNonce, consumeDeliverableNonce } from "@/lib/server-deliverable-nonce";
+import { createDeliverableNonce, consumeDeliverableNonce, isDeliverableNonceValid } from "@/lib/server-deliverable-nonce";
+import { isOnchainId, readBoundedJson } from "@/lib/request-validation";
 import { rateLimit } from "@/lib/server-rate-limit";
+import { requestWorkerJson } from "@/lib/server-worker-transport";
 import { isSafeRemoteBaseUrl } from "@/lib/server-remote";
 import { isRetryableRpcError, withServerRpcRetry } from "@/lib/server-rpc-retry";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
@@ -17,6 +19,7 @@ import type { Address } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 const defaultEscrowAddress = contractAddresses.erc8183Escrow;
 const defaultEscrowV2Address = contractAddresses.erc8183EscrowV2;
@@ -29,7 +32,7 @@ const v4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?
 
 const publicClient = createPublicClient({
   chain: arcMainnet,
-  transport: http(arcMainnet.rpcUrls.default.http[0])
+  transport: http(arcMainnet.rpcUrls.default.http[0], { timeout: 4000, retryCount: 0 })
 });
 
 interface WorkerDeliverableFile {
@@ -71,15 +74,6 @@ function isAddress(value: string): value is Address {
 
 function sameAddress(left: string, right: string) {
   return left.toLowerCase() === right.toLowerCase();
-}
-
-function isTrustedRemoteRequest(request: Request) {
-  const token = process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN;
-  if (!token) {
-    return false;
-  }
-
-  return request.headers.get("x-arctask-remote-token") === token;
 }
 
 function getRecord(value: unknown): Record<string, unknown> | null {
@@ -154,14 +148,9 @@ async function getOnchainJob(jobId: string) {
   };
 }
 
-async function getOnchainDeliverableHash(jobId: string) {
-  return (await getOnchainJob(jobId)).deliverableHash;
-}
-
 async function assertDeliverableAccess(
   proof: DeliverableAccessProof,
-  jobId: string,
-  options: { consumeNonce?: boolean } = {}
+  jobId: string
 ) {
   const address = proof.address.trim();
   const issuedAt = proof.issuedAt.trim();
@@ -172,7 +161,7 @@ async function assertDeliverableAccess(
     return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
   }
 
-  if (options.consumeNonce !== false && !consumeDeliverableNonce(jobId, nonce)) {
+  if (!isDeliverableNonceValid(jobId, nonce)) {
     return NextResponse.json({ error: "Deliverable access challenge expired. Sign again." }, { status: 401 });
   }
 
@@ -184,12 +173,13 @@ async function assertDeliverableAccess(
 
   let isValidSignature = false;
   try {
-    isValidSignature = await verifyMessage({
+    isValidSignature = await publicClient.verifyMessage({
       address,
       message: getDeliverableAccessMessage(jobId, address, issuedAt, nonce),
       signature: signature as `0x${string}`
     });
-  } catch {
+  } catch (error) {
+    if (isRetryableRpcError(error)) throw error;
     isValidSignature = false;
   }
 
@@ -214,7 +204,11 @@ async function assertDeliverableAccess(
     );
   }
 
-  return null;
+  const nonceDir = path.join(process.env.ARC_AGENT_STATE_DIR ?? path.join(process.cwd(), ".agent-worker", deploymentScope, "state"), "access-nonces");
+  if (!consumeDeliverableNonce(jobId, nonce, nonceDir)) {
+    return NextResponse.json({ error: "Deliverable access challenge already used. Sign again." }, { status: 401 });
+  }
+  return { deliverableHash: job.deliverableHash };
 }
 
 async function readLocalDeliverable(filePath: string, jobId: string, expectedHash: `0x${string}`) {
@@ -242,44 +236,31 @@ async function readLocalDeliverable(filePath: string, jobId: string, expectedHas
   return deliverable;
 }
 
-async function fetchRemoteDeliverable(request: Request, jobId: string, proof: DeliverableAccessProof) {
-  const remoteBaseUrl = process.env.ARCTASK_DELIVERABLE_REMOTE_BASE_URL;
-  if (!remoteBaseUrl || !isSafeRemoteBaseUrl(remoteBaseUrl)) {
-    return null;
+async function forwardToWorker(request: Request, jobId: string, proof?: DeliverableAccessProof) {
+  const base = process.env.ARCTASK_DELIVERABLE_REMOTE_BASE_URL;
+  if (!base) return null;
+  if (!isSafeRemoteBaseUrl(base) || new URL(base).origin === new URL(request.url).origin) {
+    return NextResponse.json({ error: "Invalid worker endpoint configuration." }, { status: 503 });
   }
-
-  const remoteUrl = new URL(`/api/deliverables/${jobId}`, remoteBaseUrl);
-  if (remoteUrl.origin === new URL(request.url).origin) {
-    return null;
-  }
-
   try {
-    const response = await fetch(remoteUrl, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        "x-arctask-forwarded-wallet-proof": "1",
-        "x-arctask-deployment": deploymentScope,
-        ...(process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN
-          ? { "x-arctask-remote-token": process.env.ARCTASK_DELIVERABLE_REMOTE_TOKEN }
-          : {})
-      },
-      body: JSON.stringify(proof)
+    const response = await requestWorkerJson(new URL(`/api/deliverables/${jobId}`, base), {
+      method: proof ? "POST" : "GET", timeoutMs: 20_000,
+      ...(proof ? { body: JSON.stringify(proof) } : {})
     });
-    if (!response.ok || response.headers.get("x-arctask-deployment") !== deploymentScope) {
-      return null;
+    if (response.ok && response.headers.get("x-arctask-deployment") !== deploymentScope) {
+      return NextResponse.json({ error: "Worker deployment mismatch." }, { status: 503 });
     }
-
-    const deliverable = normalizeDeliverablePayload(await response.json().catch(() => null), jobId);
-    return deliverable ? { deliverable } : null;
+    const payload = await response.json();
+    return NextResponse.json(payload, { status: response.status, headers: {
+      "Cache-Control": "private, no-store", "x-arctask-deployment": deploymentScope
+    } });
   } catch {
-    return null;
+    return NextResponse.json({ error: "Worker is temporarily unavailable. Try again shortly." }, { status: 503 });
   }
 }
 
 async function getProofFromRequest(request: Request): Promise<DeliverableAccessProof | null> {
-  const body = (await request.json().catch(() => null)) as Partial<DeliverableAccessProof> | null;
+  const body = (await readBoundedJson(request).catch(() => null)) as Partial<DeliverableAccessProof> | null;
   if (!body || typeof body.address !== "string" || typeof body.nonce !== "string" || typeof body.signature !== "string") {
     return null;
   }
@@ -292,22 +273,26 @@ async function getProofFromRequest(request: Request): Promise<DeliverableAccessP
   };
 }
 
-export async function GET(request: Request, { params }: { params: { jobId: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   if (!getOnchainReadiness().isReady) return NextResponse.json({ error: "Arc mainnet contracts are not configured." }, { status: 503 });
   const rateLimitResponse = rateLimit(request, { keyPrefix: "deliverable-challenge", limit: 20, windowMs: 60_000 });
   if (rateLimitResponse) {
     return rateLimitResponse;
   }
 
-  const jobId = params.jobId.trim();
-  if (!/^\d+$/.test(jobId)) {
+  const jobId = (await params).jobId.trim();
+  if (!isOnchainId(jobId)) {
     return NextResponse.json({ error: "Invalid onchain job ID." }, { status: 400 });
   }
 
-  return NextResponse.json(createDeliverableNonce(jobId));
+  const remote = await forwardToWorker(request, jobId);
+  if (remote) return remote;
+  return NextResponse.json(createDeliverableNonce(jobId), { headers: {
+    "Cache-Control": "private, no-store", "x-arctask-deployment": deploymentScope
+  } });
 }
 
-export async function POST(request: Request, { params }: { params: { jobId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   if (!getOnchainReadiness().isReady) return NextResponse.json({ error: "Arc mainnet contracts are not configured." }, { status: 503 });
   if (request.headers.get("x-arctask-forwarded-wallet-proof") === "1" && request.headers.get("x-arctask-deployment") !== deploymentScope) {
     return NextResponse.json({ error: "Worker deployment mismatch." }, { status: 409 });
@@ -317,48 +302,30 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
     return rateLimitResponse;
   }
 
-  const jobId = params.jobId.trim();
-  if (!/^\d+$/.test(jobId)) {
+  const jobId = (await params).jobId.trim();
+  if (!isOnchainId(jobId)) {
     return NextResponse.json({ error: "Invalid onchain job ID." }, { status: 400 });
   }
 
-  const trustedRemoteRequest = isTrustedRemoteRequest(request);
-  const forwardedWalletProof = request.headers.get("x-arctask-forwarded-wallet-proof") === "1";
-  const proof = trustedRemoteRequest ? null : await getProofFromRequest(request);
-  if (!trustedRemoteRequest) {
-    if (!proof) {
-      return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
-    }
-
-    try {
-      const accessError = await assertDeliverableAccess(proof, jobId, {
-        // The public deployment already consumed this one-time challenge before
-        // forwarding the signed proof to the worker deployment. The worker still
-        // verifies the signature, timestamp, and onchain client wallet.
-        consumeNonce: !forwardedWalletProof
-      });
-      if (accessError) {
-        return accessError;
-      }
-    } catch (caught) {
-      return NextResponse.json(
-        {
-          error: isRetryableRpcError(caught)
-            ? "Arc Mainnet is temporarily unavailable. Try opening the deliverable again."
-            : "Unable to verify deliverable access."
-        },
-        { status: 503 }
-      );
-    }
+  const proof = await getProofFromRequest(request);
+  if (!proof) return NextResponse.json({ error: "Wallet signature is required to view this deliverable." }, { status: 401 });
+  const remote = await forwardToWorker(request, jobId, proof);
+  if (remote) return remote;
+  let expectedHash: `0x${string}`;
+  try {
+    const access = await assertDeliverableAccess(proof, jobId);
+    if (access instanceof Response) return access;
+    expectedHash = access.deliverableHash;
+  } catch {
+    return NextResponse.json({ error: "Unable to verify deliverable access. Try again shortly." }, { status: 503 });
   }
 
   const outputDir = process.env.ARC_AGENT_OUTPUT_DIR ?? path.join(process.cwd(), ".agent-worker", deploymentScope, "deliverables");
   const filePath = path.join(outputDir, `job-${jobId}.json`);
 
   try {
-    const expectedHash = await getOnchainDeliverableHash(jobId);
     return NextResponse.json({ deliverable: await readLocalDeliverable(filePath, jobId, expectedHash) }, {
-      headers: { "x-arctask-deployment": deploymentScope }
+      headers: { "x-arctask-deployment": deploymentScope, "Cache-Control": "private, no-store" }
     });
   } catch (caught) {
     if (caught instanceof DeliverableIntegrityError) {
@@ -366,11 +333,6 @@ export async function POST(request: Request, { params }: { params: { jobId: stri
     }
 
     if ((caught as NodeJS.ErrnoException).code === "ENOENT") {
-      const remoteDeliverable = proof ? await fetchRemoteDeliverable(request, jobId, proof) : null;
-      if (remoteDeliverable) {
-        return NextResponse.json(remoteDeliverable);
-      }
-
       return NextResponse.json(
         {
           error:

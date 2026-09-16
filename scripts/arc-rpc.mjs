@@ -9,6 +9,10 @@ function isRetryableRpcError(caught) {
     message.includes("rate limit") ||
     message.includes("too many requests") ||
     message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("fetch failed") ||
+    message.includes("socket hang up") ||
+    /(?:http|status|status code)[: ]+(?:408|429|500|502|503|504)\b/.test(message) ||
     message.includes("temporarily unavailable") ||
     message.includes("no answer was obtained")
   );

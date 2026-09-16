@@ -47,7 +47,8 @@ export function isNetworkSnapshotRegressive(input: {
   );
 }
 
-export function mergeOnchainJobStatus(currentStatus: JobStatus | undefined, incomingStatus: JobStatus) {
+export function mergeOnchainJobStatus(currentStatus: JobStatus | undefined, incomingStatus: JobStatus,
+  freshness?: { currentUpdatedAt: string; incomingUpdatedAt: string; currentVersion?: number; incomingVersion?: number; currentBlock?: string; incomingBlock?: string }) {
   if (!currentStatus) {
     return incomingStatus;
   }
@@ -55,6 +56,11 @@ export function mergeOnchainJobStatus(currentStatus: JobStatus | undefined, inco
   if (terminalJobStatuses.has(currentStatus)) {
     return currentStatus;
   }
+
+  if (freshness?.currentBlock && freshness.incomingBlock && BigInt(freshness.incomingBlock) > BigInt(freshness.currentBlock)) return incomingStatus;
+
+  if (freshness && ((freshness.incomingVersion ?? 1) > (freshness.currentVersion ?? 1) ||
+      Date.parse(freshness.incomingUpdatedAt) > Date.parse(freshness.currentUpdatedAt))) return incomingStatus;
 
   return jobStatusProgress[incomingStatus] >= jobStatusProgress[currentStatus] ? incomingStatus : currentStatus;
 }

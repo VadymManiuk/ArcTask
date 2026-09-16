@@ -1,5 +1,6 @@
-import { DeliverableViewer } from "@/app/deliverables/[jobId]/deliverable-viewer";
+import { DeliverableViewer } from "./deliverable-viewer";
 
-export default function DeliverablePage({ params }: { params: { jobId: string } }) {
-  return <DeliverableViewer jobId={params.jobId} />;
+export default async function DeliverablePage({ params }: { params: Promise<{ jobId: string }> }) {
+  const { jobId } = await params;
+  return <DeliverableViewer jobId={jobId} />;
 }

@@ -26,10 +26,11 @@ export function isSafeRemoteBaseUrl(value: string) {
     return false;
   }
 
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
+  if (url.protocol !== "https:") {
     return false;
   }
 
+  if (url.username || url.password) return false;
   const hostname = url.hostname;
   if (privateHostPatterns.some((pattern) => pattern.test(hostname)) || isPrivate172(hostname)) {
     return false;

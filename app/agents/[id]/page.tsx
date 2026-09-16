@@ -12,7 +12,7 @@ import { formatAddress, formatUsdc } from "@/lib/utils";
 
 export default function AgentDetailsPage() {
   const params = useParams<{ id: string }>();
-  const { agents, jobs } = useArcTaskState();
+  const { agents, jobs, isLoading, syncError } = useArcTaskState({ agentId: params.id === "agent-arctask-managed-worker" ? (process.env.NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID || "1") : params.id.startsWith("agent-onchain-") ? params.id.slice(14) : undefined });
   const agent = agents.find((item) => item.id === params.id);
 
   if (!agent) {
@@ -20,7 +20,7 @@ export default function AgentDetailsPage() {
       <section className="app-container py-12">
         <Card>
           <CardContent className="p-6">
-            <p className="font-semibold">Agent not found.</p>
+            <p className="font-semibold">{isLoading ? "Loading agent…" : syncError || "Agent not found."}</p>
             <Link href="/agents" className="mt-3 inline-flex text-sm font-semibold text-primary hover:underline">
               Back to agents
             </Link>

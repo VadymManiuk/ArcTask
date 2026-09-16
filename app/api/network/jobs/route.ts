@@ -4,6 +4,7 @@ import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import { NextResponse } from "next/server";
 import { createPublicClient, formatUnits, http, type Abi } from "viem";
 import { ARC_MAINNET } from "@/lib/arc";
+import { isOnchainId } from "@/lib/request-validation";
 import { rateLimit } from "@/lib/server-rate-limit";
 import { withServerRpcRetry } from "@/lib/server-rpc-retry";
 import escrowAbi from "@/lib/contracts/abis/ERC8183Escrow.json";
@@ -26,13 +27,13 @@ const legacyStatuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTE
 const v2Statuses: JobStatus[] = ["FUNDED", "SUBMITTED", "ACCEPTED", "REJECTED", "REFUNDED", "DISPUTED"];
 const freshCacheMs = 2_000;
 const staleCacheMs = 15 * 60_000;
-const cachedJobsResponses = new Map<number, { createdAt: number; payload: Record<string, unknown> }>();
+const cachedJobsResponses = new Map<string, { createdAt: number; payload: Record<string, unknown> }>();
 
 
 function createRpcClient(url: string) {
   return createPublicClient({
     chain: arcMainnet,
-    transport: http(url)
+    transport: http(url, { timeout: 4_000, retryCount: 0 })
   });
 }
 
@@ -142,14 +143,17 @@ async function loadContractJobs(
   firstPossibleJobId: bigint,
   limit: number,
   isV2: boolean,
-  isV3 = false
+  isV3 = false,
+  requestedId: string | null,
+  blockNumber: bigint
 ) {
   const nextJobId = await withServerRpcRetry(
     () =>
       rpcClient.readContract({
         address,
         abi,
-        functionName: "nextJobId"
+        functionName: "nextJobId",
+        blockNumber
       }) as Promise<bigint>
   );
   const one = BigInt(1);
@@ -159,6 +163,10 @@ async function loadContractJobs(
   for (let jobId = firstJobId; jobId < nextJobId; jobId += one) {
     jobIds.push(jobId);
   }
+  if (requestedId) {
+    jobIds.length = 0;
+    if (BigInt(requestedId) >= firstPossibleJobId && BigInt(requestedId) < nextJobId) jobIds.push(BigInt(requestedId));
+  }
   const onchainJobs =
     jobIds.length === 0
       ? []
@@ -166,6 +174,7 @@ async function loadContractJobs(
           () =>
             rpcClient.multicall({
               allowFailure: false,
+              blockNumber,
               contracts: jobIds.map((jobId) => ({
                 address,
                 abi,
@@ -181,6 +190,7 @@ async function loadContractJobs(
           () =>
             rpcClient.multicall({
               allowFailure: false,
+              blockNumber,
               contracts: jobIds.map((jobId) => ({
                 address,
                 abi,
@@ -200,19 +210,20 @@ async function loadContractJobs(
 async function loadJobsSnapshot(
   rpcClient: ReturnType<typeof createRpcClient>,
   source: string,
-  limit: number
+  limit: number,
+  requestedId: string | null = null
 ) {
   await assertArcMainnet(rpcClient);
   const v2Address = getEscrowV2Address();
   const v3Address = getEscrowV3Address();
   const v4Address = getEscrowV4Address();
-  const [blockNumber, legacy, v2, v3, v4] = await Promise.all([
-    withServerRpcRetry(() => rpcClient.getBlockNumber()),
+  const blockNumber = await withServerRpcRetry(() => rpcClient.getBlockNumber({ cacheTime: 0 }));
+  const [legacy, v2, v3, v4] = await Promise.all([
     getEscrowAddress()
-      ? loadContractJobs(rpcClient, getEscrowAddress(), escrowAbi as Abi, BigInt(1), limit, false)
+      ? loadContractJobs(rpcClient, getEscrowAddress(), escrowAbi as Abi, BigInt(1), limit, false, false, requestedId, blockNumber)
       : Promise.resolve({ nextJobId: BigInt(1), jobs: [] as ReturnType<typeof serializeJob>[] }),
     v2Address
-      ? loadContractJobs(rpcClient, v2Address, escrowV2Abi as Abi, v2InitialJobId, limit, true)
+      ? loadContractJobs(rpcClient, v2Address, escrowV2Abi as Abi, v2InitialJobId, limit, true, false, requestedId, blockNumber)
       : Promise.resolve({ nextJobId: v2InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] }),
     v3Address
       ? loadContractJobs(
@@ -222,7 +233,9 @@ async function loadJobsSnapshot(
           v3InitialJobId,
           limit,
           true,
-          true
+          true,
+          requestedId,
+          blockNumber
         )
       : Promise.resolve({ nextJobId: v3InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] }),
     v4Address
@@ -233,7 +246,9 @@ async function loadJobsSnapshot(
           v4InitialJobId,
           limit,
           true,
-          true
+          true,
+          requestedId,
+          blockNumber
         )
       : Promise.resolve({ nextJobId: v4InitialJobId, jobs: [] as ReturnType<typeof serializeJob>[] })
   ]);
@@ -267,6 +282,7 @@ function compareSnapshots(
   left: Awaited<ReturnType<typeof loadJobsSnapshot>>,
   right: Awaited<ReturnType<typeof loadJobsSnapshot>>
 ) {
+  if (left.blockNumber !== right.blockNumber) return left.blockNumber > right.blockNumber ? 1 : -1;
   if (left.nextJobId !== right.nextJobId) {
     return left.nextJobId > right.nextJobId ? 1 : -1;
   }
@@ -307,6 +323,8 @@ function preserveMonotonicJobs(
     if (!previous) {
       return job;
     }
+    if (BigInt(job.updatedAt) > BigInt(previous.updatedAt) ||
+      (job.executionVersion ?? 1) > (previous.executionVersion ?? 1)) return job;
     if (statusRanks[previous.status] > statusRanks[job.status]) {
       return previous;
     }
@@ -329,9 +347,11 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const requestedId = searchParams.get("jobId");
+  if (requestedId !== null && !isOnchainId(requestedId)) return NextResponse.json({ error: "Invalid jobId." }, { status: 400 });
   const limitValue = Number(searchParams.get("limit") ?? 50);
   const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 50;
-  const cachedJobsResponse = cachedJobsResponses.get(limit);
+  const cachedJobsResponse = cachedJobsResponses.get(`${limit}:${requestedId ?? ""}`);
   const now = Date.now();
   if (cachedJobsResponse && now - cachedJobsResponse.createdAt < freshCacheMs) {
     return NextResponse.json(cachedJobsResponse.payload, {
@@ -344,7 +364,7 @@ export async function GET(request: Request) {
   try {
     const snapshots = (
       await Promise.allSettled(
-        rpcClients.map(({ client, source }) => loadJobsSnapshot(client, source, limit))
+        rpcClients.map(({ client, source }) => loadJobsSnapshot(client, source, limit, requestedId))
       )
     )
       .filter(
@@ -364,7 +384,8 @@ export async function GET(request: Request) {
     const cachedLegacyNextJobId = BigInt(String(cachedJobsResponse?.payload.legacyNextJobId ?? 0));
     if (
       cachedJobsResponse &&
-      (cachedNextJobId > selectedSnapshot.nextJobId ||
+      (BigInt(String(cachedJobsResponse.payload.blockNumber ?? 0)) > selectedSnapshot.blockNumber ||
+        cachedNextJobId > selectedSnapshot.nextJobId ||
         cachedLegacyNextJobId > selectedSnapshot.legacyNextJobId)
     ) {
       return NextResponse.json(
@@ -381,7 +402,8 @@ export async function GET(request: Request) {
         }
       );
     }
-    const jobs = preserveMonotonicJobs(selectedSnapshot.jobs, cachedJobs);
+    const jobs = selectedSnapshot.blockNumber > BigInt(String(cachedJobsResponse?.payload.blockNumber ?? 0))
+      ? selectedSnapshot.jobs : preserveMonotonicJobs(selectedSnapshot.jobs, cachedJobs);
     const counts = jobs.reduce<Record<JobStatus, number>>(
       (acc, job) => {
         acc[job.status] += 1;
@@ -406,7 +428,8 @@ export async function GET(request: Request) {
       counts,
       jobs
     };
-    cachedJobsResponses.set(limit, { createdAt: Date.now(), payload });
+    if (cachedJobsResponses.size >= 200) cachedJobsResponses.delete(cachedJobsResponses.keys().next().value!);
+    cachedJobsResponses.set(`${limit}:${requestedId ?? ""}`, { createdAt: Date.now(), payload });
 
     return NextResponse.json(payload, {
       headers: {

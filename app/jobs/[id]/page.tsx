@@ -1,6 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useWalletAccount } from "@/lib/use-wallet-account";
+import { restoreAuthorizedAccount } from "@/lib/wallet";
+
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Check, ExternalLink, RefreshCw, RotateCcw, Send, X } from "lucide-react";
@@ -181,7 +184,7 @@ function getDeliverableErrorMessage(error: string) {
 
 export default function JobDetailsPage() {
   const params = useParams<{ id: string }>();
-  const { agents, jobs } = useArcTaskState();
+  const { agents, jobs, isLoading, syncError } = useArcTaskState({ jobId: params.id.startsWith("job-onchain-") ? params.id.slice(12) : undefined });
   const job = jobs.find((item) => item.id === params.id);
   const agent = job ? agents.find((item) => item.id === job.agentId) : undefined;
   const [deliverable, setDeliverable] = useState("");
@@ -204,6 +207,13 @@ export default function JobDetailsPage() {
   const retryJobTitle = job?.title ?? "";
   const retryJobDescription = job?.description ?? "";
   const retryJobDeadline = job?.deadline ?? "";
+  const { address: activeWallet } = useWalletAccount();
+  const accessEpoch = useRef(0);
+  useEffect(() => {
+    accessEpoch.current += 1;
+    setWorkerDeliverable(null); setConnectedWallet(""); setDeliverableLoading(false);
+    return () => { accessEpoch.current += 1; };
+  }, [activeWallet, job?.onchainJobId, job?.deliverableHash]);
 
   useEffect(() => {
     setNowMs(Date.now());
@@ -277,6 +287,7 @@ export default function JobDetailsPage() {
     setDeliverableError("");
     try {
       const proof = await requestDeliverableAccessProof(job.onchainJobId);
+      const epoch = accessEpoch.current;
       setConnectedWallet(proof.address);
 
       const response = await fetch(`/api/deliverables/${encodeURIComponent(job.onchainJobId)}`, {
@@ -296,6 +307,7 @@ export default function JobDetailsPage() {
         throw new Error(body.error ?? "Worker deliverable is not available yet.");
       }
 
+      if (epoch !== accessEpoch.current || (await restoreAuthorizedAccount())?.toLowerCase() !== proof.address.toLowerCase()) return;
       setWorkerDeliverable(body.deliverable);
     } catch (caught) {
       setWorkerDeliverable(null);
@@ -310,7 +322,7 @@ export default function JobDetailsPage() {
       <section className="app-container py-12">
         <Card>
           <CardContent className="p-6">
-            <p className="font-semibold">Job not found.</p>
+            <p className="font-semibold">{isLoading ? "Loading job…" : syncError || "Job not found."}</p>
             <Link href="/jobs" className="mt-3 inline-flex text-sm font-semibold text-primary hover:underline">
               Back to jobs
             </Link>
@@ -626,7 +638,7 @@ export default function JobDetailsPage() {
                       <Label htmlFor="retry-deadline">Extended deadline</Label>
                       <Input
                         id="retry-deadline"
-                        min={new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString().slice(0, 10)}
+                        min={nowMs ? new Date(nowMs + 24 * 60 * 60 * 1_000).toISOString().slice(0, 10) : undefined}
                         type="date"
                         value={retryDeadline}
                         onChange={(event) => setRetryDeadline(event.target.value)}

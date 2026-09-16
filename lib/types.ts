@@ -61,6 +61,7 @@ export interface Agent {
 export interface Job {
   id: string;
   onchainJobId?: string;
+  onchainBlockNumber?: string;
   jobPayloadUri?: string;
   title: string;
   description: string;

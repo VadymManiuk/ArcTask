@@ -12,6 +12,8 @@ type Bucket = {
 };
 
 const buckets = new Map<string, Bucket>();
+let lastCleanup = 0;
+const maximumBuckets = 10_000;
 
 function getClientIp(request: Request) {
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
@@ -20,7 +22,14 @@ function getClientIp(request: Request) {
 
 export function rateLimit(request: Request, options: RateLimitOptions) {
   const now = Date.now();
+  if (now - lastCleanup > 60_000 || buckets.size >= maximumBuckets) {
+    for (const [key, bucket] of buckets) if (bucket.resetAt <= now) buckets.delete(key);
+    lastCleanup = now;
+  }
   const key = `${options.keyPrefix}:${getClientIp(request)}`;
+  if (!buckets.has(key) && buckets.size >= maximumBuckets) {
+    return NextResponse.json({ error: "Too many requests. Try again shortly." }, { status: 429, headers: { "Retry-After": "60" } });
+  }
   const current = buckets.get(key);
 
   if (!current || current.resetAt <= now) {

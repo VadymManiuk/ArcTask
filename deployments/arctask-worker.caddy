@@ -1,0 +1,5 @@
+https://109.206.243.135:3443 {
+    tls internal
+    reverse_proxy 127.0.0.1:3002
+    header -Server
+}

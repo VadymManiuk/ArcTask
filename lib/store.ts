@@ -1,5 +1,6 @@
 "use client";
 
+import { getJobDeadlineMs } from "@/lib/job-deadline";
 import { deploymentScope } from "@/lib/arc-config";
 import { formatUnits, keccak256, stringToHex } from "viem";
 import { ARC_MAINNET, createId, createMockTxHash, getArcscanTxUrl } from "@/lib/arc";
@@ -108,72 +109,60 @@ function getFreshSeedState() {
 }
 
 function readState(): ArcTaskState {
-  if (typeof window === "undefined") {
-    return getFreshSeedState();
-  }
-
-  const saved = window.localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    const freshState = getFreshSeedState();
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
-    cachedState = freshState;
-    return freshState;
-  }
-
+  if (cachedState) return cachedState;
+  if (typeof window === "undefined") return getFreshSeedState();
   try {
-    const parsed = JSON.parse(saved);
-    if (!isStateLike(parsed)) {
-      throw new Error("Invalid ArcTask local state.");
-    }
-
-    cachedState = parsed;
-    return parsed;
-  } catch {
-    const freshState = getFreshSeedState();
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
-    cachedState = freshState;
-    return freshState;
-  }
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    const parsed: unknown = saved ? JSON.parse(saved) : null;
+    cachedState = isStateLike(parsed) ? parsed : getFreshSeedState();
+  } catch { cachedState = getFreshSeedState(); }
+  return cachedState;
 }
 
 function writeState(state: ArcTaskState) {
   cachedState = state;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch { /* A confirmed transaction must not become a UI failure if storage is full or disabled. */ }
   window.dispatchEvent(new Event("arctask:state"));
 }
 
-export function hydrateNetworkState(state: ArcTaskState) {
-  writeState(cloneState(state));
-}
-
-export function getState() {
-  if (typeof window === "undefined") {
-    return getFreshSeedState();
-  }
-
-  return cachedState ?? readState();
-}
-
-export function resetMockState() {
-  const freshState = getFreshSeedState();
-  cachedState = freshState;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(freshState));
-  window.dispatchEvent(new Event("arctask:state"));
-}
+export function hydrateNetworkState(state: ArcTaskState) { writeState(cloneState(state)); }
+export function getState() { return readState(); }
+export function resetMockState() { writeState(getFreshSeedState()); }
 
 export function subscribeToState(callback: () => void) {
-  const handleUpdate = () => {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEY && event.key !== null) return;
     cachedState = null;
     callback();
   };
-
-  window.addEventListener("storage", handleUpdate);
-  window.addEventListener("arctask:state", handleUpdate);
-
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener("arctask:state", callback);
   return () => {
-    window.removeEventListener("storage", handleUpdate);
-    window.removeEventListener("arctask:state", handleUpdate);
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener("arctask:state", callback);
   };
+}
+
+function validateAgentInput(input: Pick<Agent, "name" | "description" | "metadataUri" | "ownerWallet" | "capabilities">) {
+  normalizeAddress(input.ownerWallet);
+  if (!input.name.trim() || !input.description.trim()) throw new Error("Name and description are required.");
+  assertMaxLength(input.name.trim(), maxAgentNameLength, "Agent name");
+  assertMaxLength(input.description.trim(), maxAgentDescriptionLength, "Agent description");
+  assertMaxLength(input.metadataUri.trim(), maxMetadataUriLength, "Metadata URI");
+  const capabilities = input.capabilities.map(value => value.trim()).filter(Boolean);
+  if (!capabilities.length) throw new Error("Add at least one agent capability.");
+  for (const capability of capabilities) assertMaxLength(capability, maxCapabilityLength, "Capability");
+}
+
+function validateJobInput(input: { title: string; description: string; clientWallet: Address; evaluatorWallet: Address; rewardAmount: number; deadline: string }) {
+  normalizeAddress(input.clientWallet);
+  normalizeAddress(input.evaluatorWallet);
+  if (!input.title.trim() || !input.description.trim()) throw new Error("Title and description are required.");
+  assertMaxLength(input.title.trim(), maxJobTitleLength, "Job title");
+  assertMaxLength(input.description.trim(), maxJobDescriptionLength, "Job description");
+  if (!Number.isFinite(input.rewardAmount) || input.rewardAmount <= 0) throw new Error("Reward must be greater than zero.");
+  if (getJobDeadlineMs(input.deadline) <= Date.now()) throw new Error("Deadline must be in the future.");
 }
 
 export function registerAgent(input: {
@@ -209,7 +198,7 @@ export function registerAgent(input: {
     summary: `${input.name} identity metadata anchored for reputation discovery.`
   }, onchain?.tx);
   const agent: Agent = {
-    id: createId("agent"),
+    id: onchain?.onchainAgentId ? (onchain.onchainAgentId === (process.env.NEXT_PUBLIC_ARCTASK_MANAGED_AGENT_ID || "1") ? "agent-arctask-managed-worker" : `agent-onchain-${onchain.onchainAgentId}`) : createId("agent"),
     onchainAgentId: onchain?.onchainAgentId,
     name: input.name.trim(),
     description: input.description.trim(),
@@ -227,7 +216,7 @@ export function registerAgent(input: {
 
   writeState({
     ...state,
-    agents: [agent, ...state.agents]
+    agents: [agent, ...state.agents.filter(item => !agent.onchainAgentId || item.onchainAgentId !== agent.onchainAgentId)]
   });
 
   return { agent, tx };
@@ -279,7 +268,7 @@ export function createJob(input: {
   }, onchain?.tx);
   const now = new Date().toISOString();
   const job: Job = {
-    id: createId("job"),
+    id: onchain?.onchainJobId ? `job-onchain-${onchain.onchainJobId}` : createId("job"),
     onchainJobId: onchain?.onchainJobId,
     jobPayloadUri: onchain?.jobPayloadUri,
     title: input.title.trim(),
@@ -297,7 +286,7 @@ export function createJob(input: {
 
   writeState({
     ...state,
-    jobs: [job, ...state.jobs]
+    jobs: [job, ...state.jobs.filter(item => !job.onchainJobId || item.onchainJobId !== job.onchainJobId)]
   });
 
   return { job, tx };
@@ -310,7 +299,7 @@ export function submitDeliverable(
 ) {
   const state = readState();
   const job = state.jobs.find((item) => item.id === jobId);
-  if (!job || job.status !== "FUNDED") {
+  if (!job || (!onchain && job.status !== "FUNDED")) {
     throw new Error("Only funded jobs can receive a deliverable.");
   }
 
@@ -471,6 +460,7 @@ export async function registerAgentAction(input: {
   ownerWallet: Address;
   metadataUri: string;
 }) {
+  validateAgentInput(input);
   if (getArcMode() !== "onchain") {
     return registerAgent(input);
   }
@@ -496,6 +486,7 @@ export async function createJobAction(input: {
   rewardAmount: number;
   deadline: string;
 }) {
+  validateJobInput(input);
   if (getArcMode() !== "onchain") {
     return createJob(input);
   }
@@ -526,6 +517,9 @@ export async function createJobAction(input: {
 }
 
 export async function submitDeliverableAction(jobId: string, deliverableContent: string) {
+  deliverableContent = deliverableContent.trim();
+  if (!deliverableContent) throw new Error("Deliverable content is required.");
+  assertMaxLength(deliverableContent, maxDeliverableLength, "Deliverable content");
   if (getArcMode() !== "onchain") {
     return submitDeliverable(jobId, deliverableContent);
   }
@@ -560,7 +554,7 @@ export async function acceptWorkAction(jobId: string) {
 
   const { acceptWorkOnchain } = await import("@/lib/onchain");
   const tx = await acceptWorkOnchain(job.onchainJobId);
-  await syncOnchainJobStateAction(jobId);
+  await syncOnchainJobStateAction(jobId).catch(() => undefined);
   return { tx };
 }
 
@@ -576,7 +570,7 @@ export async function rejectWorkAction(jobId: string, reason = "Deliverable does
 
   const { rejectWorkOnchain } = await import("@/lib/onchain");
   const tx = await rejectWorkOnchain(job.onchainJobId, reason);
-  await syncOnchainJobStateAction(jobId);
+  await syncOnchainJobStateAction(jobId).catch(() => undefined);
   return { tx };
 }
 
@@ -592,7 +586,7 @@ export async function refundJobAction(jobId: string) {
 
   const { refundExpiredOnchain } = await import("@/lib/onchain");
   const tx = await refundExpiredOnchain(job.onchainJobId);
-  await syncOnchainJobStateAction(jobId);
+  await syncOnchainJobStateAction(jobId).catch(() => undefined);
   return { tx };
 }
 
@@ -603,7 +597,7 @@ export async function requestRevisionAction(jobId: string, reason: string) {
   }
   const { requestRevisionOnchain } = await import("@/lib/onchain");
   const tx = await requestRevisionOnchain(job.onchainJobId, reason);
-  await syncOnchainJobStateAction(jobId);
+  await syncOnchainJobStateAction(jobId).catch(() => undefined);
   return { tx };
 }
 
@@ -630,7 +624,7 @@ export async function fundRetryAction(
     rewardIncrease: input.rewardIncrease,
     deadline: input.deadline
   });
-  await syncOnchainJobStateAction(jobId);
+  await syncOnchainJobStateAction(jobId).catch(() => undefined);
   return { tx };
 }
 
@@ -641,7 +635,7 @@ export async function finalizeReviewAction(jobId: string) {
   }
   const { finalizeReviewOnchain } = await import("@/lib/onchain");
   const tx = await finalizeReviewOnchain(job.onchainJobId);
-  await syncOnchainJobStateAction(jobId);
+  await syncOnchainJobStateAction(jobId).catch(() => undefined);
   return { tx };
 }
 
@@ -709,8 +703,8 @@ export async function syncOnchainJobStateAction(jobId: string) {
           executionBudgetAmount: snapshot.executionBudgetAmount
             ? Number(formatUnits(BigInt(snapshot.executionBudgetAmount), ARC_MAINNET.nativeCurrency.decimals))
             : item.executionBudgetAmount,
-          deliverableHash: snapshot.deliverableHash === zeroHash ? item.deliverableHash : snapshot.deliverableHash,
-          updatedAt: new Date().toISOString(),
+          deliverableHash: snapshot.deliverableHash === zeroHash ? undefined : snapshot.deliverableHash,
+          updatedAt: new Date(Number(snapshot.updatedAt) * 1000).toISOString(),
           txHistory: syncedJobTxHistory
         }
       : item

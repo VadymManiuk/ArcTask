@@ -2,6 +2,7 @@ import { ARC_MAINNET, defaultContractAddresses, getArcChain, getDeploymentScope,
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { randomUUID } from "node:crypto";
 import {
   createPublicClient,
   createWalletClient,
@@ -21,7 +22,8 @@ import {
 import { loadTaskArtifacts } from "./agent-task-context.mjs";
 import { collectMarketplaceEvidence } from "./agent-marketplace-evidence.mjs";
 import { collectWalletRiskEvidence } from "./agent-wallet-evidence.mjs";
-import { waitForTransactionReceiptWithRetry, withRpcRetry } from "./arc-rpc.mjs";
+import { withRpcRetry } from "./arc-rpc.mjs";
+import { acquireProcessLock, durableJson, readDurableJson, recoverSubmissions, submitDurably } from "./worker-durability.mjs";
 import {
   createExecutionPlan,
   normalizeAiRoutingAssessment
@@ -41,7 +43,8 @@ import {
   getNextUtcMonthIso,
   getUsageBudgetState,
   normalizeUsageLedger,
-  recordTokenUsage
+  reserveTokenUsage,
+  settleTokenReservation
 } from "../lib/usage-budget.mjs";
 import {
   getMinimumExecutionTier,
@@ -822,7 +825,9 @@ async function analyzeJobRouting(
     throw new Error("The funded compute budget is too small for AI routing; deterministic routing was used.");
   }
 
+  const reservationId = reserveOpenAiRequest(executionKey, routerModel, "routing", estimatedInputTokens, maxOutputTokens);
   const body = await requestProviderResponse({
+    reservationId,
     timeoutMs: Math.min(60_000, basePlan.requestTimeoutMs),
     onProgress: ({ id, status, elapsedMs }) =>
       writeStatus({
@@ -846,7 +851,7 @@ async function analyzeJobRouting(
   });
   recordOpenAiUsage(executionKey, body, {
     model: routerModel,
-    requestKind: "routing"
+    requestKind: "routing", reservationId
   });
   const assessment = parseRoutingAssessment(extractOpenAiText(body));
   atomicWriteJson(routingDecisionPath, {
@@ -900,12 +905,14 @@ function getOpenAiToolCostUsd(body) {
   return Number((webSearchCalls * webSearchCallCostUsd).toFixed(8));
 }
 
-function recordOpenAiUsage(jobId, body, { model, requestKind, policyVersion = 0 }) {
-  const usage = body?.usage ?? {};
+function recordOpenAiUsage(jobId, body, { model, requestKind, policyVersion = 0, reservationId }) {
+  // Missing usage is an unknown bill, not a free request: retain the reservation.
+  if (!body?.usage || !Number.isFinite(body.usage.input_tokens) || !Number.isFinite(body.usage.output_tokens)) return;
+  const usage = body.usage;
   const inputTokens = Number(usage.input_tokens ?? 0);
   const outputTokens = Number(usage.output_tokens ?? 0);
-  const ledger = recordTokenUsage(
-    readJsonFile(usagePath, normalizeUsageLedger({})),
+  const ledger = settleTokenReservation(
+    readJsonFile(usagePath, normalizeUsageLedger({})), reservationId,
     {
       jobId: jobId.toString(),
       inputTokens,
@@ -920,7 +927,21 @@ function recordOpenAiUsage(jobId, body, { model, requestKind, policyVersion = 0 
   atomicWriteJson(usagePath, ledger);
 }
 
-async function requestProviderResponse({ requestBody, timeoutMs, onProgress }) {
+function reserveOpenAiRequest(jobId, model, requestKind, inputTokens, outputTokens, toolCost = 0, policyVersion = 0) {
+  const id = randomUUID();
+  const ledger = readJsonFile(usagePath, {});
+  const costUsd = estimateTokenCostUsd({ model, inputTokens, outputTokens }) + toolCost;
+  if (getMonthlyUsage(ledger).costUsd + costUsd > emergencyMonthlySpendLimitUsd) {
+    throw new Error("AI request would exceed the monthly emergency budget.");
+  }
+  atomicWriteJson(usagePath, reserveTokenUsage(ledger, id, {
+    jobId: jobId.toString(), model, requestKind, inputTokens, outputTokens,
+    totalTokens: inputTokens + outputTokens, costUsd, policyVersion
+  }));
+  return id;
+}
+
+async function requestProviderResponse({ requestBody, timeoutMs, onProgress, reservationId }) {
   let lastError;
   for (const apiKey of openAiApiKeys) {
     try {
@@ -941,6 +962,9 @@ async function requestProviderResponse({ requestBody, timeoutMs, onProgress }) {
     }
   }
 
+  if (reservationId && isProviderQuotaError(lastError)) {
+    atomicWriteJson(usagePath, settleTokenReservation(readJsonFile(usagePath, {}), reservationId, null));
+  }
   throw lastError ?? new Error("No OpenAI API key is configured.");
 }
 
@@ -983,7 +1007,10 @@ async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeou
       availableOutputTokens
     )
   };
+  const reservationId = reserveOpenAiRequest(jobId, requestedModel, "generation", estimatedInputTokens,
+    boundedRequestBody.max_output_tokens, reservedToolCostUsd, executionPlan.version);
   const body = await requestProviderResponse({
+    reservationId,
     requestBody: boundedRequestBody,
     timeoutMs,
     onProgress
@@ -991,7 +1018,7 @@ async function requestOpenAiResponse({ jobId, executionPlan, requestBody, timeou
   recordOpenAiUsage(jobId, body, {
     model: requestedModel,
     requestKind: "generation",
-    policyVersion: executionPlan.version
+    policyVersion: executionPlan.version, reservationId
   });
   return body;
 }
@@ -1471,19 +1498,8 @@ function ensureRuntimeDirs() {
   };
 }
 
-function atomicWriteJson(filePath, value) {
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, serializeBigInts(value));
-  fs.renameSync(tempPath, filePath);
-}
-
-function readJsonFile(filePath, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch {
-    return fallback;
-  }
-}
+function atomicWriteJson(filePath, value) { durableJson(filePath, value); }
+function readJsonFile(filePath, fallback) { return readDurableJson(filePath, fallback); }
 
 function createInitialStatus() {
   const now = new Date().toISOString();
@@ -1592,60 +1608,8 @@ function listActiveLocks(lockDir) {
   }
 }
 
-function acquireJobLock(lockDir, jobId, workerAddress) {
-  const lockPath = path.join(lockDir, `job-${jobId.toString()}.lock`);
-  const now = Date.now();
-
-  try {
-    const stat = fs.statSync(lockPath);
-    const existingLock = readJsonFile(lockPath, {});
-    let ownerIsDead = false;
-    if (Number.isInteger(existingLock.pid) && existingLock.pid > 0) {
-      try {
-        process.kill(existingLock.pid, 0);
-      } catch (caught) {
-        ownerIsDead = caught?.code === "ESRCH";
-      }
-    }
-
-    if (ownerIsDead || now - stat.mtimeMs > staleLockMs) {
-      fs.unlinkSync(lockPath);
-    }
-  } catch (caught) {
-    if (caught.code !== "ENOENT") {
-      throw caught;
-    }
-  }
-
-  try {
-    const fd = fs.openSync(lockPath, "wx");
-    fs.writeFileSync(
-      fd,
-      serializeBigInts({
-        jobId: jobId.toString(),
-        worker: workerAddress,
-        pid: process.pid,
-        createdAt: new Date().toISOString()
-      })
-    );
-    fs.closeSync(fd);
-    return {
-      lockPath,
-      release() {
-        try {
-          fs.unlinkSync(lockPath);
-        } catch {
-          // Another watchdog or manual operator may have already removed it.
-        }
-      }
-    };
-  } catch (caught) {
-    if (caught.code === "EEXIST") {
-      return null;
-    }
-
-    throw caught;
-  }
+function acquireJobLock(lockDir, jobId) {
+  return acquireProcessLock(path.join(lockDir, `job-${jobId}.lock`));
 }
 
 function writeDeliverable(outputDir, jobId, deliverable, txHash) {
@@ -1660,11 +1624,13 @@ function writeDeliverable(outputDir, jobId, deliverable, txHash) {
 }
 
 async function readJob(jobId, escrowContext) {
+  const blockNumber = await withRpcRetry(() => publicClient.getBlockNumber({ cacheTime: 0 }));
   const result = await withRpcRetry(() =>
     publicClient.readContract({
       address: escrowContext.address,
       abi: escrowContext.abi,
       functionName: "jobs",
+      blockNumber,
       args: [jobId]
     })
   );
@@ -1675,6 +1641,7 @@ async function readJob(jobId, escrowContext) {
             address: escrowContext.address,
             abi: escrowContext.abi,
             functionName: "getJobExecution",
+            blockNumber,
             args: [jobId]
           })
         )
@@ -1708,41 +1675,38 @@ async function submitJob(jobId, job, outputDir, dryRun, workerAccount, escrowCon
     escrowContext.version === "v3" || escrowContext.version === "v4"
       ? `${jobId.toString()}:v${job.executionVersion ?? 1}`
       : jobId.toString();
-  const deliverable = await buildDeliverable(
-    jobId,
-    job,
-    workerAccount.account.address,
-    explorerUrl,
-    escrowContext,
-    executionKey
-  );
+  const generate = () => buildDeliverable(jobId, job, workerAccount.account.address, explorerUrl, escrowContext, executionKey);
   if (dryRun) {
-    const filePath = writeDeliverable(outputDir, jobId, deliverable);
+    const deliverable = await generate();
+    const filePath = writeDeliverable(path.join(outputDir, "dry-run"), jobId, deliverable);
     console.log(`dry-run job ${jobId}: would submit ${deliverable.hash}`);
     console.log(`saved ${path.relative(rootDir, filePath)}`);
     return true;
   }
-
-  const txHash = await workerAccount.walletClient.writeContract({
-    address: escrowContext.address,
-    abi: escrowContext.abi,
-    functionName: "submitDeliverable",
-    args: [jobId, deliverable.hash]
+  return submitDurably({
+    directory: submissionDir, outputDir, chainId: arcMainnet.id,
+    escrow: escrowContext.address, abi: escrowContext.abi, jobId, job,
+    account: workerAccount.account, wallet: workerAccount.walletClient, client: writePublicClient,
+    readJob: () => readJob(jobId, escrowContext), generate, explorerUrl,
+    maxFeeUsdc: process.env.ARC_AGENT_MAX_TX_FEE_USDC || "0.1"
   });
-  const receipt = await waitForTransactionReceiptWithRetry(publicClient, txHash);
-  if (receipt.status !== "success") {
-    throw new Error(`submitDeliverable failed for job ${jobId}: ${txHash}`);
-  }
-
-  const filePath = writeDeliverable(outputDir, jobId, deliverable, txHash);
-  console.log(`submitted job ${jobId}: ${txHash}`);
-  console.log(`saved ${path.relative(rootDir, filePath)}`);
-  return true;
 }
 
 async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
   await assertArcContracts(publicClient, [registryAddress, escrowV4Address, ...escrowContexts.map((context) => context.address)]);
   await withRpcRetry(() => assertArcMainnet(writePublicClient), { maxAttempts: 3 });
+  if (!dryRun) {
+    const recovery = await recoverSubmissions({ directory: submissionDir, client: writePublicClient,
+      outputDir, chainId: arcMainnet.id, escrowAddresses: escrowContexts.map(context => context.address) });
+    if (recovery.confirmed) {
+      const previous = readJsonFile(statusPath, createInitialStatus());
+      writeStatus({ metrics: { jobsSubmitted: (previous.metrics?.jobsSubmitted ?? 0) + recovery.confirmed } });
+    }
+    if (!recovery.ready) {
+      writeStatus({ activeJob: null, lastError: "Waiting for a saved submission receipt; no replacement transaction will be signed." });
+      return;
+    }
+  }
   let handled = 0;
   let scanned = 0;
   let skipped = 0;
@@ -1857,7 +1821,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
         item.jobId === jobId.toString() &&
         Number(item.executionVersion ?? 1) === currentExecutionVersion
     );
-    if (existingBlock) {
+    if (existingBlock || job.executionBudgetAmount === 0n) {
       skipped += 1;
       continue;
     }
@@ -1881,7 +1845,7 @@ async function scanOnce({ dryRun, maxJobsPerTick, outputDir, lockDir }) {
           type: "job_skipped",
           jobId: jobId.toString(),
           worker: workerAccount.account.address,
-          reason: "deadline_expired"
+          reason: "execution_changed_or_submission_pending"
         });
         continue;
       }
@@ -2157,10 +2121,10 @@ const escrowContexts = [
   { address: escrowV3Address, abi: escrowV2Abi, firstJobId: escrowV3InitialJobId, version: "v3" },
   { address: escrowV4Address, abi: escrowV2Abi, firstJobId: escrowV4InitialJobId, version: "v4" }
 ].filter((context) => context.address);
-const writePublicClient = createPublicClient({ chain: arcMainnet, transport: http(rpcUrl) });
+const writePublicClient = createPublicClient({ chain: arcMainnet, transport: http(rpcUrl, { timeout: 15_000, retryCount: 0 }) });
 const publicClient = createPublicClient({
   chain: arcMainnet,
-  transport: http(readRpcUrl)
+  transport: http(readRpcUrl, { timeout: 15_000, retryCount: 0 })
 });
 const workerAccounts = parsePrivateKeys().map((privateKey) => {
   const account = privateKeyToAccount(privateKey);
@@ -2169,7 +2133,7 @@ const workerAccounts = parsePrivateKeys().map((privateKey) => {
     walletClient: createWalletClient({
       account,
       chain: arcMainnet,
-      transport: http(rpcUrl)
+      transport: http(rpcUrl, { retryCount: 0 })
     })
   };
 });
@@ -2179,6 +2143,12 @@ const outputDir = ensureOutputDir();
 const { stateDir, lockDir, statusPath } = ensureRuntimeDirs();
 const usagePath = path.join(stateDir, "usage.json");
 const routingDecisionPath = path.join(stateDir, "routing-decisions.json");
+const submissionDir = path.join(stateDir, "submissions");
+const workerLock = acquireProcessLock(path.join(stateDir, "worker.lock"));
+if (!workerLock) throw new Error("Another worker owns this deployment; refusing concurrent execution.");
+process.once("exit", () => workerLock.release());
+process.once("SIGTERM", () => process.exit(0));
+process.once("SIGINT", () => process.exit(0));
 
 console.log(`ArcTask agent worker`);
 console.log(`accounts: ${workerAccounts.map(({ account }) => account.address).join(", ")}`);
@@ -2210,7 +2180,19 @@ if (
   console.log("warning: using ARC_MAINNET_DEPLOYER_PRIVATE_KEY fallback because ARC_AGENT_ALLOW_DEPLOYER_FALLBACK=true.");
 }
 
-atomicWriteJson(statusPath, createInitialStatus());
+const previousStatus = readJsonFile(statusPath, null);
+const initialStatus = createInitialStatus();
+atomicWriteJson(statusPath, {
+  ...initialStatus,
+  ...(previousStatus?.deploymentScope === deploymentScope ? {
+    metrics: previousStatus.metrics,
+    blockedJobs: previousStatus.blockedJobs,
+    providerHealth: previousStatus.providerHealth,
+    recentEvents: previousStatus.recentEvents
+  } : {})
+});
+const heartbeat = setInterval(() => writeStatus(), 10_000);
+heartbeat.unref();
 
 do {
   try {

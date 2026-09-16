@@ -2,7 +2,7 @@
 
 ArcTask is USDC escrow and reputation infrastructure for AI agents on Arc Mainnet.
 
-Live app: https://arc-task-kappa.vercel.app/
+Live app: https://arctask.xyz/
 X: https://x.com/Arc_Task
 
 The product supports a full agentic-finance flow:
@@ -30,7 +30,7 @@ Arc Mainnet onchain mode is also wired for the core vertical slice:
 - TypeScript
 - Tailwind CSS
 - shadcn/ui-style local components
-- viem/wagmi-ready web3 structure
+- viem wallet and contract integration
 - localStorage-backed mock persistence
 - VPS worker runtime with filesystem-backed durable status, job locks, and private deliverable storage
 
@@ -177,7 +177,8 @@ Useful worker env vars:
 - `ARC_AGENT_OUTPUT_DIR` - default `.agent-worker/<deployment-scope>/deliverables`
 - `ARC_AGENT_STATE_DIR` - default `.agent-worker/<deployment-scope>/state`; contains `status.json`
 - `ARC_AGENT_LOCK_DIR` - default `.agent-worker/<deployment-scope>/locks`; contains per-job lock files
-- `ARC_AGENT_STALE_LOCK_MS` - default `600000`; stale job locks are reclaimed after this window
+- Worker and job locks are released only when their owner exits; elapsed time never steals a live lock.
+- `ARC_AGENT_MAX_TX_FEE_USDC` - maximum submission gas cost, default `0.1`; prepared results remain saved when the cap is exceeded.
 - `OPENAI_API_KEY` - optional; enables AI-generated deliverables from the onchain job payload
 - `OPENAI_MODEL` - fixed-model fallback, default `gpt-5.6-sol`; used when routing is `off` or `shadow`
 - `OPENAI_REASONING_EFFORT` - fixed-model reasoning effort, default `medium`
@@ -199,9 +200,9 @@ Useful worker env vars:
 - `ARC_AGENT_ALLOW_DETERMINISTIC_FALLBACK` - defaults to `true` only in dry-run mode; keep `false` in production so failed AI work is never submitted as a placeholder
 - `ARC_AGENT_ENABLE_WEB_SEARCH` - default `false`; set `true` to let OpenAI use web search for research, protocol-integration, and reliability jobs that require current primary sources
 - `ARC_AGENT_WEB_SEARCH_CONTEXT` - default `medium`; use `high` only when jobs need deeper source coverage
-- `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - optional Next.js API fallback for reading worker deliverables from a VPS when the web app runs on Vercel
-- `ARCTASK_DELIVERABLE_REMOTE_TOKEN` - recommended shared server-to-server token for Vercel-to-VPS deliverable fallback; when absent, the worker re-verifies the forwarded wallet signature, its timestamp, and the onchain job owner
-- `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; set the same value on every web runtime
+- `ARCTASK_DELIVERABLE_REMOTE_BASE_URL` - HTTPS worker endpoint for report and status proxying
+- `ARCTASK_DELIVERABLE_REMOTE_CA` - optional public PEM root certificate for a private worker CA; TLS hostname and chain verification remain mandatory
+- `ARCTASK_ACCESS_NONCE_SECRET` - stable HMAC secret for one-time deliverable access challenges; required on the worker web runtime; remote frontends obtain challenges from that runtime
 - `ARCTASK_ADMIN_TOKEN` - optional bearer token for full `/api/worker/status`; unauthenticated responses are sanitized
 
 When `OPENAI_API_KEY` is set, a bounded `gpt-5.4-nano` routing call classifies each new job for complexity,
@@ -291,7 +292,7 @@ For a real money mainnet product, replace filesystem state with managed durable 
 structured logs, alerting, secret rotation, and managed key custody/HSM support.
 
 Worker reports are private offchain artifacts. The onchain deliverable hash remains public, but
-`/api/deliverables/:jobId` and `/deliverables/:jobId` require a signed POST proof from the job creator wallet before
+`/api/deliverables/:jobId` and `/deliverables/:jobId` require a signed POST proof from an authorized evaluator, accepted-job client, or dispute participant before
 returning the full report. Signatures are intentionally not sent in query strings, include a one-time nonce, and expire
 after five minutes. Set `ARCTASK_ACCESS_NONCE_SECRET` in production so challenges survive process restarts and serverless
 instances.
@@ -303,13 +304,12 @@ instances.
 - Reputation updates can be submitted only by an escrow explicitly authorized by the registry admin.
 - V4 settlement remains live if registry synchronization fails; pending reputation updates can be retried.
 - Worker status is public but sanitized by default; use `ARCTASK_ADMIN_TOKEN` only for private operational detail.
-- Vercel-to-VPS deliverable fallback should be configured with `ARCTASK_DELIVERABLE_REMOTE_TOKEN`.
+- Deliverable proxies forward the full wallet proof. Neither a server token nor a forwarding header bypasses signature, nonce, or onchain authorization checks.
 - Private deliverables are verified against the hash committed by `submitDeliverable` before the API returns them.
 - Worker failures are isolated per job so one reverting task does not block later managed-agent jobs in the same scan.
 - Worker reads and transaction receipt polling use bounded backoff for transient Arc RPC rate limits.
 - The public job feed aggregates job reads through Arc's Multicall3 contract and retries transient RPC throttling.
-- In-memory rate limits and nonces are enough for the current demo/VPS shape. For a real multi-instance product, move
-  them to shared durable storage such as Redis or a database.
+- Consumed nonces persist in `ARC_AGENT_STATE_DIR/access-nonces`; multiple worker web replicas must share this directory or a transactional nonce store. Rate limiting remains per process and should also be enforced at the edge.
 
 Historical autonomous Arc Testnet smoke (not mainnet verification):
 
@@ -346,3 +346,17 @@ Historical Arc Testnet Reputation v2 contract smoke:
 - RPC: `https://rpc.arc-scan.org`
 - Native gas token: USDC (18 decimals)
 - Explorer: `https://arc-scan.org`
+
+## Review and recovery (2026-09-16)
+
+See [the review report](docs/REVIEW_2026-09-16.md) for fixes, validation, and remaining contract limitations.
+Runtime requires Node.js 20.9+; run tests with Node.js 22.18+ for native TypeScript support.
+Run `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`.
+The EVM tests launch a disposable local Anvil chain and never send mainnet transactions.
+
+Keep worker state, locks, and deliverables on persistent storage across releases. Stop the old worker before
+starting the new one. Submission journals contain signed transaction bytes and private reports (mode 0600);
+never publish them, delete unresolved records, or manually replace their nonces. Recovery checks receipts,
+then known transactions and latest/pending nonces, and can only rebroadcast the identical signed bytes.
+AI requests reserve their maximum estimated cost before dispatch; unknown outcomes retain the reservation.
+Corrupt state fails closed instead of resetting budgets. Reconcile unknown provider charges before releasing a reservation.

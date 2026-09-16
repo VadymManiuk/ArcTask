@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useWalletAccount } from "@/lib/use-wallet-account";
+import { restoreAuthorizedAccount } from "@/lib/wallet";
+
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { DeliverableSummary } from "@/components/deliverable-summary";
@@ -34,12 +37,20 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
   const [walletAddress, setWalletAddress] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { address: activeWallet } = useWalletAccount();
+  const accessEpoch = useRef(0);
+  useEffect(() => {
+    accessEpoch.current += 1;
+    setDeliverable(null); setWalletAddress(""); setLoading(false);
+    return () => { accessEpoch.current += 1; };
+  }, [activeWallet, jobId]);
 
   async function unlockDeliverable() {
     setError("");
     setLoading(true);
     try {
       const proof = await requestDeliverableAccessProof(jobId);
+      const epoch = accessEpoch.current;
 
       const response = await fetch(`/api/deliverables/${encodeURIComponent(jobId)}`, {
         method: "POST",
@@ -58,6 +69,7 @@ export function DeliverableViewer({ jobId }: { jobId: string }) {
         throw new Error(body.error ?? "Unable to load worker deliverable.");
       }
 
+      if (epoch !== accessEpoch.current || (await restoreAuthorizedAccount())?.toLowerCase() !== proof.address.toLowerCase()) return;
       setWalletAddress(proof.address);
       setDeliverable(body.deliverable);
     } catch (caught) {

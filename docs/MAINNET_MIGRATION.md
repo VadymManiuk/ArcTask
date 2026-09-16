@@ -113,3 +113,11 @@ Do not delete the launch journal to repeat a check. Preserve scoped worker state
 releases; the current release directory is also their durable storage location. New releases must retain the same
 state/lock/deliverable paths and stop the old worker before starting its replacement. Run preflight and verify
 private report access again after each cutover.
+
+## Review release — 2026-09-16
+
+The subsequent engineering review supersedes the original HTTP fallback configuration above.
+Vercel now uses HTTPS `https://109.206.243.135:3443` with `ARCTASK_DELIVERABLE_REMOTE_CA`
+containing the public root certificate in `deployments/arctask-worker-root.crt`. Caddy terminates TLS
+and proxies to the worker web runtime on loopback port 3002. The worker verifies every access proof;
+forwarding headers and server tokens do not bypass authorization. See `REVIEW_2026-09-16.md`.

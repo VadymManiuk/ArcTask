@@ -48,7 +48,7 @@ export function isPastDateInputValue(value: string, now = new Date()) {
 }
 
 export function isAddressLike(value: string): value is `0x${string}` {
-  return /^0x[a-fA-F0-9]{40}$/.test(value.trim());
+  return /^0x[a-fA-F0-9]{40}$/.test(value.trim()) && !/^0x0{40}$/i.test(value.trim());
 }
 
 export function normalizeAddress(value: string): `0x${string}` {

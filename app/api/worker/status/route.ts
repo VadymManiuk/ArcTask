@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/server-rate-limit";
+import { requestWorkerJson } from "@/lib/server-worker-transport";
 import { isSafeRemoteBaseUrl } from "@/lib/server-remote";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,8 @@ function getAgeMs(status: WorkerStatus) {
     return null;
   }
 
-  return Date.now() - timestamp;
+  const age = Date.now() - timestamp;
+  return age < -5_000 ? null : Math.max(0, age);
 }
 
 function isAdminRequest(request: Request) {
@@ -187,14 +189,15 @@ async function fetchRemoteStatus(request: Request) {
     return null;
   }
 
-  const response = await fetch(remoteUrl, {
-    cache: "no-store"
-  });
+  let response: Response;
+  try {
+    response = await requestWorkerJson(remoteUrl, { timeoutMs: 8_000 });
+  } catch { return null; }
   if (!response.ok) {
     return null;
   }
 
-  return response.json() as Promise<unknown>;
+  return response.json().catch(() => null) as Promise<unknown>;
 }
 
 export async function GET(request: Request) {
@@ -218,10 +221,12 @@ export async function GET(request: Request) {
     });
   } catch (caught) {
     if ((caught as NodeJS.ErrnoException).code === "ENOENT") {
-      const remoteStatus = (await fetchRemoteStatus(request)) as
+      let remoteStatus = (await fetchRemoteStatus(request)) as
         | { ok?: boolean; source?: string; live?: boolean; ageMs?: number | null; status?: WorkerStatus; error?: string }
         | null;
       if (remoteStatus?.status?.deploymentScope === deploymentScope) {
+        const ageMs = getAgeMs(remoteStatus.status);
+        remoteStatus = { ...remoteStatus, source: "remote", ageMs, live: remoteStatus.ok === true && ageMs !== null && ageMs < 90_000 };
         return NextResponse.json(
           includePrivateDetails || !remoteStatus.status
             ? remoteStatus

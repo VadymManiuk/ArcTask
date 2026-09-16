@@ -48,6 +48,7 @@ interface NetworkAgentsResponse {
 }
 
 interface NetworkJobsResponse {
+  blockNumber?: string;
   ok: boolean;
   deploymentScope?: string;
   nextJobId?: string;
@@ -63,7 +64,7 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-async function fetchNetworkResponses() {
+async function fetchNetworkResponses(options: { jobId?: string; agentId?: string }) {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= networkRequestAttempts; attempt += 1) {
@@ -72,8 +73,8 @@ async function fetchNetworkResponses() {
 
     try {
       const [agentsResponse, jobsResponse] = await Promise.all([
-        fetch("/api/network/agents?limit=100", { signal: controller.signal, cache: "no-store" }),
-        fetch("/api/network/jobs?limit=100", { signal: controller.signal, cache: "no-store" })
+        fetch(`/api/network/agents?limit=100${options.agentId ? `&agentId=${encodeURIComponent(options.agentId)}` : ""}`, { signal: controller.signal, cache: "no-store" }),
+        fetch(`/api/network/jobs?limit=100${options.jobId ? `&jobId=${encodeURIComponent(options.jobId)}` : ""}`, { signal: controller.signal, cache: "no-store" })
       ]);
       const [agentsBody, jobsBody] = (await Promise.all([
         agentsResponse.json(),
@@ -87,6 +88,12 @@ async function fetchNetworkResponses() {
         throw new Error("The app and API deployments differ. Reload after the mainnet update completes.");
       }
 
+      if (options.jobId && jobsBody.jobs?.[0] && !agentsBody.agents?.some(agent => agent.onchainAgentId === jobsBody.jobs![0].onchainAgentId)) {
+        const response = await fetch(`/api/network/agents?agentId=${jobsBody.jobs[0].onchainAgentId}`, { signal: controller.signal, cache: "no-store" });
+        const owner = await response.json() as NetworkAgentsResponse;
+        if (!response.ok || owner.deploymentScope !== deploymentScope) throw new Error("Unable to load the job agent.");
+        agentsBody.agents = [...(agentsBody.agents ?? []), ...(owner.agents ?? [])];
+      }
       return { agentsBody, jobsBody };
     } catch (caught) {
       lastError = caught;
@@ -148,9 +155,19 @@ function createNetworkState(
   );
   const jobs: Job[] = (jobsResponse.jobs ?? []).map((job) => {
     const localJob = localJobsByOnchainId.get(job.onchainJobId);
+    if (localJob?.onchainBlockNumber && jobsResponse.blockNumber &&
+        BigInt(localJob.onchainBlockNumber) > BigInt(jobsResponse.blockNumber)) return localJob;
+    const status = mergeOnchainJobStatus(localJob?.status, job.status, localJob ? {
+      currentUpdatedAt: localJob.updatedAt, incomingUpdatedAt: unixSecondsToIso(job.updatedAt),
+      currentVersion: localJob.executionVersion, incomingVersion: job.executionVersion,
+      currentBlock: localJob.onchainBlockNumber, incomingBlock: jobsResponse.blockNumber
+    } : undefined);
+    // Preserve the associated hash and economics too when rejecting an older status.
+    if (localJob && status !== job.status) return localJob;
     return {
       id: `job-onchain-${job.onchainJobId}`,
       onchainJobId: job.onchainJobId,
+      onchainBlockNumber: jobsResponse.blockNumber,
       title: job.title,
       description: job.description,
       agentId: agentIdsByOnchainId.get(job.onchainAgentId) ?? getAgentId(job.onchainAgentId),
@@ -158,8 +175,8 @@ function createNetworkState(
       evaluatorWallet: job.evaluatorWallet,
       rewardAmount: Number(formatUnits(BigInt(job.rewardAmount), ARC_MAINNET.nativeCurrency.decimals)),
       deadline: deadlineToDateInput(job.deadline),
-      status: mergeOnchainJobStatus(localJob?.status, job.status),
-      deliverableHash: job.deliverableHash === zeroHash ? localJob?.deliverableHash : job.deliverableHash,
+      status,
+      deliverableHash: job.deliverableHash === zeroHash ? undefined : job.deliverableHash,
       createdAt: unixSecondsToIso(job.createdAt),
       updatedAt: unixSecondsToIso(job.updatedAt),
       executionVersion: job.executionVersion,
@@ -170,10 +187,16 @@ function createNetworkState(
     };
   });
 
-  return { agents, jobs };
+  const incomingAgents = new Set(agents.map(agent => agent.id));
+  const incomingJobs = new Set(jobs.map(job => job.id));
+  return {
+    agents: [...agents, ...localState.agents.filter(agent => !incomingAgents.has(agent.id))],
+    jobs: [...jobs, ...localState.jobs.filter(job => !incomingJobs.has(job.id))]
+  };
 }
 
-export function useArcTaskState() {
+export function useArcTaskState(options: { jobId?: string; agentId?: string } = {}) {
+  const { jobId, agentId } = options;
   const [state, setState] = useState(seedState);
   const [isLoading, setIsLoading] = useState(getArcMode() === "onchain");
   const [syncError, setSyncError] = useState("");
@@ -206,7 +229,7 @@ export function useArcTaskState() {
       }
       setSyncError("");
       try {
-        const { agentsBody, jobsBody } = await fetchNetworkResponses();
+        const { agentsBody, jobsBody } = await fetchNetworkResponses({ jobId, agentId });
         if (!active) {
           return;
         }
@@ -258,7 +281,7 @@ export function useArcTaskState() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       unsubscribe();
     };
-  }, [reloadKey]);
+  }, [reloadKey, jobId, agentId]);
 
   return {
     ...state,
