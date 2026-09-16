@@ -64,3 +64,17 @@ test('consumed access nonces cannot be replayed after a server process restart',
 test('invalid persisted billing values stop execution instead of disabling the budget guard', () => {
   assert.throws(() => getMonthlyUsage({ days: { '2026-09-01': { costUsd: 'broken' } } }, Date.parse('2026-09-16')), /reconciliation/);
 });
+
+test('EOA access signatures verify without an RPC call, while non-EOA proofs still use chain verification', async () => {
+  const { createPublicClient, custom } = await import('viem');
+  const { generatePrivateKey, privateKeyToAccount } = await import('viem/accounts');
+  const signer = privateKeyToAccount(generatePrivateKey());
+  let calls = 0;
+  const client = createPublicClient({ transport: custom({ async request() { calls++; throw new Error('RPC deliberately unavailable'); } }, { retryCount: 0 }) });
+  const message = 'Disposable private access test';
+  const signature = await signer.signMessage({ message });
+  assert.equal(await client.verifyMessage({ address: signer.address, message, signature, mode: 'eoa' }), true);
+  assert.equal(calls, 0);
+  assert.equal(await client.verifyMessage({ address: '0x1111111111111111111111111111111111111111', message, signature, mode: 'eoa' }), false);
+  assert.ok(calls > 0);
+});

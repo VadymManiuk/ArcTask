@@ -306,7 +306,7 @@ instances.
 - Worker status is public but sanitized by default; use `ARCTASK_ADMIN_TOKEN` only for private operational detail.
 - Deliverable proxies forward the full wallet proof. Neither a server token nor a forwarding header bypasses signature, nonce, or onchain authorization checks.
 - Private deliverables are verified against the hash committed by `submitDeliverable` before the API returns them.
-- Worker failures are isolated per job so one reverting task does not block later managed-agent jobs in the same scan.
+- Ordinary execution failures are isolated per job; unresolved signed transactions hold new submissions until reconciled.
 - Worker reads and transaction receipt polling use bounded backoff for transient Arc RPC rate limits.
 - The public job feed aggregates job reads through Arc's Multicall3 contract and retries transient RPC throttling.
 - Consumed nonces persist in `ARC_AGENT_STATE_DIR/access-nonces`; multiple worker web replicas must share this directory or a transactional nonce store. Rate limiting remains per process and should also be enforced at the edge.

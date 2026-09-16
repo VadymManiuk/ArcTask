@@ -1,10 +1,11 @@
+import { ARC_MAINNET } from "@/lib/arc";
 import { arcMainnet } from "@/lib/arc-chain";
 import { contractAddresses, getOnchainReadiness, deploymentScope } from "@/lib/arc-config";
 import { assertArcMainnet } from "@/lib/arc-network.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 import { deliverableAccessTtlMs, getDeliverableAccessMessage } from "@/lib/deliverable-access";
 import { getWorkerReportHash } from "@/lib/deliverable-integrity";
 import { createDeliverableNonce, consumeDeliverableNonce, isDeliverableNonceValid } from "@/lib/server-deliverable-nonce";
@@ -32,7 +33,8 @@ const v4InitialJobId = BigInt(process.env.NEXT_PUBLIC_ESCROW_V4_INITIAL_JOB_ID ?
 
 const publicClient = createPublicClient({
   chain: arcMainnet,
-  transport: http(arcMainnet.rpcUrls.default.http[0], { timeout: 4000, retryCount: 0 })
+  transport: fallback([...new Set([arcMainnet.rpcUrls.default.http[0], process.env.ARC_SECONDARY_RPC_URL || ARC_MAINNET.rpcUrl])]
+    .map(url => http(url, { timeout: 4000, retryCount: 0 })), { retryCount: 0 })
 });
 
 interface WorkerDeliverableFile {
@@ -126,7 +128,7 @@ function getEscrowContext(jobId: string) {
 }
 
 async function getOnchainJob(jobId: string) {
-  await assertArcMainnet(publicClient);
+  await withServerRpcRetry(() => assertArcMainnet(publicClient));
   const escrow = getEscrowContext(jobId);
   const job = (await withServerRpcRetry(() =>
     publicClient.readContract({
@@ -175,6 +177,7 @@ async function assertDeliverableAccess(
   try {
     isValidSignature = await publicClient.verifyMessage({
       address,
+      mode: "eoa",
       message: getDeliverableAccessMessage(jobId, address, issuedAt, nonce),
       signature: signature as `0x${string}`
     });
